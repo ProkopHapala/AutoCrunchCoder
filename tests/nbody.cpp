@@ -2,7 +2,7 @@
 #include "Vec3.h"
 #include "Vec4.h"
 
-#include <cstdio>
+//#include <cstdio>
 
 //double nbody(int n, Vec3d *pos, Vec3d *forces ){}
 

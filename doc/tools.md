@@ -68,3 +68,61 @@ def main():
 if __name__ == '__main__':
     main()
 ```
+
+
+### Clang Analyze libraries
+
+```
+clang --analyze -I/home/prokophapala/git/FireCore/cpp/common/math/ -I/home/prokophapala/git/FireCore/cpp/common/ -I/usr/include/c++/11/ -I//usr/include/c++/11/bits/ -I/usr/include/x86_64-linux-gnu/c++/11/ /home/prokophapala/git/FireCore/cpp/common/molecular/NBFF.h
+
+
+-I/home/prokophapala/git/FireCore/cpp/common/math/
+-I/home/prokophapala/git/FireCore/cpp/common/
+-I/usr/include/c++/11/
+-I//usr/include/c++/11/bits/
+-I/usr/include/x86_64-linux-gnu/c++/11/
+
+```
+
+### Symengine
+
+```
+>>> from symengine import var
+>>> var("x y z")
+(x, y, z)
+>>> e = (x+y+z)**2
+>>> e.expand()
+2*x*y + 2*x*z + 2*y*z + x**2 + y**2 + z**2
+```
+
+### pymaxima
+
+```
+import pymaxima
+
+# Start a Maxima session
+maxima = pymaxima.interact()
+
+# Send a command to Maxima
+result = maxima.eval("integrate(x^2, x)")
+
+# Print the result
+print(result)
+```
+
+```
+import subprocess
+
+# Call Maxima with a simple command
+process = subprocess.Popen(['maxima', '--very-quiet'],
+                           stdin=subprocess.PIPE,
+                           stdout=subprocess.PIPE,
+                           stderr=subprocess.PIPE)
+
+# Send a command to Maxima
+command = "integrate(x^2, x); quit();\n"
+output, error = process.communicate(input=command.encode())
+
+# Decode and print the output
+print(output.decode())
+```
