@@ -1,6 +1,12 @@
 import openai
 from openai import OpenAI
 
+def remove_code_block_delimiters(text):
+    lines = text.splitlines()   # Split the text into lines
+    cleaned_lines = [line for line in lines if not line.strip().startswith("```")]   # Filter out lines that contain just the code block delimiters
+    cleaned_text = "\n".join(cleaned_lines)  # Join the remaining lines back into a single string
+    return cleaned_text
+
 class Agent:
     def __init__(self, model_name, api_key="any", base_url="http://localhost:1234/v1"):
         self.client = OpenAI(api_key=api_key, base_url=base_url)
