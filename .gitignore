@@ -1,5 +1,9 @@
 # Prerequisites
 *.d
+*.key
+*.log
+*.xsf
+*.bin
 
 # Compiled Object files
 *.slo
