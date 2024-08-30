@@ -40,7 +40,7 @@ display2d: false$
 quit();
 """
 
-process       = subprocess.Popen(['maxima', '--very-quiet'], stdin=subprocess.PIPE, stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+process       = subprocess.Popen(['maxima', '--very-quiet', '-q', '-batch'], stdin=subprocess.PIPE, stdout=subprocess.PIPE,stderr=subprocess.PIPE)
 output, error = process.communicate(input=command.encode())
 output_text   = output.decode().strip()
 
