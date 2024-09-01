@@ -1,5 +1,6 @@
 
-ttyoff    : true$
+ttyoff    : true$ 
+linel     : 256$
 display2d : false$
 
 /*debugmode(true);*/
@@ -9,18 +10,25 @@ load("my_functions.mac");
 Euu_r0: -(12*si^2*sj^2*(rho*sj^6-2*sj^6+3*rho*si^2*sj^4-6*si^2*sj^4-8*rho*si^3*sj^3+3*rho*si^4*sj^2-6*si^4*sj^2+rho*si^6-2*si^6))/((sj^2+si^2)*(sj^4-2*si*sj^3+6*si^2*sj^2-2*si^3*sj+si^4)*(sj^4+2*si*sj^3+6*si^2*sj^2+2*si^3*sj+si^4));
 nu : factor( num(Euu_r0) );  
 
-xxx : mygcd( nu );
+xxx   : mygcd( nu );
+dv    : (si^3+sj^3)^2 ;
+dv2   : si^2*sj^2;
+div1s : map( factor, divide( xxx[2], dv  ) );
+d2_   : ratsimp( div1s[2]/dv2 );
+sqs   : complete_square(d2_, si, sj);
 
-div1s: map( factor, divide( xxx[2],  (si^3+sj^3)^2 ) );
-d2_: ratsimp( div1s[2]/(si^2*sj^2) );
-d2__: complete_square(d2_, si, sj);
+nu_new: ( ( sqs[1][1] + sqs[1][2] )*dv2   +  div1s[1]*dv )*xxx[1];
+
+check: ratsimp( ( expand(nu - nu_new)) );
 
 ttyoff : false$
 
-print( "mygcd(nu):",  xxx   )$
-print( "div1s:",      div1s )$
-print( "d2_:",        d2_   )$
-print( "d2__:",       d2__  )$
+/*print( "mygcd(nu):",  xxx   )$*/
+/*print( "div1s:",      div1s )$*/
+/*print( "d2_:",        d2_   )$*/
+/*print( "d2__:",       sqs   )$*/
+print( "@nu_new:",     nu_new  )$
+print( "@check:",      check   )$
 quit()$
 
 /*
