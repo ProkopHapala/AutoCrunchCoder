@@ -3,7 +3,7 @@ import re
 from collections import defaultdict, Counter
 import bibtexparser
 #from pdfminer.high_level import extract_text
-
+import sys
 import latexcodec
 
 # Define common words to filter out
@@ -59,7 +59,10 @@ def decode_latex(encoded_str):
         print(f"Error decoding LaTeX string: {e}")
         return encoded_str  # Return the original string if decoding fails
     
-def load_bib( fname='/home/prokop/Mendeley Desktop/library.bib', file_func=None ):
+def load_bib( fname='/home/prokop/Mendeley Desktop/library.bib', file_func=None, abstract_func=None, nmax=10, fout=None ):
+    if fout is None:
+        # standarrd output
+        fout = sys.stdout
     # Load the BibTeX file
     with open( fname, 'r') as bibtex_file:
         print( "loading bibtex file: ", fname )
@@ -75,38 +78,42 @@ def load_bib( fname='/home/prokop/Mendeley Desktop/library.bib', file_func=None 
         title   = entry.get('title').strip()
         if title.startswith('{') and title.endswith('}'):title = title[1:-1]
         #title = title[0]
+        author = entry.get('author')
         abstract = entry.get('abstract')
         keywords = entry.get('keywords')
         doi = entry.get('doi')
         url = entry.get('url')
-        fil = entry.get('file').split(';')[0]
+        fil = entry.get('file')
 
-        fil = convert_custom_path(fil)
+        #"~/home/prokop/Mendeley Desktop/Journal of Chemical Theory and Computation/Řezáč - 2017 - Empirical Self-Consistent Correction for the Description of Hydrogen Bonds in DFTB3.pdf"
+        #"~/home/prokop/Mendeley Desktop/Journal of Chemical Theory and Computation/Řezáč - 2017 - Empirical Self-Consistent Correction for the Description of Hydrogen Bonds in DFTB3.pdf"
 
-        print("file ---- BEFORE :", fil )
-        fil = "/" +  decode_latex(fil)
-        #fil = fil.decode('latex')
-        #fil = latexcodec.decode( fil )
-        #fil = fil.encode('utf-8').decode('latex+utf-8')
-        #fil = fil.encode('latin1') #.decode('latex')
-        #fil = fil.encode('latin2') #.decode('latex')
-        #fil = fil.encode('utf-16') #.decode('latex')
-        #fil = fil.encode('utf-8').decode('latex')
-        #fil = fil.encode('latex')
-        print("file ---- AFTER :", fil )
-
-
-
-        "~/home/prokop/Mendeley Desktop/Journal of Chemical Theory and Computation/Řezáč - 2017 - Empirical Self-Consistent Correction for the Description of Hydrogen Bonds in DFTB3.pdf"
-        "~/home/prokop/Mendeley Desktop/Journal of Chemical Theory and Computation/Řezáč - 2017 - Empirical Self-Consistent Correction for the Description of Hydrogen Bonds in DFTB3.pdf"
-    
-        print(              "======== ", i," : ", entry.get('ID') )
-        print(              "Title:    ", title )
-        if keywords: print( "keywords: ", keywords )
-        if doi:      print( "doi:      ", doi )
-        if url:      print( "url:      ", url )
-        if fil:      print( "file:     ", fil )
-        if abstract: print( "abstract:\n ",  abstract )
+        rec = "\nTitle: "+title+"\n\n"
+        rec_id = "======== "+ str(i) + " : "+ entry.get('ID') 
+        print( rec_id )
+        fout.write(              "\n"+rec_id+"\n" )
+        fout.write(              "\n@title:    "+ title )
+        if keywords: 
+            kws=str(keywords)
+            fout.write( "\n@keywords: "+ kws )
+            rec += "\nkeywords: "+kws+"\n"
+        if author:   fout.write( "\n@author:   "+ author )
+        if doi:      fout.write( "\n@doi:      "+ doi )
+        if url:      fout.write( "\n@url:      "+ url )
+        if fil:      
+            fil = fil.split(';')[0]
+            fout.write( "\n@file:     ", fil )
+            #print("file ---- BEFORE :", fil )
+            fil = convert_custom_path(fil)
+            fil = "/" +  decode_latex(fil)
+            #print("file ---- AFTER :", fil )
+            if file_func is not None:
+                file_func( fil )
+        if abstract: 
+            fout.write( "\n@abstract:\n "+  abstract )
+            rec += "\nabstract:\n "+abstract+"\n"
+            if abstract_func is not None:
+                abstract_func( fout, rec )
 
         #print( "========\n" )
         #print( title +"\n\n")
@@ -114,11 +121,10 @@ def load_bib( fname='/home/prokop/Mendeley Desktop/library.bib', file_func=None 
 
         #text = extract_text(fil)
 
-        if file_func is not None:
-            file_func( fil )
+
 
         #if abstract: print( "text:\n ",  text )
 
         i+=1
-        if i>5: break
+        if i>nmax: break
 
