@@ -1,0 +1,43 @@
+
+print_list(lst) := block(
+    for i:1 thru length(lst) do (
+        print(concat( "[", i, "]: "), lst[i])
+    )
+);
+
+faclist(expr):= args( factor(  expr ) ); 
+count_terms( expr ) :=  length(args(expand(expr)));
+
+
+mygcd( expr ):= block(
+    terms: args( expand( expr ) ), 
+    pre: gcd( terms[1], terms[2] ), 
+    for i:3 thru length(terms) do (
+        pre: gcd( pre, terms[i] )
+    ),
+    rest: factor( ratsimp( expr/pre ) ),
+    return([pre, rest])
+);
+
+getpre(expr, vars ) := block(
+    ex: expand(expr),
+    pre: 1,
+    for i:1 thru length(vars) do (
+        x: vars[i],
+        n: hipow(expand(ex),x) - hipow(expr,x),
+            pre: pre*x^n
+    ),
+    rest: factor( ratsimp( expr/pre ) ),
+    return([pre, rest])
+);
+
+
+complete_square(expr, x, y) := block(  
+    cx: sqrt( ratcoef( d2_, x^2 ) ), 
+    cy: sqrt( ratcoef( d2_, y^2 ) ),
+    sq1:(cx*x+cy*y)^2,
+    sq2:(cx*x-cy*y)^2,
+    rest_plus:  factor( ratsimp( expr - sq1 ) ),  
+    rest_minus: factor( ratsimp( expr - sq2 ) ), 
+    [ [rest_plus,sq1], [rest_minus,sq2]]
+);
