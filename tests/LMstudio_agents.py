@@ -13,7 +13,7 @@ Usage notes:
 import sys
 sys.path.append('../python')
 import LMagent 
-import Maxima
+#import Maxima
 
 
 model_name="lmstudio-community/DeepSeek-Coder-V2-Lite-Instruct-GGUF/DeepSeek-Coder-V2-Lite-Instruct-Q4_K_M.gguf"

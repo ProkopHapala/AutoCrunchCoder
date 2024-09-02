@@ -8,12 +8,14 @@ Usage notes:
 
 2)In case of problems check the server status like this
 >> curl http://localhost:1234/v1/models
+>> curl http://10.26.201.142:1234/v1/models
 '''
 
 import openai
 from openai import OpenAI
 
-client = OpenAI(api_key="any", base_url="http://localhost:1234/v1")
+#client = OpenAI(api_key="any", base_url="http://localhost:1234/v1")
+client = OpenAI(api_key="any", base_url="http://10.26.201.142:1234/v1")
 def send_message(prompt):    
     response = client.chat.completions.create(
         #model="Phi-3.1-mini-128k-instruct-Q4_K_M.gguf",  # Your model name
