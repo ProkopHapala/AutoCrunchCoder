@@ -39,8 +39,9 @@ Define  10 keywords specifying the research topic. Prefer specific narrow domain
 model_name="lmstudio-community/Meta-Llama-3.1-8B-Instruct-GGUF/Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf"
 #model_name="lmstudio-community/Phi-3.1-mini-128k-instruct-GGUF/Phi-3.1-mini-128k-instruct-Q4_K_M.gguf"
 
-bibfname="/home/prokophapala/Desktop/Mendelay_export.bib"
+#bibfname="/home/prokophapala/Desktop/Mendelay_export.bib"
 #bibfname='/home/prokop/Mendeley Desktop/library.bib'
+bibfname="/home/prokophapala/Documents/Mendeley Desktop/library.bib"
 
 llm = LMagent.Agent(model_name=model_name)
 llm.set_system_prompt( system_prompt )
@@ -59,5 +60,5 @@ def classify_by_abstract( fout, text ):
 #bu.load_bib( fname=bibfname, file_func=sumarize_pdf )
 
 fout = open( "papers_classification.txt", "w" )
-bu.load_bib( fname=bibfname, file_func=None, abstract_func=classify_by_abstract, fout=fout )
+bu.load_bib( fname=bibfname, file_func=None, abstract_func=classify_by_abstract, fout=fout, nmax=100000 )
 fout.close()

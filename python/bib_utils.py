@@ -100,15 +100,15 @@ def load_bib( fname='/home/prokop/Mendeley Desktop/library.bib', file_func=None,
         if author:   fout.write( "\n@author:   "+ author )
         if doi:      fout.write( "\n@doi:      "+ doi )
         if url:      fout.write( "\n@url:      "+ url )
-        if fil:      
-            fil = fil.split(';')[0]
-            fout.write( "\n@file:     ", fil )
-            #print("file ---- BEFORE :", fil )
-            fil = convert_custom_path(fil)
-            fil = "/" +  decode_latex(fil)
-            #print("file ---- AFTER :", fil )
-            if file_func is not None:
-                file_func( fil )
+        # if fil:      
+        #     fil = fil.split(';')[0]
+        #     fout.write( "\n@file:     "+ fil )
+        #     #print("file ---- BEFORE :", fil )
+        #     fil = convert_custom_path(fil)
+        #     fil = "/" +  decode_latex(fil)
+        #     #print("file ---- AFTER :", fil )
+        #     if file_func is not None:
+        #         file_func( fil )
         if abstract: 
             fout.write( "\n@abstract:\n "+  abstract )
             rec += "\nabstract:\n "+abstract+"\n"
