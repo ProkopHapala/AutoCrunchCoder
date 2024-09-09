@@ -34,15 +34,41 @@ prompt_simplify = cd.makePrompt_simplify( user_input )
 #out = ma.get_derivs( user_input["Equation"], DOFs )
 #print( "\n\n".join(out) )
 
+#model_name="lmstudio-community/mathstral-7B-v0.1-GGUF/mathstral-7B-v0.1-Q4_K_M.gguf"
+# GOOD: respect formatting, the output is valid Maxima code, and looks sensible.
+# BAD:  the final expression is wrong (does not match the original expression)
+
+#model_name="Qwen/Qwen2-0.5B-Instruct-GGUF/qwen2-0_5b-instruct-q4_0.gguf"
+# BAD: does not get it at all - generates something  with si,sj for Lenard-Jones
+
+#model_name="lmstudio-community/DeepSeek-Coder-V2-Lite-Instruct-GGUF/DeepSeek-Coder-V2-Lite-Instruct-Q4_K_M.gguf"
+# GOOD: renerate valid Maxima code, the final expression is sometimes correct (match the reference)
+# BAD: the expression is not really efficient, it still use ^ 
 
 #model_name="lmstudio-community/Meta-Llama-3.1-8B-Instruct-GGUF/Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf"
-#model_name="lmstudio-community/mathstral-7B-v0.1-GGUF/mathstral-7B-v0.1-Q4_K_M.gguf"
-# model_name="lmstudio-community/DeepSeek-Coder-V2-Lite-Instruct-GGUF/DeepSeek-Coder-V2-Lite-Instruct-Q4_K_M.gguf"
-# coder = lm.Agent(model_name=model_name)
-# coder.set_system_prompt( lm.read_file( '../prompts/ImplementPotential/matematician_system_prompt.md' ) )
-# response = coder.send_message( prompt_simplify ); 
-# print("\n========\nResponse:\n\n" + response)
-# cd.write_file( "response_simplify.md", response )
+# BAD: the output vary wildely, does not respect format, 
+
+#model_name="lmstudio-community/Qwen2-Math-1.5B-Instruct-GGUF/Qwen2-Math-1.5B-Instruct-Q4_K_M.gguf"
+# BAD: produce huge markdown, the expression does not make any sense
+
+#model_name="second-state/Llava-v1.5-7B-GGUF/llava-v1.5-7b-Q4_0.gguf"
+# BAD: it just copies the input to output
+# GOOD: respect formatting, the output is valid Maxima code, and looks sensible.
+
+model_name="internlm/internlm2_5-20b-chat-gguf/internlm2_5-20b-chat-q4_0.gguf"
+
+
+
+#model_name="lmstudio-community/Phi-3.1-mini-128k-instruct-GGUF/Phi-3.1-mini-128k-instruct-Q4_K_M.gguf"    
+# BAD: does not resspect formatting, insert unnnecesary comments, expressions are wrong
+
+
+
+coder = lm.Agent(model_name=model_name)
+coder.set_system_prompt( lm.read_file( '../prompts/ImplementPotential/matematician_system_prompt.md' ) )
+response = coder.send_message( prompt_simplify ); 
+print("\n========\nResponse:\n\n" + response)
+cd.write_file( "response_simplify.md", response )
 
 response="""
 ```Maxima
@@ -100,6 +126,8 @@ dE_r        : e0*(12*r0_6*inv_r7 - 12*r0_12*inv_r13) + (Kcoul*qq)*inv_r2;
 
 #flines = cd.formulasFromResponse( response, DOFs=['r'] )
 #for k,v in flines.items(): print(k, "  :   ", v)
+
+response=cd.read_file( "response_simplify.md" )
 
 cd.check_formulas( user_input, response )
 

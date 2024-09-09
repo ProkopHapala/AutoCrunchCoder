@@ -56,7 +56,7 @@ def makePrompt_code_first( user_input, fname="../prompts/ImplementPotential/code
     write_file("debug_promt_code_first.md", prompt)
     return prompt
 
-def makePrompt_simplify( user_input, fname="../prompts/ImplementPotential/simplify.md" ):
+def makePrompt_simplify( user_input, fname="../prompts/ImplementPotential/simplify2.md" ):
     #print("makePrompt_understand()", os.getcwd() )
     template = read_file(fname)
     Formulas = getOrMakeFormulas( user_input )
@@ -67,6 +67,26 @@ def makePrompt_simplify( user_input, fname="../prompts/ImplementPotential/simpli
     )
     write_file("debug_promt_simplify.md", prompt)
     return prompt
+
+def count_operations( code ):
+    """Count the number of divisions, multiplications, additions, and subtractions in an expression by iterating through characters."""
+    ndiv = 0
+    nmul = 0
+    nadd = 0
+    nsub = 0
+    npow = 0
+    for char in code:
+        if char == '/':
+            ndiv += 1
+        elif char == '*':
+            nmul += 1
+        elif char == '+':
+            nadd += 1
+        elif char == '-':
+            nsub += 1
+        elif char == '^':
+                npow += 1
+    return ndiv, nmul, nadd, nsub, npow
 
 def formulasFromResponse_bak(response, DOFs):
     lines = response.splitlines()
@@ -112,6 +132,8 @@ def formulasFromResponse(response, DOFs):
 def check_formulas( user_input, response ):
     Formulas      = getOrMakeFormulas( user_input )
     DOFs          = remove_commens( user_input["DOFs"] );
+
+    ndiv, nmul, nadd, nsub, npow = count_operations( response ); print("Count Operation:\nn(div):",ndiv,"\nn(mul):",nmul,"\nn(add):",nadd,"\nn(sub):",nsub,"\nn(pow):",npow)
     flines, names, subexprs = formulasFromResponse(response, DOFs )
 
     #print("flines ", flines )
@@ -143,6 +165,7 @@ def check_formulas( user_input, response ):
     lines = out.splitlines()
     if( len(lines) != len(names) ): 
         print("ERROR: Maxima ouput ", len(lines), " lines, but we expect ", len(names), " expresions" )
+        print("ERROR: Maxima ouput ", out )
         return nErr
     for i,name in enumerate( names ):
         l = lines[i].strip()
