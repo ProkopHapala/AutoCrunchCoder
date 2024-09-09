@@ -38,19 +38,20 @@ def label_maxima_output(output, labesl, sep=':'):
     for i, line in enumerate(output_lines):
             label = labesl[i]
             labeled_output.append( label +"  "+sep+"   "+ line )
-    return '\n'.join(labeled_output)
+    #return '\n'.join(labeled_output)
+    return labeled_output
 
 def get_derivs( Eformula, DOFs ):
     code="E:"+Eformula+";\n"    
     labels=["E"]
     for i, var in enumerate(DOFs):
         #code+="factor(ratsimp(diff(E,"+var+")));\n"
-        code+="ratsimp(diff(E,"+var+"));\n"
-        labels.append("dE_d_"+var)
+        #code+="ratsimp(diff(E,"+var+"));\n"
+        code+="diff(E,"+var+");\n"
+        labels.append("dE_"+var)
     out = run_maxima( code )
     lout = label_maxima_output( out, labels )
     return lout
-
 
 
 

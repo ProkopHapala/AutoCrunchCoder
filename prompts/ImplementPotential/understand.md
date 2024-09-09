@@ -7,8 +7,7 @@ Here is the mathematical formula for evaluation of the energy:
 
 Note that scalar quantities start with lowercase letters (e.g. `x`), while vector quantities are denoted by uppercase letters e.g. `R`.
 
-
-#### Denamical variables (DOFs) are:
+#### Dynamical variables (DOFs) are:
 ```
 {DOFs}
 ```
@@ -23,7 +22,7 @@ Note that scalar quantities start with lowercase letters (e.g. `x`), while vecto
 {Constants}
 ```
 
-## Taks
+## Task:
 
 * Analyze this equation and try to understand its physical meaning. 
 * Provide a brief description of the physical meaning of each term.

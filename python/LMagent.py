@@ -9,6 +9,10 @@ def remove_code_block_delimiters(text):
     cleaned_text = "\n".join(cleaned_lines)  # Join the remaining lines back into a single string
     return cleaned_text
 
+def read_file(file_path):
+    with open(file_path, 'r') as file:
+        return file.read()
+
 class Agent:
     def __init__(self, model_name, api_key="any", base_url="http://localhost:1234/v1"):
         

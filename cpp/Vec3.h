@@ -15,39 +15,17 @@ class Vec3T{
 		T array[3];
 	};
 
-	// Constructors would prevent us from making Unions etc. so don't do it
-	// https://stackoverflow.com/questions/4178175/what-are-aggregates-and-pods-and-how-why-are-they-special
-	// but here it seems to work  https://www.youtube.com/watch?v=14Cyfz_tE20&index=10&list=PLlrATfBNZ98fqE45g3jZA_hLGUrD4bo6_
-	//Vec3T() = default;
-	//constexpr Vec3T(T x_, T y_, T z_ ): x(x_),y(y_),z(z_){};
-	//constexpr Vec3T() = default;
-	//constexpr Vec3T(T x_, T y_, T z_ ): x(x_),y(y_),z(z_){};
 
-	// ===== methods
-
-	// Automatic conversion (works) but would be problematic
-	//inline operator Vec3T<float >()const{ return (Vec3T<float >){(float)x,(float)y,(float)z}; }
-	//inline operator Vec3T<double>()const{ return (Vec3T<double>){(double)x,(double)y,(double)z}; }
-	//inline operator Vec3T<int   >()const{ return (Vec3T<int   >){(int)x,(int)y,(int)z}; }
 
 	// Explicit conversion
 	inline explicit operator Vec3T<double>()const{ return Vec3T<double>{(double)x,(double)y,(double)z}; }
     inline explicit operator Vec3T<float >()const{ return Vec3T<float >{(float )x,(float )y,(float )z}; }
 	inline explicit operator Vec3T<int   >()const{ return Vec3T<int   >{(int   )x,(int   )y,(int   )z}; }
 
-	//inline operator (const char*)()const{ return (; }
 
-	//inline Vec3T<double> toDouble()const{ return (Vec3T<double>){ (double)x,(double)y,(double)z}; }
-	//inline Vec3T<float > toFloat ()const{ return (Vec3T<float >){ (float)x, (double)y,(double)z}; }
-	//inline Vec3T<int >   toInt   ()const{ return (Vec3T<int   >){ (int)x,      (int)y,   (int)z}; }
 
 	// swizzles
-	//inline VEC2 xy() const { return {x,y}; };
-	//inline VEC2 xz() const { return {x,z}; };
-	//inline VEC2 yz() const { return {y,z}; };
-    //inline VEC2 yx() const { return {y,x}; };
-	//inline VEC2 zx() const { return {z,x}; };
-	//inline VEC2 zy() const { return {z,y}; };
+
     inline VEC xzy() const { return {x,z,y}; };
 	inline VEC yxz() const { return {y,x,z}; };
 	inline VEC yzx() const { return {y,z,x}; };
@@ -131,35 +109,11 @@ static constexpr Vec3f Vec3fZ   {0.0f,0.0f,1.0f};
 static constexpr Vec3f Vec3fmin {-1e+37,-1e+37,-1e+37};
 static constexpr Vec3f Vec3fmax {+1e+37,+1e+37,+1e+37};
 
-// static constexpr Vec3i Vec3iZero {0,0,0};
-// static constexpr Vec3i Vec3iOne  {1,1,1};
-// static constexpr Vec3i Vec3iX    {1,0,0};
-// static constexpr Vec3i Vec3iY    {0,1,0};
-// static constexpr Vec3i Vec3iZ    {0,0,1};
-// static constexpr Vec3i Vec3imin  {-2147483647,-2147483647,-2147483647};
-// static constexpr Vec3i Vec3imax  {+2147483647,+2147483647,+2147483647};
-
-
 template<typename T1,typename T2>
 inline void convert(const Vec3T<T1>& i, Vec3T<T2>& o){  o.x=(T2)i.x; o.y=(T2)i.y; o.z=(T2)i.z; };
 
 template<typename T1,typename T2>
 inline Vec3T<T2> cast(const Vec3T<T1>& i){ Vec3T<T2> o; o.x=(T2)i.x; o.y=(T2)i.y; o.z=(T2)i.z; return o; };
-
-
-//inline void convert( const Vec3f& from, Vec3d& to ){ to.x=from.x;        to.y=from.y;        to.z=from.z; };
-//inline void convert( const Vec3d& from, Vec3f& to ){ to.x=(float)from.x; to.y=(float)from.y; to.z=(float)from.z; };
-//inline Vec3f toFloat( const Vec3d& from){ return Vec3f{(float)from.x,(float)from.y,(float)from.z}; }
-
-//inline void print(Vec3d p){printf("(%.16g,%.16g,%.16g)", p.x,p.y,p.z);};
-//inline void print(Vec3f p){printf("(%.8g,%.8g,%.8g)", p.x,p.y,p.z);};
-//inline void print(Vec3d p){printf("(%lg,%lg,%lg)", p.x,p.y,p.z);};
-//inline void print(Vec3f p){printf("(%g,%g,%g)", p.x,p.y,p.z);};
-//inline void print(Vec3i p){printf("(%i,%i,%i)", p.x,p.y,p.z);};
-
-//inline int print( const Vec3f&  v){ return printf( "%g %g %g", v.x, v.y, v.z ); };
-//inline int print( const Vec3d&  v){ return printf( "%g %g %g", v.x, v.y, v.z ); };
-//inline int print( const Vec3i&  v){ return printf( "%i %i %i", v.x, v.y, v.z ); };
 
 
 #endif
