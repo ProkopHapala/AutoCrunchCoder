@@ -2,6 +2,15 @@ import os
 import Maxima as ma
 import re
 
+default_operation_costs = {
+'^':20,
+'/':3,
+'*':1,
+'+':1,
+'-':1,
+}
+
+re_split_op = re.compile(r'[\+\-\*/^;$()]')
 
 def read_file(file_path):
     with open(file_path, 'r') as file:
@@ -27,6 +36,17 @@ def getOrMakeFormulas( user_input ):
     else:
         Formulas = user_input["Formulas"]
     return Formulas
+
+def getOrMakeSymbols( user_input ):
+    if not "Symbols" in user_input:
+        DOFs     = remove_commens( user_input["DOFs"] );
+        Consts   = remove_commens( user_input["Parameters"] );
+        params   = remove_commens( user_input["Constants"] );
+        symbols  = set( DOFs + Consts + params )
+        user_input["Symbols"] = symbols
+    else:
+        symbols = user_input["Symbols"]
+    return symbols
 
 def makePrompt_understand( user_input, fname="../prompts/ImplementPotential/understand.md" ):
     #print("makePrompt_understand()", os.getcwd() )
@@ -125,18 +145,55 @@ def formulasFromResponse(response, DOFs):
                 flines[l0] = l1
             else:
                 print("ERROR unknown DOF(%s)" %dof, " on line ", line  )
-        elif ( ':' in line) and (';' in line):
-            subexprs.append(line)
+        elif ( ':' in line) and ( (';' in line) or ('$' in line) ):
+            for s in line.split(";"):
+                s=s.strip()
+                if len(s)>0:
+                    subexprs.append(s)
     return flines, names, subexprs
 
-def check_formulas( user_input, response ):
+
+def check_defined( names, flines, subexprs, symbols ):
+    nErr=0
+    defs = set( [ x.split(":")[0].strip() for x in subexprs ] )
+    defs = defs | symbols
+    for k in names:
+        if not k in flines:
+            print("ERROR: ", k, " not defined")
+            nErr+=1
+        expr = flines[k]
+        vars = re_split_op.split( expr )
+        #print(k, "=", expr, "vars=", vars)
+        for v in vars:
+            v = v.strip()
+            if len(v)>0 and not v.isnumeric():
+                if not v in defs:
+                    print("ERROR: ", v, " not defined in ", k," : ", expr )
+                    nErr += 1
+    return nErr
+
+def check_formulas( user_input, response, op_cost=default_operation_costs ):
     Formulas      = getOrMakeFormulas( user_input )
     DOFs          = remove_commens( user_input["DOFs"] );
 
-    ndiv, nmul, nadd, nsub, npow = count_operations( response ); print("Count Operation:\nn(div):",ndiv,"\nn(mul):",nmul,"\nn(add):",nadd,"\nn(sub):",nsub,"\nn(pow):",npow)
     flines, names, subexprs = formulasFromResponse(response, DOFs )
 
+    # ------ check defintions
+    symbols = getOrMakeSymbols( user_input )
+    nErr = check_defined( names, flines, subexprs, symbols )
+    if( nErr > 0 ):
+        print("ERROR: ", nErr, " variables not defined")
+        return nErr
+
+    # ------ estimate performance cost
+    ndiv, nmul, nadd, nsub, npow = count_operations( response ); 
+    cost = ndiv*op_cost["/"] + nmul*op_cost["*"] + nadd*op_cost["+"] + nsub*op_cost["-"] + npow*op_cost["^"]
+    print("Count Operation:\nn(div):",ndiv,"\nn(mul):",nmul,"\nn(add):",nadd,"\nn(sub):",nsub,"\nn(pow):",npow)
+    print("Total Computational Cost: ",cost)
+    
     #print("flines ", flines )
+
+    # ------ check formulas with maxima vs referece
 
     fname="check_formulas.mac"
     fout = open(fname, "w")
@@ -145,7 +202,7 @@ def check_formulas( user_input, response ):
     for f in Formulas:
         fout.write(f+"$\n")
     for s in subexprs:  
-        s=s[:-1]+'$'
+        s=s[:]+'$'
         fout.write(s+"\n")
     for k in names:
         k_ = k + "_"
@@ -167,10 +224,25 @@ def check_formulas( user_input, response ):
         print("ERROR: Maxima ouput ", len(lines), " lines, but we expect ", len(names), " expresions" )
         print("ERROR: Maxima ouput ", out )
         return nErr
+    
     for i,name in enumerate( names ):
         l = lines[i].strip()
         if l != "0":
-            print(  "Error_"+name+"   :  "+ l )
+            k = name
+            v = flines[k]
+            print(  "Error_"+name+"   :  "+ v )
+            
+            code=""   
+            for s in subexprs:  code += s[:]+"$\n"
+            code += ( "ratsimp(%s);" %(v[:-1]) ) 
+            #print(">>>",code,"<<<") 
+            out=ma.run_maxima(code)
+            print(  "expands to  :  ", out )
+
+            print("\n\n>>>\n",code,"\n<<<\n\n") 
+
+            #print(  "Error "+name+"   expands to  "+  )
+            #print(  "Error "+name+"  not matching original formula  "+  )
             nErr += 1
     if nErr>0:
         print("check_formulas() FAIL: ", nErr, " out of ", len(names), " expressions has non-zero error with respect to reference !!! ")

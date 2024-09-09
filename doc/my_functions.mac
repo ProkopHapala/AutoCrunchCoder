@@ -8,7 +8,6 @@ print_list(lst) := block(
 faclist(expr):= args( factor(  expr ) ); 
 count_terms( expr ) :=  length(args(expand(expr)));
 
-
 mygcd( expr ):= block(
     terms: args( expand( expr ) ), 
     pre: gcd( terms[1], terms[2] ), 
@@ -30,7 +29,6 @@ getpre(expr, vars ) := block(
     rest: factor( ratsimp( expr/pre ) ),
     return([pre, rest])
 );
-
 
 complete_square(expr, x, y) := block(  
     cx: sqrt( ratcoef( d2_, x^2 ) ), 

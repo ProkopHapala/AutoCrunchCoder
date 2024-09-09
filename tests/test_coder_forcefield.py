@@ -30,9 +30,16 @@ user_input = {
 
 prompt_simplify = cd.makePrompt_simplify( user_input )
 
+#prompt_code1 = makePrompt_code_first( user_input )
+
 #DOFs = cd.remove_commens( user_input["DOFs"] );   print( "DOFs ", DOFs)
 #out = ma.get_derivs( user_input["Equation"], DOFs )
 #print( "\n\n".join(out) )
+
+model_name="lmstudio-community/Codestral-22B-v0.1-GGUF/Codestral-22B-v0.1-Q4_K_M.gguf"
+# GOOD: respect formatting, the output is valid Maxima code, and looks sensible, some expressions are correct
+# BAD: some of the final expression are wrong, it does not actually simplify the expression much
+
 
 #model_name="lmstudio-community/mathstral-7B-v0.1-GGUF/mathstral-7B-v0.1-Q4_K_M.gguf"
 # GOOD: respect formatting, the output is valid Maxima code, and looks sensible.
@@ -55,36 +62,34 @@ prompt_simplify = cd.makePrompt_simplify( user_input )
 # BAD: it just copies the input to output
 # GOOD: respect formatting, the output is valid Maxima code, and looks sensible.
 
-model_name="internlm/internlm2_5-20b-chat-gguf/internlm2_5-20b-chat-q4_0.gguf"
+#model_name="internlm/internlm2_5-20b-chat-gguf/internlm2_5-20b-chat-q4_0.gguf"
+# GOOD: respect formatting, the output is valid Maxima code, and looks sensible.
+# BAD: the output is just wrong, does not make much sense
 
-
+#model_name="QuantFactory/deepseek-math-7b-instruct-GGUF/deepseek-math-7b-instruct.Q4_0.gguf"
+# BAD: infinite loop, nonsense output
 
 #model_name="lmstudio-community/Phi-3.1-mini-128k-instruct-GGUF/Phi-3.1-mini-128k-instruct-Q4_K_M.gguf"    
 # BAD: does not resspect formatting, insert unnnecesary comments, expressions are wrong
 
+# coder = lm.Agent(model_name=model_name)
+# coder.set_system_prompt( lm.read_file( '../prompts/ImplementPotential/matematician_system_prompt.md' ) )
+# response = coder.send_message( prompt_simplify ); 
+# print("\n========\nResponse:\n\n" + response)
+# cd.write_file( "response_simplify.md", response )
 
 
-coder = lm.Agent(model_name=model_name)
-coder.set_system_prompt( lm.read_file( '../prompts/ImplementPotential/matematician_system_prompt.md' ) )
-response = coder.send_message( prompt_simplify ); 
-print("\n========\nResponse:\n\n" + response)
-cd.write_file( "response_simplify.md", response )
 
-response="""
-```Maxima
-/* pre-calculate sub-expressions */
-r06       : r0*r0*r0;
-r012      : r0*r0*r0*r0*r0*r0*r0;
-inv_r     : 1/r;
-Kcoulqq   : Kcoul*qq;
-e0        : e0;
-/* final formulas and the derivative */
-E         : e0*(r012/inv_r^12 - (2*r06)/inv_r^6) - Kcoulqq/inv_r;
-dE_r      : e0*((12*r06)/(inv_r^(7))-(12*r012)/(inv_r^(13))) + (Kcoulqq/(inv_r^2));
-```
-"""
+#elines,dlines = cd.formulasFromResponse( response, DOFs=['r'] )
+#print(elines)
+#print(dlines)
 
-response_="""
+#flines = cd.formulasFromResponse( response, DOFs=['r'] )
+#for k,v in flines.items(): print(k, "  :   ", v)
+
+#response=cd.read_file( "response_simplify.md" )
+
+response_prokop="""
 ```Maxima
 inv_r     : 1/r;
 u2        : r0*r0*inv_r*inv_r;
@@ -95,39 +100,10 @@ dE_r      :  (e0*-12*( u12 -   u6 ) + Kcoul*qq*inv_r)*inv_r;
 ```
 """
 
-response_="""
-/* pre-calculate sub-expressions */
-r2          : r*r;
-r3          : r2*r;
-r6          : r3*r3;
-r7          : r6*r;
-r12         : r6*r6;
-r13         : r12*r;
-r0_6        : r0^6;
-r0_12       : r0^12;
-inv_r       : 1/r;
-inv_r2      : 1/r2;
-inv_r6      : 1/r6;
-inv_r7      : 1/r7;
-inv_r12     : 1/r12;
-inv_r13     : 1/r13;
-
-/* final energy expression */
-E           : e0*(r0_12*inv_r12 - 2*r0_6*inv_r6) - (Kcoul*qq)*inv_r;
-
-/* derivative of energy with respect to r */
-dE_r        : e0*(12*r0_6*inv_r7 - 12*r0_12*inv_r13) + (Kcoul*qq)*inv_r2;
-```
-"""
-
-#elines,dlines = cd.formulasFromResponse( response, DOFs=['r'] )
-#print(elines)
-#print(dlines)
-
-#flines = cd.formulasFromResponse( response, DOFs=['r'] )
-#for k,v in flines.items(): print(k, "  :   ", v)
-
-response=cd.read_file( "response_simplify.md" )
+response = response_prokop
+#response = response_deepseek_25
+#response = response_deepseek_coder_25
+#response = response_Claude35sonet
 
 cd.check_formulas( user_input, response )
 
