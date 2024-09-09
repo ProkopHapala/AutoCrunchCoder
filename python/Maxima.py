@@ -17,16 +17,12 @@ quit();
 def run_maxima(code):
     process       = subprocess.Popen(['maxima', '--very-quiet', '-q'], stdin=subprocess.PIPE, stdout=subprocess.PIPE,stderr=subprocess.PIPE)
     #process       = subprocess.Popen(['maxima','-q'], stdin=subprocess.PIPE, stdout=subprocess.PIPE,stderr=subprocess.PIPE)
-    
-    
     command = (command_template %code)
-    
     output, error = process.communicate(input=command.encode())
     if error:
         print(f"Error: {error.decode()}")
         return None
     output_text   = output.decode().strip()
-
     return output_text
 
 
