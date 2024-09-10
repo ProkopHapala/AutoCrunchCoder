@@ -3,6 +3,27 @@ sys.path.append('../python')
 #import LMagent as lm
 import Maxima as ma
 
+
+'''
+
+Strategies for generating math expression examples
+1. Sum of product of low-degree polynomials
+  * train see simple expressions like (a+b)^2 in complex polynomials
+    * complete the square  (a*x)^2 + 2*a*b*x + b*b
+    * difference of squares a^2 - b^2
+  * train find polynominals algebraically solvable by substitution (e.g. ((x^4)^2-2)^3=16 )
+  * decompose sum of fractions (e.g. (x^2+1)/(x^2-1) + 2 )
+2. Subsitution of variables in expressions
+    1. Consider algebraic forms of common shapes (e.g. sphere, cylinder, cone, paraboloide, hyperboloide, torus etc.)
+       * find intersection of two shapes (e.g. sphere and cylinder)
+          * do it in rotated coordinats (one shape is rotated with respect to another)
+
+
+
+
+
+'''
+
 def power_binary_expansion( base, pmax ):    
     lines=[]
     xo=base
