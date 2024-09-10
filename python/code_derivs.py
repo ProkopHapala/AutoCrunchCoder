@@ -80,11 +80,8 @@ def makePrompt_simplify( user_input, fname="../prompts/ImplementPotential/simpli
     #print("makePrompt_understand()", os.getcwd() )
     template = read_file(fname)
     Formulas = getOrMakeFormulas( user_input )
-    
     Formulas_ = "\n".join( [x+";" for x in Formulas] )
-    prompt = template.format(
-        Formulas=Formulas_,
-    )
+    prompt = template.format( Formulas=Formulas_ )
     write_file("debug_promt_simplify.md", prompt)
     return prompt
 

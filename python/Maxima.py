@@ -49,12 +49,6 @@ def get_derivs( Eformula, DOFs ):
     lout = label_maxima_output( out, labels )
     return lout
 
-
-
-
-
-
-
 def run_maxima_script(script_content, timeout=10):
     try:
         # Start the Maxima process

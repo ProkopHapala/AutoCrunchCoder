@@ -39,3 +39,22 @@ complete_square(expr, x, y) := block(
     rest_minus: factor( ratsimp( expr - sq2 ) ), 
     [ [rest_plus,sq1], [rest_minus,sq2]]
 );
+
+
+op_cost(_op) := block(
+    if         member( my_op,  ["+","*"] ) then return(1) 
+    elseif  ( my_op = "/" ) then return(3) 
+    elseif ( my_op =  "^" ) then return(10)
+    else return(50)
+);
+
+eval_cost(expr) := block(
+    if atom(expr) then return(1),
+    nop:0,
+    _op: op(expr),
+    nop:nop+op_cost(_op),
+    for arg in args(expr) do (
+        nop: nop + count_ops(arg)
+    ),
+    return(nop)
+);

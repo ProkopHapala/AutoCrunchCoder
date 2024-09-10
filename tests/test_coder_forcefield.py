@@ -28,7 +28,8 @@ user_input = {
 #cd.makePrompt_understand( user_input )
 #cd.makePrompt_code_first( user_input )
 
-prompt_simplify = cd.makePrompt_simplify( user_input )
+#prompt_simplify = cd.makePrompt_simplify( user_input )
+prompt_simplify = cd.makePrompt_simplify( user_input, fname="../prompts/ImplementPotential/substitution.md" )
 
 #prompt_code1 = makePrompt_code_first( user_input )
 
@@ -72,11 +73,11 @@ model_name="lmstudio-community/Codestral-22B-v0.1-GGUF/Codestral-22B-v0.1-Q4_K_M
 #model_name="lmstudio-community/Phi-3.1-mini-128k-instruct-GGUF/Phi-3.1-mini-128k-instruct-Q4_K_M.gguf"    
 # BAD: does not resspect formatting, insert unnnecesary comments, expressions are wrong
 
-# coder = lm.Agent(model_name=model_name)
-# coder.set_system_prompt( lm.read_file( '../prompts/ImplementPotential/matematician_system_prompt.md' ) )
-# response = coder.send_message( prompt_simplify ); 
-# print("\n========\nResponse:\n\n" + response)
-# cd.write_file( "response_simplify.md", response )
+coder = lm.Agent(model_name=model_name)
+coder.set_system_prompt( lm.read_file( '../prompts/ImplementPotential/matematician_system_prompt.md' ) )
+response = coder.send_message( prompt_simplify ); 
+print("\n========\nResponse:\n\n" + response)
+cd.write_file( "response_simplify.md", response )
 
 
 
@@ -100,7 +101,7 @@ dE_r      :  (e0*-12*( u12 -   u6 ) + Kcoul*qq*inv_r)*inv_r;
 ```
 """
 
-response = response_prokop
+#response = response_prokop
 #response = response_deepseek_25
 #response = response_deepseek_coder_25
 #response = response_Claude35sonet
