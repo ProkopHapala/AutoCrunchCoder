@@ -5,7 +5,7 @@
 #define COULOMB_CONST      14.3996448915  // [eV A]
 #define MORSE_CONST        1.0             // [eV] (example value, adjust as needed)
 
-inline double varLJ(double r, double& dE_dE0, double R0, double E0 ){
+inline double varLJ(double r, double& dE_dE0, double& dE_dR0, double R0, double E0 ){
     double inv_r = 1.0 / r;
     double u = E0 * inv_r;
     double u2 = inv_r * inv_r;
@@ -13,6 +13,7 @@ inline double varLJ(double r, double& dE_dE0, double R0, double E0 ){
     double u12 = u6 * u6;
     double E = E0 *        ( u12 - 2* u6 );
     dE_dE0   = ( u12 - 2* u6 );
+    dE_dR0   = -12.0 * E0 * (u12 - u6) * inv_r * (r - R0);
     return E;
 }
 
