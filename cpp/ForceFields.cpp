@@ -26,6 +26,8 @@ inline double varCoulomb(double r, double& dE_qq, double qq ){
     return dE_qq * qq;
 }
 
+inline double _varCoulomb(double r, const double* par,  double* dpar ){  return varCoulomb( r,       dpar[0], par[0]  ); };
+
 // -------- Lennard-Jones potential
 
 // Lennard-Jones potential  - evaluation of force-field 
@@ -42,6 +44,10 @@ inline double getLJ(Vec3d dpos, Vec3d& fpos, double E0, double R0 ){
     return E;
 }
 
+inline double _getLJ(Vec3d dpos, Vec3d& fpos, double* par ){
+    return getLJ( dpos, fpos, par[0], par[1] );
+}
+
 // Lennard-Jones potential  - derivatives according to parameters (for fitting parameters)
 inline double varLJ(double r, double R0, double E0,  double& dE_E0, double& dE_R0 ){                                                                                                                                                                                                                                                                                                                                                         
     double inv_r = 1.0 / r;                                                                                                                                                                                                                                                                                                                                                                                                                   
@@ -54,6 +60,8 @@ inline double varLJ(double r, double R0, double E0,  double& dE_E0, double& dE_R
     dE_R0        = 12.0 * E0 * (u12 - u6) / R0;                                                                                                                                                                                                                                                                                                                                                                                    
     return E;                                                                                                                                                                                                                                                                                                                                                                                                                                 
 }        
+
+inline double _varLJ(double r, const double* par,  double* dpar ){  return varLJ( r,       par[0], par[1],  dpar[0], dpar[1]  ); };
 
 // -------- LennardJones+Coulomb potential
 
@@ -133,6 +141,8 @@ inline double varMorse(double r, double R0, double E0, double k,  double& dE_R0,
     dE_k  = 2*E0 * (e*e - e) * (r - R0);
     return E0*dE_E0;
 }
+
+inline double _varMorse(double r, const double* par,  double* dpar ){  return varMorse( r,       par[0], par[1], par[2],  dpar[0], dpar[1], dpar[2]  ); };
 
 // -------- Morse+Coulomb potential
 
