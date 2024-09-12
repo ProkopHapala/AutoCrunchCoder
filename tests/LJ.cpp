@@ -5,14 +5,14 @@
 #define COULOMB_CONST      14.3996448915  // [eV A]
 #define MORSE_CONST        1.0             // [eV] (example value, adjust as needed)
 
-inline double getLJ(double r, double& dE_dr, double R0, double E0 ){
+inline double varLJ(double r, double& dE_dE0, double R0, double E0 ){
     double inv_r = 1.0 / r;
     double u = E0 * inv_r;
     double u2 = inv_r * inv_r;
     double u6 = u2 * u2 * u2;
     double u12 = u6 * u6;
     double E = E0 *        ( u12 - 2* u6 );
-    dE_dr    = E0 * 12.0 * ( u12 -    u6 ) * inv_r;
+    dE_dE0   = ( u12 - 2* u6 );
     return E;
 }
 
@@ -85,7 +85,7 @@ void evalRadialPotential( int npar, int n, const double* rs, double* Es, double*
 // Specialization for Lennard-Jones potential
 void evaluateLJ( int n, const double* rs, double* Es, double* Fs, double* params ) {
     int npar=2; // 2 parameters: E0 and R0
-    evalRadialPotential( npar, n, rs, Es, Fs, params, [&](double r, double& dE_dr, double* pars ){ return getLJ( r, dE_dr, pars[0], pars[1] ); } );
+    evalRadialPotential( npar, n, rs, Es, Fs, params, [&](double r, double& dE_dr, double* pars ){ return varLJ( r, dE_dr, pars[0], pars[1] ); } );
 }
 
 // Specialization for Coulomb potential
