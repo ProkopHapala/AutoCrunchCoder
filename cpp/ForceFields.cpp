@@ -91,7 +91,7 @@ inline double varLJQ(double r, double R0, double E0,  double qq, double& dE_R0, 
     return E_lj + E_coul;
 }
 
-inline double _varLJQ(Vec3d dpos, const double* par,  double* dpar ){  return varLJQ( dpos,       par[0], par[1], par[2],  dpar[0], dpar[1], dpar[2]  ); };
+inline double _varLJQ(double r, const double* par,  double* dpar ){  return varLJQ( r,       par[0], par[1], par[2],  dpar[0], dpar[1], dpar[2]  ); };
 inline double _getLJQ(Vec3d dpos,       Vec3d& fpos, double*  par ){  return getLJQ( dpos, fpos, par[0], par[1], par[2]  ); };
 
 inline void mix_LJQ( const double* pi, const double* pj, double* pij ){
@@ -110,6 +110,7 @@ inline void dmix_LJQ( const double* pi, const double* pj, const double* dpij, do
 
 inline double getMorse(Vec3d dpos, Vec3d& fpos, double R0, double E0, double k ){
     double r = dpos.norm();
+    double inv_r = 1.0 / r;
     double e = std::exp(-k * (r - R0));
     double E = E0 * ( e*e - 2*e );
     double dE_r  = 2 * E0 * k * ( e*e - e );
@@ -156,7 +157,7 @@ inline double varMorseQ(double r, double R0, double E0, double qq, double k,  do
     return E0*dE_E0 + qq*dE_qq;
 }
 
-inline double _varMorseQ(Vec3d dpos, const double* par,  double* dpar ){  return varMorseQ( dpos,         par[0], par[1], par[2], par[3],  dpar[0], dpar[1], dpar[2], dpar[3] ); };
+inline double _varMorseQ(double r, const double* par,  double* dpar ){  return varMorseQ( r,         par[0], par[1], par[2], par[3],  dpar[0], dpar[1], dpar[2], dpar[3] ); };
 inline double _getMorseQ(Vec3d dpos,       Vec3d& fpos, double*  par ){  return getMorseQ( dpos, fpos,   par[0], par[1], par[2], par[3]  ); };
 
 inline void mix_varMorseQ( const double* pi, const double* pj, double* pij ){
@@ -206,39 +207,51 @@ double getVarDerivs( int npar, int na1, const Vec3d* apos1, const double* pars1,
 // Specialization for Lennard-Jones potential
 double getVarDerivsLJQ( int na1, const Vec3d* apos1, const double* pars1, int na2, const Vec3d* apos2, const double* pars2, double* dE_par1 ){
     int npar=2; // 2 parameters: R0 E0
-    auto ff = [&](Vec3d dpos, const double* par, double* dpar ){  return varLJQ( dpos, par[0], par[1], par[2],  dpar[0], dpar[1], dpar[2]  ); };
+    auto ff = [&](double r, const double* par, double* dpar ){  return varLJQ( r, par[0], par[1], par[2],  dpar[0], dpar[1], dpar[2]  ); };
     return getVarDerivs< decltype(ff), mix_LJQ, dmix_LJQ >( npar, na1, apos1, pars1, na2, apos2, pars2, dE_par1, ff );
 };
 
 // Specialization for Lennard-Jones potential
 double getVarDerivsMorseQ( int na1, const Vec3d* apos1, const double* pars1, int na2, const Vec3d* apos2, const double* pars2, double* dE_par1 ){
     int npar=2; // 2 parameters: R0 E0
-    auto ff = [&](Vec3d dpos, const double* par, double* dpar ){  return varMorseQ( dpos, par[0], par[1], par[2],par[3],  dpar[0], dpar[1], dpar[2], dpar[3]  ); };
+    auto ff = [&](double r, const double* par, double* dpar ){  return varMorseQ( r, par[0], par[1], par[2],par[3],  dpar[0], dpar[1], dpar[2], dpar[3]  ); };
     return getVarDerivs< decltype(ff), mix_LJQ, dmix_LJQ >( npar, na1, apos1, pars1, na2, apos2, pars2, dE_par1, ff );
 };
 
 
 // =========== Template functions for evaluation of potentials at points ==========
 
+// template<typename Func>
+// void evalRadialPotential( int npar, int n, const double* rs, double* Es, double* Fs, const double* params, Func func ) {
+//     for (int i = 0; i < n; ++i) {
+//         const double r   = rs[i];
+//         const double* par = params + i*npar;
+//         double dE_dr;
+//         Es[i] = func(r, dE_dr, par );
+//         Fs[i] = dE_dr;
+//     }
+// }
+
+
 template<typename Func>
-void evalRadialPotential( int npar, int n, const double* rs, double* Es, double* Fs, const double* params, Func func ) {
+void evalRadialPotential( int npar, int n, const Vec3d* ps, double* Es, Vec3d* fs, const double* params, Func func ) {
     for (int i = 0; i < n; ++i) {
-        const double r   = rs[i];
+        Vec3d r   = ps[i];
         const double* par = params + i*npar;
-        double dE_dr;
-        Es[i] = func(r, dE_dr, par );
-        Fs[i] = dE_dr;
+        Vec3 f;
+        Es[i] = func(r, f, par );
+        Fs[i] = f;
     }
 }
 
 // ========== Evaluation of potentials at points 
 
 // Specialization for Lennard-Jones potential
-void evaluateLJ( int n, const double* rs, double* Es, double* Fs, double* params ) {
+void evaluateLJ( int n, const Vec3d* ps, double* Es, Vec3d* fs, double* params ) {
     int npar=2; // 2 parameters: R0 E0
-    evalRadialPotential( npar, n, rs, Es, Fs, params, 
-        [&](double r, double& dE_dr, const double* pars ){ 
-            return getLJ( r, dE_dr, pars[0], pars[1] ); 
+    evalRadialPotential( npar, n, ps, Es,fs, params, 
+        [&](Vec3d dp, Vec3d& f, const double* pars ){ 
+            return getLJ( dp, f, pars[0], pars[1] ); 
         } 
     );
 }
