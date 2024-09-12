@@ -1,6 +1,9 @@
 #include <cmath>
 #include <vector>
 
+
+#define COULOMB_CONST      14.3996448915  // [eV A]
+
 inline double getLJ(double r, double& dE_dr, double E0, double R0 ){
     double inv_r = 1.0 / r;
     double u = E0 * inv_r;
@@ -14,9 +17,8 @@ inline double getLJ(double r, double& dE_dr, double E0, double R0 ){
 
 // Coulomb potential function
 inline double getCoulomb(double r, double& dE_dr, double qq ){
-    double k = 8.99e9; // Coulomb constant in N m^2 C^-2
     double inv_r = 1.0 / r;
-    double E = k * qq * inv_r;
+    double E = COULOMB_CONST * qq * inv_r;
     dE_dr = -E / r;
     return E;
 }
@@ -31,8 +33,8 @@ inline double getLJQ(double r, double& dE_dr, double E0, double R0, double qq) {
     double E_lj = E0 * (u12 - 2 * u6);
     double dE_dr_lj = E0 * 12.0 * (u12 - u6) * inv_r;
 
-    double E_coul = 8.99e9 * qq * inv_r;
-    double dE_dr_coul = -E_coul / r;
+    double E_coul = COULOMB_CONST * qq * inv_r;
+    double dE_dr_coul = -E_coul * inv_r;
 
     dE_dr = dE_dr_lj + dE_dr_coul;
     return E_lj + E_coul;
@@ -52,13 +54,13 @@ void evalRadialPotential( int npar, int n, const double* rs, double* Es, double*
 // Specialization for Lennard-Jones potential
 void evaluateLJ( int n, const double* rs, double* Es, double* Fs, double* params ) {
     int npar=2; // 2 parameters: E0 and R0
-    evalRadialPotential( npar, n, rs, Es, Fs, params, [&](double r, double& dE_dr, double* pars ){ return getLJ( r, pars[0], pars[1], dE_dr ); } );
+    evalRadialPotential( npar, n, rs, Es, Fs, params, [&](double r, double& dE_dr, double* pars ){ return getLJ( r, dE_dr, pars[0], pars[1] ); } );
 }
 
 // Specialization for Coulomb potential
 void evaluateCoulombPotentialAndForce( int n, const double* rs, double* Es, double* Fs, double* params ){
     int npar=1; // 1 parameter: qq
-    evalRadialPotential( npar, n, rs, Es, Fs, params, [&](double r, double& dE_dr, double* pars ){ return getCoulomb( r, pars[0], dE_dr ); } );
+    evalRadialPotential( npar, n, rs, Es, Fs, params, [&](double r, double& dE_dr, double* pars ){ return getCoulomb( r, dE_dr, pars[0] ); } );
 }
 
 // Specialization for combined Lennard-Jones and Coulomb potential
