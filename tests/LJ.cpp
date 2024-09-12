@@ -17,10 +17,11 @@ inline double getLJ(double r, double& dE_dr, double R0, double E0 ){
 }
 
 // Coulomb potential function
-inline double getCoulomb(double r, double& dE_dr, double qq ){
+inline double getCoulomb(double r, double& dE_dr, double& dE_dqq, double qq ){
     double inv_r = 1.0 / r;
     double E = COULOMB_CONST * qq * inv_r;
     dE_dr = -E / r;
+    dE_dqq = COULOMB_CONST * inv_r;
     return E;
 }
 
@@ -79,9 +80,9 @@ void evaluateLJ( int n, const double* rs, double* Es, double* Fs, double* params
 }
 
 // Specialization for Coulomb potential
-void evaluateCoulombPotentialAndForce( int n, const double* rs, double* Es, double* Fs, double* params ){
+void evaluateCoulombPotentialAndForce( int n, const double* rs, double* Es, double* Fs, double* dE_dqqs, double* params ){
     int npar=1; // 1 parameter: qq
-    evalRadialPotential( npar, n, rs, Es, Fs, params, [&](double r, double& dE_dr, double* pars ){ return getCoulomb( r, dE_dr, pars[0] ); } );
+    evalRadialPotential( npar, n, rs, Es, Fs, dE_dqqs, params, [&](double r, double& dE_dr, double& dE_dqq, double* pars ){ return getCoulomb( r, dE_dr, dE_dqq, pars[0] ); } );
 }
 
 // Specialization for combined Lennard-Jones and Coulomb potential
