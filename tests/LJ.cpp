@@ -25,6 +25,13 @@ inline double getCoulomb(double r, double& dE_dr, double& dE_dqq, double qq ){
     return E;
 }
 
+// Coulomb potential function returning derivative with respect to qq
+inline double varCoulomb(double r, double& dE_dqq, double qq ){
+    double inv_r = 1.0 / r;
+    dE_dqq = COULOMB_CONST * inv_r;
+    return COULOMB_CONST * qq * inv_r;
+}
+
 // Combined Lennard-Jones and Coulomb potential function
 inline double getLJQ(double r, double& dE_dr, double R0, double E0,  double qq) {
     double inv_r = 1.0 / r;
@@ -73,6 +80,8 @@ void evalRadialPotential( int npar, int n, const double* rs, double* Es, double*
     }
 }
 
+// ========== Evaluation of potentials at points 
+
 // Specialization for Lennard-Jones potential
 void evaluateLJ( int n, const double* rs, double* Es, double* Fs, double* params ) {
     int npar=2; // 2 parameters: E0 and R0
@@ -82,7 +91,7 @@ void evaluateLJ( int n, const double* rs, double* Es, double* Fs, double* params
 // Specialization for Coulomb potential
 void evaluateCoulomb( int n, const double* rs, double* Es, double* Fs, double* params ){
     int npar=1; // 1 parameter: qq
-    evalRadialPotential( npar, n, rs, Es, Fs, params, [&](double r, double& dE_dr, double& dE_dqq, double* pars ){ return varCoulomb( r, dE_dqq, pars[0] ); } );
+    evalRadialPotential( npar, n, rs, Es, Fs, params, [&](double r, double& dE_dr, double* pars ){ return getCoulomb( r, dE_dr, pars[0] ); } );
 }
 
 // Specialization for combined Lennard-Jones and Coulomb potential
@@ -100,9 +109,4 @@ void evaluateMorseQ( int n, const double* rs, double* Es, double* Fs, double* pa
     int npar=4; // 4 parameters: D, alpha, r0, qq
     evalRadialPotential( npar, n, rs, Es, Fs, params, [&](double r, double& dE_dr, double* pars ){ return getMorseQ( r, dE_dr, pars[0], pars[1], pars[2], pars[3] ); } );
 }
-// Coulomb potential function returning derivative with respect to qq
-inline double varCoulomb(double r, double& dE_dqq, double qq ){
-    double inv_r = 1.0 / r;
-    dE_dqq = COULOMB_CONST * inv_r;
-    return COULOMB_CONST * qq * inv_r;
-}
+
