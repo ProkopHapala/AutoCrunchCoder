@@ -17,13 +17,23 @@ double getLJ(double r) {
     return E;
 }
 
+// Function to calculate Lennard-Jones force between two particles
+double getLJForce(double r) {
+    double e0r06 = e0 * std::pow(r0, 6);
+    double inv_r = 1.0 / r;
+    double inv_r7 = std::pow(inv_r, 7);
+    double inv_r13 = std::pow(inv_r, 13);
+    double F = 12 * e0r06 * (inv_r7 - inv_r13);
+    return F;
+}
+
 // Template function to evaluate any potential and force for an array of points
 template <double (*PotentialFunc)(double)>
 void evaluatePotentialAndForce(const std::vector<double>& points, std::vector<double>& potentials, std::vector<double>& forces) {
     for (size_t i = 0; i < points.size(); ++i) {
         double r = points[i];
         potentials[i] = PotentialFunc(r);
-        forces[i] = -((12 * e0 * std::pow(r0, 6) * std::pow(1.0 / r, 7)) - (12 * e0r012 * std::pow(1.0 / r, 13))) + ((Kcoul * qq) / (r * r));
+        forces[i] = getLJForce(r) + ((Kcoul * qq) / (r * r));
     }
 }
 

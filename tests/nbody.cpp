@@ -17,6 +17,14 @@ Vec4d interact_coulomb( const Vec3d d, const Vec4d Pi, const Vec4d Pj ){
     return Vec4d( d*(E*ir2), E );
 }
 
+// Function to calculate Lennard-Jones force between two particles
+Vec4d interact_lj( const Vec3d d, const Vec4d Pi, const Vec4d Pj ){
+    const double  ir2 = d.norm2() + 1e-32;
+    const double  ir  = sqrt(ir2);
+    const double F    = getLJForce(ir);
+    return Vec4d( d*(F*ir2), 0.0 ); // Assuming Lennard-Jones potential does not contribute to energy
+}
+
 template<typename Func>
 double nbody( const int n, const Vec3d *pos, const Vec4d* params, Vec3d *forces, Func pair_interaction ){
     double E=0;
@@ -26,7 +34,7 @@ double nbody( const int n, const Vec3d *pos, const Vec4d* params, Vec3d *forces,
         Vec4d       fe   = Vec4dZero;
         for(int j=0; j<n; j++){
             if(i==j) continue;
-            fe += pair_interaction( pos[j]-pi, pari, params[j] );
+            fe += interact_coulomb( pos[j]-pi, pari, params[j] ) + interact_lj( pos[j]-pi, pari, params[j] );
             //printf("nbody[%i,%i] Ei=%g \n", i, j, fe.e );
         }
         forces[i] = fe.f;
