@@ -257,38 +257,81 @@ void evaluateLJ( int n, const Vec3d* ps, double* Es, Vec3d* fs, double* params )
 }
 
 // Specialization for Coulomb potential
+// Original version
+// void evaluateCoulomb( int n, const Vec3d* ps, double* Es, Vec3d* fs, double* params ){
+//     int npar=1; // 1 parameter: qq
+//     evalRadialPotential( npar, n, ps, Es, fs, params, 
+//         [&](Vec3d dp, Vec3d& f, const double* pars ){ 
+//             return getCoulomb( dp, f, pars[0] ); 
+//         } 
+//     );
+// }
+
+// New version using _getCoulomb
 void evaluateCoulomb( int n, const Vec3d* ps, double* Es, Vec3d* fs, double* params ){
     int npar=1; // 1 parameter: qq
     evalRadialPotential( npar, n, ps, Es, fs, params, 
         [&](Vec3d dp, Vec3d& f, const double* pars ){ 
-            return getCoulomb( dp, f, pars[0] ); 
+            return _getCoulomb( dp, f, pars ); 
         } 
     );
 }
 
 // Specialization for combined Lennard-Jones and Coulomb potential
+// Original version
+// void evaluateLJQ( int n, const Vec3d* ps, double* Es, Vec3d* fs, double* params ) {
+//     int npar=3; // 3 parameters: E0, R0, qq
+//     evalRadialPotential( npar, n, ps, Es, fs, params, 
+//     [&](Vec3d dp, Vec3d& f, const double* pars ){ 
+//         return getLJQ( dp, f, pars[0], pars[1], pars[2] ); 
+//     });
+// }
+
+// New version using _getLJQ
 void evaluateLJQ( int n, const Vec3d* ps, double* Es, Vec3d* fs, double* params ) {
     int npar=3; // 3 parameters: E0, R0, qq
     evalRadialPotential( npar, n, ps, Es, fs, params, 
     [&](Vec3d dp, Vec3d& f, const double* pars ){ 
-        return getLJQ( dp, f, pars[0], pars[1], pars[2] ); 
+        return _getLJQ( dp, f, pars ); 
     });
 }
 
+// Original version
+// void evaluateMorse( int n, const Vec3d* ps, double* Es, Vec3d* fs, double* params ) {
+//     int npar=3; // 3 parameters: R0, E0, k
+//     evalRadialPotential( npar, n, ps, Es, fs, params, 
+//         [&](Vec3d dp, Vec3d& f, const double* pars ){ 
+//             return getMorse( dp, f, pars[0], pars[1], pars[2] ); 
+//         }
+//     );
+// }
+
+// New version using _getMorse
 void evaluateMorse( int n, const Vec3d* ps, double* Es, Vec3d* fs, double* params ) {
     int npar=3; // 3 parameters: R0, E0, k
     evalRadialPotential( npar, n, ps, Es, fs, params, 
         [&](Vec3d dp, Vec3d& f, const double* pars ){ 
-            return getMorse( dp, f, pars[0], pars[1], pars[2] ); 
+            return _getMorse( dp, f, pars ); 
         }
     );
 }
 
+// Original version
+// void evaluateMorseQ( int n, const Vec3d* ps, double* Es, Vec3d* fs, double* params ) {
+//     int npar=4; // 4 parameters: R0, E0, qq, k
+//     evalRadialPotential( npar, n, ps, Es, fs, params, 
+//         [&](Vec3d dp, Vec3d& f, const double* pars ){ 
+//             return getMorseQ( dp, f, pars[0], pars[1], pars[2], pars[3] ); 
+//         }
+//     );
+// }
+
+// New version using _getMorseQ
 void evaluateMorseQ( int n, const Vec3d* ps, double* Es, Vec3d* fs, double* params ) {
     int npar=4; // 4 parameters: R0, E0, qq, k
     evalRadialPotential( npar, n, ps, Es, fs, params, 
         [&](Vec3d dp, Vec3d& f, const double* pars ){ 
-            return getMorseQ( dp, f, pars[0], pars[1], pars[2], pars[3] ); 
+            return _getMorseQ( dp, f, pars ); 
         }
     );
 }
