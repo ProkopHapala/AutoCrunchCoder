@@ -3,6 +3,7 @@
 
 
 #define COULOMB_CONST      14.3996448915  // [eV A]
+#define MORSE_CONST        1.0             // [eV] (example value, adjust as needed)
 
 inline double getLJ(double r, double& dE_dr, double E0, double R0 ){
     double inv_r = 1.0 / r;
@@ -40,6 +41,26 @@ inline double getLJQ(double r, double& dE_dr, double E0, double R0, double qq) {
     return E_lj + E_coul;
 }
 
+inline double getMorse(double r, double& dE_dr, double D, double alpha, double r0) {
+    double e = std::exp(-alpha * (r - r0));
+    double E = D * (e * e - 2 * e);
+    dE_dr = 2 * D * alpha * (e * e - e);
+    return E;
+}
+
+inline double getMorseQ(double r, double& dE_dr, double D, double alpha, double r0, double qq) {
+    double e = std::exp(-alpha * (r - r0));
+    double E_morse = D * (e * e - 2 * e);
+    double dE_dr_morse = 2 * D * alpha * (e * e - e);
+
+    double inv_r = 1.0 / r;
+    double E_coul = COULOMB_CONST * qq * inv_r;
+    double dE_dr_coul = -E_coul * inv_r;
+
+    dE_dr = dE_dr_morse + dE_dr_coul;
+    return E_morse + E_coul;
+}
+
 template<typename Func>
 void evalRadialPotential( int npar, int n, const double* rs, double* Es, double* Fs, double* params, Func func ) {
     for (int i = 0; i < n; ++i) {
@@ -67,4 +88,14 @@ void evaluateCoulombPotentialAndForce( int n, const double* rs, double* Es, doub
 void evaluateLJQ( int n, const double* rs, double* Es, double* Fs, double* params ) {
     int npar=3; // 3 parameters: E0, R0, and qq
     evalRadialPotential( npar, n, rs, Es, Fs, params, [&](double r, double& dE_dr, double* pars ){ return getLJQ( r, dE_dr, pars[0], pars[1], pars[2] ); } );
+}
+
+void evaluateMorse( int n, const double* rs, double* Es, double* Fs, double* params ) {
+    int npar=3; // 3 parameters: D, alpha, r0
+    evalRadialPotential( npar, n, rs, Es, Fs, params, [&](double r, double& dE_dr, double* pars ){ return getMorse( r, dE_dr, pars[0], pars[1], pars[2] ); } );
+}
+
+void evaluateMorseQ( int n, const double* rs, double* Es, double* Fs, double* params ) {
+    int npar=4; // 4 parameters: D, alpha, r0, qq
+    evalRadialPotential( npar, n, rs, Es, Fs, params, [&](double r, double& dE_dr, double* pars ){ return getMorseQ( r, dE_dr, pars[0], pars[1], pars[2], pars[3] ); } );
 }
