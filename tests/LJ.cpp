@@ -1,7 +1,7 @@
 #include <cmath>
 #include <vector>
 
-double lennard_jones_potential(double r, double E0, double R0, double& dE_dr) {
+inline double getLJ(double r, double& dE_dr, double E0, double R0 ){
     double inv_r = 1.0 / r;
     double u = E0 * inv_r;
     double u2 = inv_r * inv_r;
@@ -12,30 +12,34 @@ double lennard_jones_potential(double r, double E0, double R0, double& dE_dr) {
     return E;
 }
 
-template <double (*PotentialFunc)(double, double, double, double&)>
-void evaluatePotentialAndForce(const double* points, double* potentials, double* forces, size_t n, double epsilon, double sigma) {
-    for (size_t i = 0; i < n; ++i) {
-        double r = points[i];
-        double dE_dr;
-        potentials[i] = PotentialFunc(r, epsilon, sigma, dE_dr);
-        forces[i] = dE_dr;
-    }
-}
-
-// Specialization for Lennard-Jones potential
-void evaluateLJPotentialAndForce(const double* points, double* potentials, double* forces, size_t n, double epsilon, double sigma) {
-    evaluatePotentialAndForce<lennard_jones_potential>(points, potentials, forces, n, epsilon, sigma);
-}
-
 // Coulomb potential function
-double coulomb_potential(double r, double q1, double q2, double& dE_dr) {
+inline double getCoulomb(double r, double& dE_dr, double qq ){
     double k = 8.99e9; // Coulomb constant in N m^2 C^-2
-    double E = k * q1 * q2 / r;
+    double inv_r = 1.0 / r;
+    double E = k * qq * inv_r;
     dE_dr = -E / r;
     return E;
 }
 
+template<typename Func>
+void evalRadialPotential( int npar, int n, const double* rs, double* Es, double* Fs, double* params, Func func ) {
+    for (int i = 0; i < n; ++i) {
+        const double r   = rs[i];
+        const double par = params + i*npar;
+        double dE_dr;
+        Es[i] = func(r, dE_dr, par );
+        Fs[i] = dE_dr;
+    }
+}
+
+// Specialization for Lennard-Jones potential
+void evaluateLJ( int n, const double* rs, double* Es, double* Fs, double* params ) {
+    int npar=2; // 2 parameters: E0 and R0
+    evalRadialPotential( npar, n, rs, Es, Fs, params, [&](double r, double& dE_dr, double* pars ){ return getLJ( r, pars[0], pars[1], dE_dr ); } );
+}
+
 // Specialization for Coulomb potential
-void evaluateCoulombPotentialAndForce(const double* points, double* potentials, double* forces, size_t n, double q1, double q2) {
-    evaluatePotentialAndForce<coulomb_potential>(points, potentials, forces, n, q1, q2);
+void evaluateCoulombPotentialAndForce( int n, const double* rs, double* Es, double* Fs, double* params ){
+    int npar=1; // 1 parameter: qq
+    evalRadialPotential( npar, n, rs, Es, Fs, params, [&](double r, double& dE_dr, double* pars ){ return getCoulomb( r, pars[0], dE_dr ); } );
 }
