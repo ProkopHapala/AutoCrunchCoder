@@ -46,7 +46,7 @@ inline double varCoulomb(double r, double& dE_dqq, double qq ){
 }
 
 // Combined Lennard-Jones and Coulomb potential function
-inline double getLJQ(double r, double& dE_dr, double R0, double E0,  double qq) {
+inline double getLJQ(double r, double& dE_dr, double& dE_dE0, double& dE_dR0, double& dE_dqq, double R0, double E0,  double qq) {
     double inv_r = 1.0 / r;
     double u = E0 * inv_r;
     double u2 = inv_r * inv_r;
@@ -59,17 +59,22 @@ inline double getLJQ(double r, double& dE_dr, double R0, double E0,  double qq) 
     double dE_dr_coul = -E_coul * inv_r;
 
     dE_dr = dE_dr_lj + dE_dr_coul;
+    dE_dE0 = (u12 - 2 * u6);
+    dE_dR0 = 12.0 * E0 * (u12 - u6) / R0;
+    dE_dqq = COULOMB_CONST * inv_r;
     return E_lj + E_coul;
 }
 
-inline double getMorse(double r, double& dE_dr, double R0, double E0, double alpha ) {
+inline double getMorse(double r, double& dE_dr, double& dE_dD, double& dE_dalpha, double R0, double E0, double alpha ) {
     double e = std::exp(-alpha * (r - R0));
     double E = D * (e * e - 2 * e);
     dE_dr = 2 * D * alpha * (e * e - e);
+    dE_dD = (e * e - 2 * e);
+    dE_dalpha = 2 * D * (e * e - e) * (r - R0);
     return E;
 }
 
-inline double getMorseQ(double r, double& dE_dr, double R0, double E0, double qq, double alpha ) {
+inline double getMorseQ(double r, double& dE_dr, double& dE_dD, double& dE_dalpha, double& dE_dR0, double& dE_dqq, double R0, double E0, double qq, double alpha ) {
     double e = std::exp(-alpha * (r - R0));
     double E_morse = D * (e * e - 2 * e);
     double dE_dr_morse = 2 * D * alpha * (e * e - e);
@@ -79,6 +84,10 @@ inline double getMorseQ(double r, double& dE_dr, double R0, double E0, double qq
     double dE_dr_coul = -E_coul * inv_r;
 
     dE_dr = dE_dr_morse + dE_dr_coul;
+    dE_dD = (e * e - 2 * e);
+    dE_dalpha = 2 * D * (e * e - e) * (r - R0);
+    dE_dR0 = -2 * D * alpha * (e * e - e);
+    dE_dqq = COULOMB_CONST * inv_r;
     return E_morse + E_coul;
 }
 
@@ -110,16 +119,25 @@ void evaluateCoulomb( int n, const double* rs, double* Es, double* Fs, double* p
 // Specialization for combined Lennard-Jones and Coulomb potential
 void evaluateLJQ( int n, const double* rs, double* Es, double* Fs, double* params ) {
     int npar=3; // 3 parameters: E0, R0, and qq
-    evalRadialPotential( npar, n, rs, Es, Fs, params, [&](double r, double& dE_dr, double* pars ){ return getLJQ( r, dE_dr, pars[0], pars[1], pars[2] ); } );
+    evalRadialPotential( npar, n, rs, Es, Fs, params, [&](double r, double& dE_dr, double* pars ){ 
+        double dE_dE0, dE_dR0, dE_dqq;
+        return getLJQ( r, dE_dr, dE_dE0, dE_dR0, dE_dqq, pars[0], pars[1], pars[2] ); 
+    });
 }
 
 void evaluateMorse( int n, const double* rs, double* Es, double* Fs, double* params ) {
     int npar=3; // 3 parameters: D, alpha, r0
-    evalRadialPotential( npar, n, rs, Es, Fs, params, [&](double r, double& dE_dr, double* pars ){ return getMorse( r, dE_dr, pars[0], pars[1], pars[2] ); } );
+    evalRadialPotential( npar, n, rs, Es, Fs, params, [&](double r, double& dE_dr, double* pars ){ 
+        double dE_dD, dE_dalpha;
+        return getMorse( r, dE_dr, dE_dD, dE_dalpha, pars[0], pars[1], pars[2] ); 
+    });
 }
 
 void evaluateMorseQ( int n, const double* rs, double* Es, double* Fs, double* params ) {
     int npar=4; // 4 parameters: D, alpha, r0, qq
-    evalRadialPotential( npar, n, rs, Es, Fs, params, [&](double r, double& dE_dr, double* pars ){ return getMorseQ( r, dE_dr, pars[0], pars[1], pars[2], pars[3] ); } );
+    evalRadialPotential( npar, n, rs, Es, Fs, params, [&](double r, double& dE_dr, double* pars ){ 
+        double dE_dD, dE_dalpha, dE_dR0, dE_dqq;
+        return getMorseQ( r, dE_dr, dE_dD, dE_dalpha, dE_dR0, dE_dqq, pars[0], pars[1], pars[2], pars[3] ); 
+    });
 }
 
