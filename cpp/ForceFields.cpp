@@ -270,11 +270,7 @@ void evaluateLJ( int n, const Vec3d* ps, double* Es, Vec3d* fs, double* params )
 // New version using _getCoulomb
 void evaluateCoulomb( int n, const Vec3d* ps, double* Es, Vec3d* fs, double* params ){
     int npar=1; // 1 parameter: qq
-    evalRadialPotential( npar, n, ps, Es, fs, params, 
-        [&](Vec3d dp, Vec3d& f, const double* pars ){ 
-            return _getCoulomb( dp, f, pars ); 
-        } 
-    );
+    evalRadialPotential( npar, n, ps, Es, fs, params, _getCoulomb );
 }
 
 // Specialization for combined Lennard-Jones and Coulomb potential
@@ -290,10 +286,7 @@ void evaluateCoulomb( int n, const Vec3d* ps, double* Es, Vec3d* fs, double* par
 // New version using _getLJQ
 void evaluateLJQ( int n, const Vec3d* ps, double* Es, Vec3d* fs, double* params ) {
     int npar=3; // 3 parameters: E0, R0, qq
-    evalRadialPotential( npar, n, ps, Es, fs, params, 
-    [&](Vec3d dp, Vec3d& f, const double* pars ){ 
-        return _getLJQ( dp, f, pars ); 
-    });
+    evalRadialPotential( npar, n, ps, Es, fs, params, _getLJQ );
 }
 
 // Original version
@@ -309,11 +302,7 @@ void evaluateLJQ( int n, const Vec3d* ps, double* Es, Vec3d* fs, double* params 
 // New version using _getMorse
 void evaluateMorse( int n, const Vec3d* ps, double* Es, Vec3d* fs, double* params ) {
     int npar=3; // 3 parameters: R0, E0, k
-    evalRadialPotential( npar, n, ps, Es, fs, params, 
-        [&](Vec3d dp, Vec3d& f, const double* pars ){ 
-            return _getMorse( dp, f, pars ); 
-        }
-    );
+    evalRadialPotential( npar, n, ps, Es, fs, params, _getMorse );
 }
 
 // Original version
@@ -329,11 +318,7 @@ void evaluateMorse( int n, const Vec3d* ps, double* Es, Vec3d* fs, double* param
 // New version using _getMorseQ
 void evaluateMorseQ( int n, const Vec3d* ps, double* Es, Vec3d* fs, double* params ) {
     int npar=4; // 4 parameters: R0, E0, qq, k
-    evalRadialPotential( npar, n, ps, Es, fs, params, 
-        [&](Vec3d dp, Vec3d& f, const double* pars ){ 
-            return _getMorseQ( dp, f, pars ); 
-        }
-    );
+    evalRadialPotential( npar, n, ps, Es, fs, params, _getMorseQ );
 }
 
 
