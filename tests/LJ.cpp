@@ -85,7 +85,7 @@ void evalRadialPotential( int npar, int n, const double* rs, double* Es, double*
 // Specialization for Lennard-Jones potential
 void evaluateLJ( int n, const double* rs, double* Es, double* Fs, double* params ) {
     int npar=2; // 2 parameters: E0 and R0
-    evalRadialPotential( npar, n, rs, Es, Fs, params, [&](double r, double& dE_dr, double* pars ){ return varLJ( r, dE_dr, pars[0], pars[1] ); } );
+    evalRadialPotential( npar, n, rs, Es, Fs, params, [&](double r, double& dE_dr, double* pars ){ return getLJ( r, dE_dr, pars[0], pars[1] ); } );
 }
 
 // Specialization for Coulomb potential
