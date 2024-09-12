@@ -13,8 +13,8 @@ import LMagent as lm
 with open("./deepseek.key", "r") as f: api_key = f.read()
 print(api_key)
 
-#model="deepseek-chat"
-model="deepseek-coder"
+model="deepseek-chat"
+#model="deepseek-coder"
 
 coder = lm.Agent(model_name=model, api_key=api_key, base_url="https://api.deepseek.com" )
 coder.set_system_prompt( lm.read_file( '../prompts/ImplementPotential/matematician_system_prompt.md' ) )
