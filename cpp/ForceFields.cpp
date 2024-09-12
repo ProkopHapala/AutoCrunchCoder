@@ -257,38 +257,38 @@ void evaluateLJ( int n, const Vec3d* ps, double* Es, Vec3d* fs, double* params )
 }
 
 // Specialization for Coulomb potential
-void evaluateCoulomb( int n, const double* rs, double* Es, double* Fs, double* params ){
+void evaluateCoulomb( int n, const Vec3d* ps, double* Es, Vec3d* fs, double* params ){
     int npar=1; // 1 parameter: qq
-    evalRadialPotential( npar, n, rs, Es, Fs, params, 
-        [&](double r, double& dE_dr, const double* pars ){ 
-            return getCoulomb( r, dE_dr, pars[0] ); 
+    evalRadialPotential( npar, n, ps, Es, fs, params, 
+        [&](Vec3d dp, Vec3d& f, const double* pars ){ 
+            return getCoulomb( dp, f, pars[0] ); 
         } 
     );
 }
 
 // Specialization for combined Lennard-Jones and Coulomb potential
-void evaluateLJQ( int n, const double* rs, double* Es, double* Fs, double* params ) {
+void evaluateLJQ( int n, const Vec3d* ps, double* Es, Vec3d* fs, double* params ) {
     int npar=3; // 3 parameters: E0, R0, qq
-    evalRadialPotential( npar, n, rs, Es, Fs, params, 
-    [&](double r, double& dE_dr, const double* pars ){ 
-        return getLJQ( r, dE_dr, pars[0], pars[1], pars[2] ); 
+    evalRadialPotential( npar, n, ps, Es, fs, params, 
+    [&](Vec3d dp, Vec3d& f, const double* pars ){ 
+        return getLJQ( dp, f, pars[0], pars[1], pars[2] ); 
     });
 }
 
-void evaluateMorse( int n, const double* rs, double* Es, double* Fs, double* params ) {
+void evaluateMorse( int n, const Vec3d* ps, double* Es, Vec3d* fs, double* params ) {
     int npar=3; // 3 parameters: R0, E0, k
-    evalRadialPotential( npar, n, rs, Es, Fs, params, 
-        [&](double r, double& dE_dr, const double* pars ){ 
-            return getMorse( r, dE_dr, pars[0], pars[1], pars[2] ); 
+    evalRadialPotential( npar, n, ps, Es, fs, params, 
+        [&](Vec3d dp, Vec3d& f, const double* pars ){ 
+            return getMorse( dp, f, pars[0], pars[1], pars[2] ); 
         }
     );
 }
 
-void evaluateMorseQ( int n, const double* rs, double* Es, double* Fs, double* params ) {
+void evaluateMorseQ( int n, const Vec3d* ps, double* Es, Vec3d* fs, double* params ) {
     int npar=4; // 4 parameters: R0, E0, qq, k
-    evalRadialPotential( npar, n, rs, Es, Fs, params, 
-        [&](double r, double& dE_dr, const double* pars ){ 
-            return getMorseQ( r, dE_dr, pars[0], pars[1], pars[2], pars[3] ); 
+    evalRadialPotential( npar, n, ps, Es, fs, params, 
+        [&](Vec3d dp, Vec3d& f, const double* pars ){ 
+            return getMorseQ( dp, f, pars[0], pars[1], pars[2], pars[3] ); 
         }
     );
 }
