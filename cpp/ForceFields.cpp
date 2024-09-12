@@ -15,6 +15,10 @@ inline double getCoulomb(Vec3d dpos, Vec3d& fpos, double qq ){
     return E;
 }
 
+inline double _getCoulomb(Vec3d dpos, Vec3d& fpos, double* par ){
+    return getCoulomb( dpos, fpos, par[0] );
+}
+
 // Coulomb potential - derivatives according to perameters (for fitting parameters)
 inline double varCoulomb(double r, double& dE_qq, double qq ){
     double inv_r = 1.0 / r;
@@ -116,6 +120,10 @@ inline double getMorse(Vec3d dpos, Vec3d& fpos, double R0, double E0, double k )
     double dE_r  = 2 * E0 * k * ( e*e - e );
     fpos = dpos * (-dE_r * inv_r);
     return E;
+}
+
+inline double _getMorse(Vec3d dpos, Vec3d& fpos, double* par ){
+    return getMorse( dpos, fpos, par[0], par[1], par[2] );
 }
 
 
@@ -249,11 +257,7 @@ void evalRadialPotential( int npar, int n, const Vec3d* ps, double* Es, Vec3d* f
 // Specialization for Lennard-Jones potential
 void evaluateLJ( int n, const Vec3d* ps, double* Es, Vec3d* fs, double* params ) {
     int npar=2; // 2 parameters: R0 E0
-    evalRadialPotential( npar, n, ps, Es,fs, params, 
-        [&](Vec3d dp, Vec3d& f, const double* pars ){ 
-            return getLJ( dp, f, pars[0], pars[1] ); 
-        } 
-    );
+    evalRadialPotential( npar, n, ps, Es, fs, params, _getLJ );
 }
 
 // Specialization for Coulomb potential
