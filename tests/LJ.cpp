@@ -100,3 +100,9 @@ void evaluateMorseQ( int n, const double* rs, double* Es, double* Fs, double* pa
     int npar=4; // 4 parameters: D, alpha, r0, qq
     evalRadialPotential( npar, n, rs, Es, Fs, params, [&](double r, double& dE_dr, double* pars ){ return getMorseQ( r, dE_dr, pars[0], pars[1], pars[2], pars[3] ); } );
 }
+// Coulomb potential function returning derivative with respect to qq
+inline double varCoulomb(double r, double& dE_dqq, double qq ){
+    double inv_r = 1.0 / r;
+    dE_dqq = COULOMB_CONST * inv_r;
+    return COULOMB_CONST * qq * inv_r;
+}
