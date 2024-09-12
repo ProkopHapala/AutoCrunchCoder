@@ -5,7 +5,7 @@
 #define COULOMB_CONST      14.3996448915  // [eV A]
 #define MORSE_CONST        1.0             // [eV] (example value, adjust as needed)
 
-inline double getLJ(double r, double& dE_dr, double E0, double R0 ){
+inline double getLJ(double r, double& dE_dr, double R0, double E0 ){
     double inv_r = 1.0 / r;
     double u = E0 * inv_r;
     double u2 = inv_r * inv_r;
@@ -25,7 +25,7 @@ inline double getCoulomb(double r, double& dE_dr, double qq ){
 }
 
 // Combined Lennard-Jones and Coulomb potential function
-inline double getLJQ(double r, double& dE_dr, double E0, double R0, double qq) {
+inline double getLJQ(double r, double& dE_dr, double R0, double E0,  double qq) {
     double inv_r = 1.0 / r;
     double u = E0 * inv_r;
     double u2 = inv_r * inv_r;
@@ -41,15 +41,15 @@ inline double getLJQ(double r, double& dE_dr, double E0, double R0, double qq) {
     return E_lj + E_coul;
 }
 
-inline double getMorse(double r, double& dE_dr, double D, double alpha, double r0) {
-    double e = std::exp(-alpha * (r - r0));
+inline double getMorse(double r, double& dE_dr, double R0, double E0, double alpha ) {
+    double e = std::exp(-alpha * (r - R0));
     double E = D * (e * e - 2 * e);
     dE_dr = 2 * D * alpha * (e * e - e);
     return E;
 }
 
-inline double getMorseQ(double r, double& dE_dr, double D, double alpha, double r0, double qq) {
-    double e = std::exp(-alpha * (r - r0));
+inline double getMorseQ(double r, double& dE_dr, double R0, double E0, double qq, double alpha ) {
+    double e = std::exp(-alpha * (r - R0));
     double E_morse = D * (e * e - 2 * e);
     double dE_dr_morse = 2 * D * alpha * (e * e - e);
 
