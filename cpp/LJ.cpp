@@ -38,6 +38,15 @@ void evaluatePotentialAndForce(const std::vector<double>& points, std::vector<do
 }
 
 // Specialize the template function with getLJ as the template parameter
+double LJ(double r, double R0, double E0, double& dE_dr) {
+    double inv_r = 1.0 / r;
+    double inv_r6 = std::pow(inv_r, 6);
+    double inv_r12 = std::pow(inv_r, 12);
+    double E = E0 * (std::pow(R0 / r, 12) - 2 * std::pow(R0 / r, 6));
+    dE_dr = -12 * E0 * (std::pow(R0 / r, 12) / r - std::pow(R0 / r, 6) / r);
+    return E;
+}
+
 extern "C" void evaluateLJPotentialAndForce(const std::vector<double>& points, std::vector<double>& potentials, std::vector<double>& forces) {
     evaluatePotentialAndForce<getLJ>(points, potentials, forces);
 }
