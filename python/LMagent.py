@@ -46,17 +46,19 @@ class Agent:
         """Set the initial system prompt for the agent."""
         self.history.append({"role": "system", "content": system_prompt})
 
-    def send_message(self, user_input):
+    def send_message(self, user_input, user_args={}):
         """Send a message to the model and get a response."""
         self.history.append({"role": "user", "content": user_input})
         response = self.client.chat.completions.create(
             model=self.model_name,
-            messages=self.history
+            messages=self.history, 
+            **user_args
         )
         #assistant_message = response.choices[0].message['content']
         assistant_message = response.choices[0].message.content
+        ntok  =  response.usage.completion_tokens
         self.history.append({"role": "assistant", "content": assistant_message})
-        return assistant_message
+        return assistant_message, ntok
 
     def reset_history(self):
         """Reset the conversation history."""
