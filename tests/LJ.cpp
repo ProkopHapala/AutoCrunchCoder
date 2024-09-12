@@ -82,7 +82,7 @@ void evaluateLJ( int n, const double* rs, double* Es, double* Fs, double* params
 // Specialization for Coulomb potential
 void evaluateCoulomb( int n, const double* rs, double* Es, double* Fs, double* params ){
     int npar=1; // 1 parameter: qq
-    evalRadialPotential( npar, n, rs, Es, Fs, params, [&](double r, double& dE_dr, double& dE_dqq, double* pars ){ return getCoulomb( r, dE_dr, dE_dqq, pars[0] ); } );
+    evalRadialPotential( npar, n, rs, Es, Fs, params, [&](double r, double& dE_dr, double& dE_dqq, double* pars ){ return varCoulomb( r, dE_dqq, pars[0] ); } );
 }
 
 // Specialization for combined Lennard-Jones and Coulomb potential
