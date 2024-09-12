@@ -7,10 +7,11 @@
 // -------- Coulomb potential 
 
 // Coulomb potential - evaluation of force-field 
-inline double getCoulomb(double r, double& dE_r, double qq ){
+inline double getCoulomb(Vec3d dpos, Vec3d& fpos, double qq ){
+    double r = dpos.norm();
     double inv_r = 1.0 / r;
     double E = COULOMB_CONST * qq * inv_r;
-    dE_r = -E / r;
+    fpos = dpos * (-E * inv_r);
     return E;
 }
 
@@ -24,14 +25,16 @@ inline double varCoulomb(double r, double& dE_qq, double qq ){
 // -------- Lennard-Jones potential
 
 // Lennard-Jones potential  - evaluation of force-field 
-inline double getLJ(double r, double& dE_r, double E0, double R0 ){
+inline double getLJ(Vec3d dpos, Vec3d& fpos, double E0, double R0 ){
+    double r = dpos.norm();
     double inv_r = 1.0 / r;
     double u   = E0 * inv_r;
     double u2  = inv_r * inv_r;
     double u6  = u2 * u2 * u2;
     double u12 = u6 * u6;
     double E   = E0 *        ( u12 - 2* u6 );
-    dE_r       = E0 * 12.0 * ( u12 -    u6 ) * inv_r;
+    double dE_r = E0 * 12.0 * ( u12 -    u6 ) * inv_r;
+    fpos = dpos * (-dE_r * inv_r);
     return E;
 }
 
@@ -51,7 +54,8 @@ inline double varLJ(double r, double R0, double E0,  double& dE_E0, double& dE_R
 // -------- LennardJones+Coulomb potential
 
 // Energy and Force for LennardJones+Coulomb potential 
-inline double getLJQ(double r, double& dE_r, double R0, double E0, double qq ){
+inline double getLJQ(Vec3d dpos, Vec3d& fpos, double R0, double E0, double qq ){
+    double r = dpos.norm();
     double inv_r = 1.0 / r;
     double u     = E0 * inv_r;
     double u2    = inv_r * inv_r;
@@ -63,7 +67,8 @@ inline double getLJQ(double r, double& dE_r, double R0, double E0, double qq ){
     double E_coul    = COULOMB_CONST * qq * inv_r;
     double dE_r_coul = -E_coul * inv_r;
 
-    dE_r = dE_r_lj + dE_r_coul;
+    double dE_r = dE_r_lj + dE_r_coul;
+    fpos = dpos * (-dE_r * inv_r);
     return E_lj + E_coul;
 }
 
@@ -103,10 +108,12 @@ inline void dmix_LJQ( const double* pi, const double* pj, const double* dpij, do
 
 // -------- Morse potential
 
-inline double getMorse(double r, double& dE_r, double R0, double E0, double k ){
+inline double getMorse(Vec3d dpos, Vec3d& fpos, double R0, double E0, double k ){
+    double r = dpos.norm();
     double e = std::exp(-k * (r - R0));
     double E = E0 * ( e*e - 2*e );
-    dE_r  = 2 * E0 * k * ( e*e - e );
+    double dE_r  = 2 * E0 * k * ( e*e - e );
+    fpos = dpos * (-dE_r * inv_r);
     return E;
 }
 
@@ -121,7 +128,8 @@ inline double varMorse(double r, double R0, double E0, double k,  double& dE_R0,
 // -------- Morse+Coulomb potential
 
 // Energy and Force for Morse+Coulomb potential
-inline double getMorseQ(double r, double& dE_r, double R0, double E0, double qq, double k ){
+inline double getMorseQ(Vec3d dpos, Vec3d& fpos, double R0, double E0, double qq, double k ){
+    double r = dpos.norm();
     double e = std::exp(-k * (r - R0));
     double e2 = e*e;
     double E_morse     =    E0 *     (e2 - 2*e);
@@ -131,7 +139,8 @@ inline double getMorseQ(double r, double& dE_r, double R0, double E0, double qq,
     double E_coul = COULOMB_CONST * qq * inv_r;
     double dE_r_coul = -E_coul * inv_r;
 
-    dE_r = dE_r_morse + dE_r_coul;
+    double dE_r = dE_r_morse + dE_r_coul;
+    fpos = dpos * (-dE_r * inv_r);
     return E_morse + E_coul;
 }
 
