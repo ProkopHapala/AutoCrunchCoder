@@ -91,8 +91,8 @@ inline double varLJQ(double r, double R0, double E0,  double qq, double& dE_R0, 
     return E_lj + E_coul;
 }
 
-inline double _varLJQ(double r, const double* par,  double* dpar ){  return varLJQ( r,       par[0], par[1], par[2],  dpar[0], dpar[1], dpar[2]  ); };
-inline double _getLJQ(double r,       double& dE_r, double*  par ){  return getLJQ( r, dE_r, par[0], par[1], par[2]  ); };
+inline double _varLJQ(Vec3d dpos, const double* par,  double* dpar ){  return varLJQ( dpos,       par[0], par[1], par[2],  dpar[0], dpar[1], dpar[2]  ); };
+inline double _getLJQ(Vec3d dpos,       Vec3d& fpos, double*  par ){  return getLJQ( dpos, fpos, par[0], par[1], par[2]  ); };
 
 inline void mix_LJQ( const double* pi, const double* pj, double* pij ){
     pij[0] = pi[0] + pj[0];
@@ -156,8 +156,8 @@ inline double varMorseQ(double r, double R0, double E0, double qq, double k,  do
     return E0*dE_E0 + qq*dE_qq;
 }
 
-inline double _varMorseQ(double r, const double* par,  double* dpar ){  return varMorseQ( r,         par[0], par[1], par[2], par[3],  dpar[0], dpar[1], dpar[2], dpar[3] ); };
-inline double _getMorseQ(double r,       double& dE_r, double*  par ){  return getMorseQ( r, dE_r,   par[0], par[1], par[3], par[3]  ); };
+inline double _varMorseQ(Vec3d dpos, const double* par,  double* dpar ){  return varMorseQ( dpos,         par[0], par[1], par[2], par[3],  dpar[0], dpar[1], dpar[2], dpar[3] ); };
+inline double _getMorseQ(Vec3d dpos,       Vec3d& fpos, double*  par ){  return getMorseQ( dpos, fpos,   par[0], par[1], par[2], par[3]  ); };
 
 inline void mix_varMorseQ( const double* pi, const double* pj, double* pij ){
     pij[0] = pi[0] + pj[0];
@@ -206,17 +206,15 @@ double getVarDerivs( int npar, int na1, const Vec3d* apos1, const double* pars1,
 // Specialization for Lennard-Jones potential
 double getVarDerivsLJQ( int na1, const Vec3d* apos1, const double* pars1, int na2, const Vec3d* apos2, const double* pars2, double* dE_par1 ){
     int npar=2; // 2 parameters: R0 E0
-    //auto ff = [&](double r, const double* par, double* dpar ){  return varLJQ( r, par[0], par[1], par[2],  dpar[0], dpar[1], dpar[2]  ); };
-    //return getVarDerivs< decltype(ff), mix_LJQ, dmix_LJQ >( npar, na1, apos1, pars1, na2, apos2, pars2, dE_par1, ff );
-    return getVarDerivs< decltype(_varLJQ), mix_LJQ, dmix_LJQ >( npar, na1, apos1, pars1, na2, apos2, pars2, dE_par1, _varLJQ );
+    auto ff = [&](Vec3d dpos, const double* par, double* dpar ){  return varLJQ( dpos, par[0], par[1], par[2],  dpar[0], dpar[1], dpar[2]  ); };
+    return getVarDerivs< decltype(ff), mix_LJQ, dmix_LJQ >( npar, na1, apos1, pars1, na2, apos2, pars2, dE_par1, ff );
 };
 
 // Specialization for Lennard-Jones potential
 double getVarDerivsMorseQ( int na1, const Vec3d* apos1, const double* pars1, int na2, const Vec3d* apos2, const double* pars2, double* dE_par1 ){
     int npar=2; // 2 parameters: R0 E0
-    //auto ff = [&](double r, const double* par, double* dpar ){  return varMorseQ( r, par[0], par[1], par[2],par[3],  dpar[0], dpar[1], dpar[2], dpar[3]  ); };
-    //return getVarDerivs< decltype(ff), mix_LJQ, dmix_LJQ >( npar, na1, apos1, pars1, na2, apos2, pars2, dE_par1, ff );
-    return getVarDerivs< decltype(_varMorseQ), mix_LJQ, dmix_LJQ >( npar, na1, apos1, pars1, na2, apos2, pars2, dE_par1, _varMorseQ );
+    auto ff = [&](Vec3d dpos, const double* par, double* dpar ){  return varMorseQ( dpos, par[0], par[1], par[2],par[3],  dpar[0], dpar[1], dpar[2], dpar[3]  ); };
+    return getVarDerivs< decltype(ff), mix_LJQ, dmix_LJQ >( npar, na1, apos1, pars1, na2, apos2, pars2, dE_par1, ff );
 };
 
 
