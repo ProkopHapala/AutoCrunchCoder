@@ -15,7 +15,7 @@ inline double getCoulomb(Vec3d dpos, Vec3d& fpos, double qq ){
     return E;
 }
 
-inline double _getCoulomb(Vec3d dpos, Vec3d& fpos, double* par ){
+inline double _getCoulomb(Vec3d dpos, Vec3d& fpos, const double* par ){
     return getCoulomb( dpos, fpos, par[0] );
 }
 
@@ -44,7 +44,7 @@ inline double getLJ(Vec3d dpos, Vec3d& fpos, double E0, double R0 ){
     return E;
 }
 
-inline double _getLJ(Vec3d dpos, Vec3d& fpos, double* par ){
+inline double _getLJ(Vec3d dpos, Vec3d& fpos, const double* par ){
     return getLJ( dpos, fpos, par[0], par[1] );
 }
 
@@ -104,7 +104,7 @@ inline double varLJQ(double r, double R0, double E0,  double qq, double& dE_R0, 
 }
 
 inline double _varLJQ(double r, const double* par,  double* dpar ){  return varLJQ( r,       par[0], par[1], par[2],  dpar[0], dpar[1], dpar[2]  ); };
-inline double _getLJQ(Vec3d dpos,       Vec3d& fpos, double*  par ){  return getLJQ( dpos, fpos, par[0], par[1], par[2]  ); };
+inline double _getLJQ(Vec3d dpos,       Vec3d& fpos, const double*  par ){  return getLJQ( dpos, fpos, par[0], par[1], par[2]  ); };
 
 inline void mix_LJQ( const double* pi, const double* pj, double* pij ){
     pij[0] = pi[0] + pj[0];
@@ -130,7 +130,7 @@ inline double getMorse(Vec3d dpos, Vec3d& fpos, double R0, double E0, double k )
     return E;
 }
 
-inline double _getMorse(Vec3d dpos, Vec3d& fpos, double* par ){
+inline double _getMorse(Vec3d dpos, Vec3d& fpos, const double* par ){
     return getMorse( dpos, fpos, par[0], par[1], par[2] );
 }
 
@@ -176,7 +176,7 @@ inline double varMorseQ(double r, double R0, double E0, double qq, double k,  do
 }
 
 inline double _varMorseQ(double r, const double* par,  double* dpar ){  return varMorseQ( r,         par[0], par[1], par[2], par[3],  dpar[0], dpar[1], dpar[2], dpar[3] ); };
-inline double _getMorseQ(Vec3d dpos,       Vec3d& fpos, double*  par ){  return getMorseQ( dpos, fpos,   par[0], par[1], par[2], par[3]  ); };
+inline double _getMorseQ(Vec3d dpos, Vec3d& fpos, const double*  par ){  return getMorseQ( dpos, fpos,   par[0], par[1], par[2], par[3]  ); };
 
 inline void mix_varMorseQ( const double* pi, const double* pj, double* pij ){
     pij[0] = pi[0] + pj[0];
@@ -256,9 +256,9 @@ void evalRadialPotential( int npar, int n, const Vec3d* ps, double* Es, Vec3d* f
     for (int i = 0; i < n; ++i) {
         Vec3d r   = ps[i];
         const double* par = params + i*npar;
-        Vec3 f;
+        Vec3d f;
         Es[i] = func(r, f, par );
-        Fs[i] = f;
+        fs[i] = f;
     }
 }
 
