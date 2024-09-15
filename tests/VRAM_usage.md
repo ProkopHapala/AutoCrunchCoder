@@ -33,15 +33,15 @@ nvidia-smi
 alone: 14928 MiB
 total: 16572 MiB
 
-#### Test 2
+#### Test 3
 
-Constext length : 16384
-Batch Size      : 4096
+Constext length : 32768
+Batch Size      : 512
 Flash Attention : No
 
 nvidia-smi
-alone: 14928 MiB
-total: 16572 MiB
+alone: 21431 MiB
+total: 19792 MiB
 
 
 ## Codestral-22B
@@ -94,6 +94,16 @@ Flash Attention : yes
 nvidia-smi
 alone: 7098 MiB
 total: 8803 MiB
+
+#### Test 1
+
+Constext length : 32768
+Batch Size      : 512
+Flash Attention : No
+
+nvidia-smi
+alone: 10916 MiB
+total: 12577 MiB
 
 #### Test 1
 

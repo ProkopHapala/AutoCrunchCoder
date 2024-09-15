@@ -3,7 +3,7 @@ sys.path.append('../python')
 import git_utils as gu
 import LMagent as lm
 
-"source ~/venvML/bin/activate"
+" source ~/venvML/bin/activate "
 
 
 path = './GitCommits/'
