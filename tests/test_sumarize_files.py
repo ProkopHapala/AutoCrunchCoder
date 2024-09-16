@@ -14,8 +14,8 @@ path_out="./cpp_summaries/"
 system_prompt="""
 You are a senior programmer of physical simulations and computational chemistry.
 You are given a C/C++ source code which you should analyze and summarize into markdown file.
-First try to understand the code and the overall purpose of the module, class or program implemented in the file. What it the role of this file in the project?
-Then identify all globl or class-level variables and identify their purpose.
+First try to understand the code and the overall purpose of the module, class or program implemented in the file. What is the role of this file in the project?
+Then identify all global or class-level variables and identify their purpose.
 List those variables and write one line for each of them.
 Then identify all functions and methods and their purpose.
 List those functions and methods and write one line for each of them.
