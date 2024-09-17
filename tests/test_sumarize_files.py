@@ -12,7 +12,10 @@ path_out="./cpp_summaries_FireCore/"
 
 
 system_prompt="""
-You are a senior programmer of physical simulations and computational chemistry.
+You are helful assistant and a senior programmer of physical simulations and computational chemistry.
+"""
+
+prompt="""
 You are given a C/C++ source code which you should analyze and summarize into markdown file.
 First try to understand the code and the overall purpose of the module, class or program implemented in the file. What is the role of this file in the project?
 Then identify all global or class-level variables and identify their purpose.
@@ -26,8 +29,9 @@ For example:
 * `r` and `l` are radius. `T` is temperature or time. 
 * `d` is probably difference or derivative. 
 * `L-J` is probably Lennard-Jones potential.  
+
+please, sumarize commits( %i .. %i ) contained in the following text:
 """
-prompt="please, sumarize commits( %i .. %i ) contained in the following text:"
 
 #model_name="lmstudio-community/Codestral-22B-v0.1-GGUF/Codestral-22B-v0.1-Q4_K_M.gguf"
 #model_name="lmstudio-community/DeepSeek-Coder-V2-Lite-Instruct-GGUF/DeepSeek-Coder-V2-Lite-Instruct-Q4_K_M.gguf"
@@ -82,18 +86,50 @@ def clean_skipped( fnamein, fnameout ):
             # write alligned in columns, 100 chars for fname
             f.write(f"{fname:<100} {nbyte}\n")
 
-# Body
+# =============================
+# ============= Body ==========
+# =============================
 
 #for f in flist: print(f)
 
-agent = lm.Agent(model_name=model_name)
-agent.set_system_prompt( system_prompt )
-
-relevant_extensions = {'.h', '.c', '.cpp', '.hpp'}
-ignores={'*/Build*','*/doxygen'}
+# # ---- 1st round of sumarization of source code files
+# agent = lm.Agent(model_name=model_name)
+# agent.set_system_prompt( system_prompt )
+# relevant_extensions = {'.h', '.c', '.cpp', '.hpp'}
+# ignores={'*/Build*','*/doxygen'}
 
 #flist = fu.find_and_process_files( path_in, process_file=lambda f: toLLM(f, agent),  relevant_extensions=relevant_extensions, ignores=ignores )
 
-clean_skipped( path_out + 'skipped.log', path_out + 'skipped_clean.log' )
+#clean_skipped( path_out + 'skipped.log', path_out + 'skipped_clean.log' )
+
+# initAgent( base_url="https://api.deepseek.com", api_key=None, key_file="./deepseek.key" )
+# stream_response( prompt, system_prompt, agent=None ):
+# get_response( prompt, system_prompt, agent=None  ):
+
+
+agent = lm.initAgent( base_url="https://api.deepseek.com", key_file="./deepseek.key" )
+with open( path_out + 'skipped_clean.log', 'r') as f:
+    pre = "/home/prokop/git/FireCore/cpp/"
+    for line in f:
+        ws = line.split()
+        filepath = pre+ws[0]
+        print( "\n=====================\n", filepath, " "*(100-len(filepath)), ws[1], "\n=====================\n" )
+        
+        with open( filepath, 'r') as f: content = f.read()
+
+        task = prompt + "\n\n" + content
+        #for part in lm.stream_response( prompt=task, system_prompt=system_prompt, agent=agent ):
+        #    print(part, end='', flush=True)  # Print each part as it comes in
+
+        response = lm.get_response( prompt=task, system_prompt=system_prompt, agent=agent  )
+
+        fname = filepath.split('/')[-1]
+        fnameout = path_out + fname + '.md'
+        print("respponse saved to file: ", fnameout )
+        with open( fnameout, 'w') as f: f.write(response)
+
+
+       
+
 
 
