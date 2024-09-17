@@ -32,10 +32,11 @@ def find_and_process_files(root_dir, process_file=None, relevant_extensions=None
     :param relevant_extensions: Set of file extensions to include (e.g., {'.h', '.c', '.cpp', '.hpp'})
     """
     flist = []
-    if relevant_extensions is None:
-        relevant_extensions = {'.h', '.c', '.cpp', '.hpp'}
+    #print(f"find_and_process_files: {root_dir}")
+    if relevant_extensions is None: relevant_extensions = {'.h', '.c', '.cpp', '.hpp'}
     for dirpath, dirnames, filenames in os.walk(root_dir):
         for file_name in filenames:
+            #print(f"Processing file: {file_name}")
             full_path = os.path.join(dirpath, file_name)
             if should_ignore(full_path, ignores): continue
             _, ext = os.path.splitext(file_name)
@@ -45,6 +46,41 @@ def find_and_process_files(root_dir, process_file=None, relevant_extensions=None
                 if process_file is not None:
                     process_file(full_path)
     return flist
+
+
+def accumulate_files_content(file_list, process_function, max_char_limit=65536 ):
+    """
+    Accumulate content from files into a string and process it when the length exceeds max_char_limit.
+    
+    :param file_list: List of file paths to accumulate content from
+    :param max_char_limit: The maximum number of characters allowed before processing the accumulated content
+    :param process_function: A user-defined function to call when the accumulated string reaches the limit
+    """
+    accumulated_parts = []  # List to accumulate parts of the string
+    accumulated_length = 0  # Track the current length of the accumulated content
+    i0=0
+    for i,file_path in enumerate(file_list):
+        if os.path.isfile(file_path):  # Check if the file exists
+            with open(file_path, 'r') as f:
+                fnamestr = "# FILE: "+ file_path+"\n\n"
+                content = f.read()     # Read the file content
+                # If adding this content would exceed the max limit, process the current accumulated string
+                dlen = len(fnamestr) + len(content)+2
+                if accumulated_length + dlen > max_char_limit:
+                    process_function('\n\n'.join(accumulated_parts), (i0,i) )     # Process the current accumulated string
+                    # Reset the accumulator
+                    accumulated_parts = []
+                    accumulated_length = 0
+                    i0=i
+                # Add the current file content to the accumulator
+                accumulated_parts.append(fnamestr)
+                accumulated_parts.append(content)
+                accumulated_length += dlen
+    # Process any remaining accumulated content
+    if accumulated_parts:
+        process_function('\n\n'.join(accumulated_parts), (i0,i) )
+
+
 
 # # Example usage
 # if __name__ == '__main__':

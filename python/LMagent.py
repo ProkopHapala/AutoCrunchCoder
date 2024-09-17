@@ -13,30 +13,73 @@ def read_file(file_path):
     with open(file_path, 'r') as file:
         return file.read()
 
+# ====== These free functions works, but maybe should be integrated to Agent
+
+def initAgent( base_url="https://api.deepseek.com", api_key=None, key_file="./deepseek.key" ):
+    if api_key is None:
+        with open(key_file, "r") as f: api_key = f.read().strip()
+        print(api_key)
+    agent = OpenAI(api_key=api_key, base_url=base_url )
+    return agent
+
+def get_response( prompt="Who are you?", system_prompt="You are a helpful assistant", agent=None  ):
+    if agent is None:
+        agent = initAgent( base_url="https://api.deepseek.com", key_file="./deepseek.key" )
+    response = agent.chat.completions.create(
+        model="deepseek-chat",
+        messages=[
+            {"role": "system", "content": system_prompt },
+            {"role": "user",   "content": prompt },
+        ],
+        stream=False
+    )
+    return response.choices[0].message.content
+
+def stream_response( prompt="Who are you?", system_prompt="You are a helpful assistant", agent=None ):
+    if agent is None:
+        agent = initAgent( base_url="https://api.deepseek.com", key_file="./deepseek.key" )
+    response = agent.chat.completions.create(
+        model="deepseek-chat",
+        messages=[
+            {"role": "system", "content": system_prompt },
+            {"role": "user",   "content": prompt },
+        ],
+        stream=True  # Enable streaming
+    )
+    for chunk in response:
+        # Print the raw chunk for debugging
+        #print("DEBUG chunk:", chunk)  
+        # Check if 'choices' exists and has content
+        if hasattr(chunk, 'choices') and len(chunk.choices) > 0:
+            ch0 = chunk.choices[0]  # Access the first choice
+            delta = ch0.delta  # Directly access delta
+            content = delta.content if delta else ''  # Get content from delta
+            #print("DEBUG choices[0]:", ch0)  
+            #print("DEBUG delta:", delta)  
+            #print("DEBUG content:", content)  
+            if content:  # Only yield if content is not empty
+                yield content  # Yield the content
+
+
 class Agent:
-    def __init__(self, model_name, api_key="any", base_url="http://localhost:1234/v1"):
-        
+    def __init__(self, model_name, api_key="any", base_url="http://localhost:1234/v1", bProxy=False ):
         #tunnel_port = 8888     # The port where your SSH tunnel forwards the requests
         #base_url = f"http://localhost:{tunnel_port}/v1"     # Set the base URL to use the SSH tunnel (local machine)
-        
+        #base_url = "http://10.26.201.142:1234/v1"
+
         #self.client = OpenAI(api_key=api_key, base_url=base_url)
         self.model_name = model_name
         self.history = []
-
-
-        # SOCKS proxy configuration
-        proxy = {
-            'http': 'socks5h://localhost:9870',
-            'https': 'socks5h://localhost:9870',
-        }
-
-        # Set the base URL to the target server
-        base_url = "http://10.26.201.142:1234/v1"
-
+       
         # Set the proxy settings for OpenAI client
         self.client = OpenAI(api_key=api_key, base_url=base_url)
         self.session = requests.Session()
-        self.session.proxies.update(proxy)
+        if bProxy:
+            proxy = {
+                'http': 'socks5h://localhost:9870',
+                'https': 'socks5h://localhost:9870',
+            }
+            self.session.proxies.update(proxy)
 
     def query_model(self, model_name):
         response = self.session.get(f"{self.client.base_url}/models/{model_name}")

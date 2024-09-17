@@ -35,7 +35,7 @@ name="nbody"
 #subprocess.run(f"g++ -O0    -fPIC                  -shared {cpp_file} -o {shared_lib_unoptimized}", shell=True) # Compile to unoptimized shared library
 #subprocess.run(f"g++ -Ofast -fPIC                  -shared {cpp_file} -o {shared_lib_optimized}", shell=True)  # Compile to optimized shared library
 
-FFLAGs = 
+FFLAGs = "-Ofast "
 
 
 subprocess.run(f"g++ -O0    -fPIC -S -fverbose-asm -shared {name} -o {name}_O0.so",  shell=True) # Compile to unoptimized assembly with comments

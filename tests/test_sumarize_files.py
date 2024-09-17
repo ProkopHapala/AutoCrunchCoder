@@ -8,7 +8,7 @@ import LMagent as lm
 
 path_in="/home/prokop/git/FireCore/cpp/"
 #path_in="/home/prokop/git/SimpleSimulationEngine/cpp"
-path_out="./cpp_summaries/"
+path_out="./cpp_summaries_FireCore/"
 
 
 system_prompt="""
@@ -33,6 +33,8 @@ prompt="please, sumarize commits( %i .. %i ) contained in the following text:"
 #model_name="lmstudio-community/DeepSeek-Coder-V2-Lite-Instruct-GGUF/DeepSeek-Coder-V2-Lite-Instruct-Q4_K_M.gguf"
 model_name="lmstudio-community/Meta-Llama-3.1-8B-Instruct-GGUF/Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf"
 
+# ======= Functions
+
 def toLLM(file_path, agent, max_char_limit=32768 ):
     flog = open( path_out + 'skipped.log', 'a')
     file_size = os.path.getsize(file_path)
@@ -44,7 +46,7 @@ def toLLM(file_path, agent, max_char_limit=32768 ):
         flog.write( s+"\n" )
     else:
         with open(file_path, 'r') as f: content = f.read()
-        task = prompt + "\n\n" + content
+        task = (prompt %file_path) + "\n\n" + content
         fname = os.path.basename(file_path)
         # Process the file content (in this example, just check if content length exceeds the limit)
         if ( len(task) + len(system_prompt) + 2 )  < max_char_limit:
@@ -58,6 +60,29 @@ def toLLM(file_path, agent, max_char_limit=32768 ):
             flog.write( s + "\n" )
     flog.close()
 
+def clean_skipped( fnamein, fnameout ):
+    pre = "/home/prokop/git/FireCore/cpp/"
+    npre = len(pre)
+    dct = {}
+    with open( fnamein, 'r') as f: 
+        for line in f:
+            ws = line.split()
+            fname = ws[1][npre:-1]
+            nbyte = ws[-2][1:]
+            #print(fname, nbyte)
+            #lst.append( (fname,int(nbyte)) ) 
+            dct[fname] = int(nbyte)
+    # sort by 2nd item
+    lst = list( dct.items() )   #;print(lst)
+    lst = sorted( lst, key=lambda x: x[1], reverse=True)
+    #print(lst)
+    #for fname,nbyte in lst: print(fname, nbyte)
+    with open( fnameout, 'w') as f:
+        for fname,nbyte in lst: 
+            # write alligned in columns, 100 chars for fname
+            f.write(f"{fname:<100} {nbyte}\n")
+
+# Body
 
 #for f in flist: print(f)
 
@@ -67,4 +92,8 @@ agent.set_system_prompt( system_prompt )
 relevant_extensions = {'.h', '.c', '.cpp', '.hpp'}
 ignores={'*/Build*','*/doxygen'}
 
-flist = fu.find_and_process_files( path_in, process_file=lambda f: toLLM(f, agent),  relevant_extensions=relevant_extensions, ignores=ignores )
+#flist = fu.find_and_process_files( path_in, process_file=lambda f: toLLM(f, agent),  relevant_extensions=relevant_extensions, ignores=ignores )
+
+clean_skipped( path_out + 'skipped.log', path_out + 'skipped_clean.log' )
+
+
