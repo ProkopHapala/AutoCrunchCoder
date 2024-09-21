@@ -1,5 +1,5 @@
 import os
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Generator
 from abc import ABC, abstractmethod
 
 class Agent(ABC):
@@ -50,7 +50,7 @@ class OpenAIAgent(Agent):
                 "usage": None
             }
 
-    def stream_message(self, messages: List[Dict[str, str]], **kwargs):
+    def stream_message(self, messages: List[Dict[str, str]], **kwargs) -> Generator[str, None, None]:
         try:
             stream = self.client.chat.completions.create(
                 model=self.model_name,

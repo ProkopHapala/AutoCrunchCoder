@@ -1,4 +1,4 @@
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Generator
 from openai import OpenAI
 from LMagent import BaseAgent
 
