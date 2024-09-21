@@ -1,0 +1,29 @@
+deepseek-chat:
+  api_key_file: ./deepseek.key
+  base_url: https://api.deepseek.com
+  model_name: deepseek-chat
+
+gpt-3.5-turbo:
+  api_key_file: ./openai.key
+  base_url: https://api.openai.com/v1
+  model_name: gpt-3.5-turbo
+
+local-llama:
+  api_key_file: null
+  base_url: http://localhost:8000/v1
+  model_name: llama-7b
+
+claude-2:
+  api_key_file: ./anthropic.key
+  base_url: https://api.anthropic.com
+  model_name: claude-2
+
+palm-2:
+  api_key_file: ./google.key
+  base_url: https://generativelanguage.googleapis.com
+  model_name: chat-bison-001
+
+falcon-40b:
+  api_key_file: ./huggingface.key
+  base_url: https://api-inference.huggingface.co/models/tiiuae/falcon-40b
+  model_name: falcon-40b

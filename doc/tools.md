@@ -40,13 +40,13 @@
 * Fundation Model providers
     * [OpenAI](https://openai.com/)
     * [Anthropic](https://www.anthropic.com/)
-    * [API doc](https://docs.anthropic.com/en/api/getting-started) 
+        * [API doc](https://docs.anthropic.com/en/api/getting-started) 
     * [DeepSeek](https://platform.deepseek.com/usage)
         * models: deepseek-chat, deepseek-coder
         * price: $0.14 / $0.28 1M tokens
     * [Google AI studio](https://aistudio.google.com/app/)
-    * [API doc](https://ai.google.dev/gemini-api/docs/quickstart?lang=python)
-    * Models: Gemini 1.5 Pro/Flash (Experimental), Gemma 2B,9B,27B
+        * [API doc](https://ai.google.dev/gemini-api/docs/quickstart?lang=python)
+        * Models: Gemini 1.5 Pro/Flash (Experimental), Gemma 2B,9B,27B
     * [Mistral](https://console.mistral.ai/)
 
 * Integrators
