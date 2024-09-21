@@ -3,19 +3,21 @@ from openai import OpenAI
 import os
 import requests
 import json
-from typing import Dict, Any, List, Tuple, Generator
+from typing import Tuple, List, Dict, Any, Optional, Generator, Callable, Optional
 from .Agent import Agent
     
 class AgentOpenAI(Agent):
     def __init__(self, template_name: str):
-        self.system_prompt = "You are a helpful assistant."
-        self.template_name = template_name
-        self.load_keys()
-        self.load_template()
-        self.setup_client()
-        self.history: List[Dict[str, str]] = []
+        super().__init__(template_name)
+        
+        # self.template_name = template_name
+        # self.load_keys()
+        # self.load_template()
+        # self.setup_client()
+        # self.history: List[Dict[str, str]] = []
+        # self.session = requests.Session()
+        # self.tools = {}
         self.session = requests.Session()
-        self.tools = {}
 
     def setup_client(self):
         self.client = OpenAI(api_key=self.api_key, base_url=self.base_url)
@@ -34,25 +36,35 @@ class AgentOpenAI(Agent):
         self.system_prompt = system_prompt
         self.history = [{"role": "system", "content": system_prompt}]
 
-    def query(self, prompt: str, bHistory=False, **kwargs: Any) -> str:
+    def query(self, prompt: str=None, bHistory=False, messages=None, bTools=True, **kwargs: Any) -> str:
         """
         Send a message to the model while keeping track of the conversation history.
         This is useful for multi-turn conversations.
         """
-        if bHistory:
-            self.update_history({"role": "user", "content": prompt})   # Append user input to conversation history
-            messages = self.history
-        else:
-            messages = [{"role": "user", "content": prompt}]         # Create a one-off message (no history used)  
-        response = self.client.chat.completions.create(                  # Make a request to the model with the entire conversation history
-            model=self.model_name,
-            messages=messages,
-            #tools=self.tools,
-            **kwargs
-        )
-        assistant_message = response.choices[0].message.content                                      # Extract assistant's message from the response
-        if bHistory: self.history.append({"role": "assistant", "content": assistant_message})   # Append assistant's message to history for future context
-        return assistant_message
+        #print( "AgentOpenAI::query()", prompt )
+        if messages is None:
+            messages = []
+        # else:
+        #     print( "AgentOpenAI::query() messages=\n" )
+        #     for i,msg in enumerate(messages): print( "message[%i]:\n" %i,  msg )
+        if prompt is not None:
+            if bHistory:
+                user_message = {"role": "user", "content": prompt}
+                self.update_history(user_message)   # Append user input to conversation history
+                messages = self.history + messages
+            else:
+                messages.append( {"role": "user", "content": prompt} )           # Create a one-off message (no history used)  
+        if bTools and (len(self.tools)>0):
+            #print( "call_1.tools :", self.tools )
+            response = self.client.chat.completions.create(  model=self.model_name,  messages=messages, tools=self.tools, temperature=self.temperature, **kwargs)
+            #print( "call_1.response :", response.choices[0].message.content )
+        else: 
+            response = self.client.chat.completions.create(  model=self.model_name,  messages=messages,                   **kwargs)
+        message = response.choices[0].message
+        message = self.try_tool(message, messages, **kwargs)
+        #content = message.content                                 # Extract assistant's message from the response
+        if bHistory: self.history.append(message)   # Append assistant's message to history for future context
+        return message
 
     def stream(self, prompt: str, bHistory=False, **kwargs: Any) -> Generator[str, None, None]:
         """
@@ -67,6 +79,7 @@ class AgentOpenAI(Agent):
         stream = self.client.chat.completions.create(
             model=self.model_name,
             messages=messages,
+            temperature=self.temperature,
             #tools=self.tools,
             stream=True,
             **kwargs
@@ -81,25 +94,26 @@ class AgentOpenAI(Agent):
         # After the stream is exhausted, append the assistant's message to the history
         if bHistory: self.history.append({"role": "assistant", "content": assistant_message})
 
-    def add_tool(self, name: str, description: str, parameters: Dict[str, Any]) -> None:
+    def extract_tool_call(self, message: Dict[str, Any]) -> Tuple[Optional[str], Optional[Dict[str, Any]]]:
         """
-        Add a new tool to the agent's toolkit.
-        A tool is a function that the agent can call to perform a specific task by call to some extrnal API provied by user or service provider.
+        Check and extract the function call details from the OpenAI response.
         """
-        tool = {
-            "type": "function",
-            "function": {
-                "name": name,
-                "description": description,
-                "parameters": parameters
-            }
-        }
-        self.tools.append(tool)
+        if message.tool_calls:
+            return message.tool_calls
+        return None
 
-    def use_tool(self, prompt: str ) -> Dict[str, Any]:
-        response = self.client.chat.completions.create(
-            model=self.model_name,
-            messages=self.history,
-            tools=self.tools
-        )
-        return response.choices[0].message
+    # def add_tool(self, name: str, description: str, parameters: Dict[str, Any]) -> None:
+    #     """
+    #     Add a new tool to the agent's toolkit.
+    #     A tool is a function that the agent can call to perform a specific task by call to some extrnal API provied by user or service provider.
+    #     """
+    #     tool = {
+    #         "type": "function",
+    #         "function": {
+    #             "name": name,
+    #             "description": description,
+    #             "parameters": parameters
+    #         }
+    #     }
+    #     self.tools.append(tool)
+

@@ -8,31 +8,19 @@ from pyCruncher.AgentDeepSeek import AgentDeepSeek
 def test_json_output( bStream = False ):
     agent = AgentDeepSeek("deepseek-coder")
 
+    post_prompt = " Output strictly JSON format."
+
+    prompt = "Give me information about the planet Mars."
+    #prompt = "Provide a simple recipe for chocolate chip cookies."
+
+    print("user:  "+prompt+"\n\n")
+    print("agent: "+prompt+"\n\n")
     if bStream:
-
-        prompt = "Give me information about the planet Mars in JSON format"
-        print("JSON Output for Mars information:")
-        for chunk in agent.stream_json(prompt): print(chunk, flush=True, end="")
-        print( "agent.answer_json: ", agent.answer_json )
-
-        prompt = "Provide a simple recipe for chocolate chip cookies in JSON format"
-        print("\nJSON Output for chocolate chip cookie recipe:")
-        for chunk in agent.stream_json(prompt): print(chunk, flush=True, end="")
-        print( "agent.answer_json: ", agent.answer_json )
-
+        for chunk in agent.stream_json(prompt+post_prompt): print(chunk, flush=True, end="")
     else:
-
-        # Test case 1: Get information about a planet
-        prompt = "Give me information about the planet Mars in JSON format"
-        result = agent.query_json(prompt)
-        print("JSON Output for Mars information:")
+        result = agent.query_json(prompt+post_prompt)
         print(result)
-
-        # Test case 2: Get a recipe in JSON format
-        prompt = "Provide a simple recipe for chocolate chip cookies in JSON format"
-        result = agent.query_json(prompt)
-        print("\nJSON Output for chocolate chip cookie recipe:")
-        print(result)
+    print( "\n\nagent.json: ", agent.answer_json )
 
 if __name__ == "__main__":
     #test_json_output()

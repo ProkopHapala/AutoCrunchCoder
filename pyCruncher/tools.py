@@ -4,11 +4,29 @@ import numpy as np
 from sympy import sympify, lambdify, diff, integrate
 from typing import List, Dict, Any, Callable
 
-def run_maxima(command: str) -> str:
-    """Run a Maxima command and return the result."""
-    process = subprocess.Popen(['maxima', '--very-quiet'], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-    output, _ = process.communicate(command)
-    return output.strip()
+from .Maxima import run_maxima
+
+# def run_maxima(command: str) -> str:
+#     """Run a Maxima command and return the result."""
+#     process = subprocess.Popen(['maxima', '--very-quiet'], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+#     output, _ = process.communicate(command)
+#     return output.strip()
+
+def symbolic_derivative( expr: str, var: str, bSimplify=False, bFactor=False, bExpand=False ) -> str:
+    """
+    Compute analytical derivative with Maxima.
+    expr: expression to differentiate
+    var: variable to differentiate with respect to
+    """
+    code = f"diff({expr}, {var})"
+    if( bSimplify ): code = f"ratsimp({code})"
+    if( bExpand ):   code = f"expand({code})"
+    if( bFactor ):   code = f"factor({code})"
+    code+=";\n"
+    #process = subprocess.Popen(['maxima', '--very-quiet'], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    #output, _ = process.communicate(command)
+    #output.strip()
+    return run_maxima(code)
 
 def compute_numerical_derivative(expr: str, var: str, point: float, h: float = 1e-5) -> float:
     """Compute the numerical derivative of an expression using Maxima."""

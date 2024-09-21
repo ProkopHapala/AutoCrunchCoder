@@ -1,15 +1,32 @@
 import os
 from abc import ABC, abstractmethod
-from typing import List, Dict, Any, Optional, Generator
+from typing import Tuple, List, Dict, Any, Optional, Generator, Callable, Optional
 import toml
+import json
 #import yaml
+
+from .ToolScheme import schema
+
+
 class Agent(ABC):
-    def __init__(self, model_name: str, api_key: Optional[str] = None):
-        self.model_name = model_name
-        self.api_key = api_key or self.get_api_key()
-        self.client = self.setup_client()
+    def __init__(self, template_name: str, api_key: Optional[str] = None):
+        self.system_prompt = "You are a helpful assistant."
+        #self.model_name = model_name
+        #self.api_key = api_key or self.get_api_key()
+        #self.client = self.setup_client()
         self.history: List[Dict[str, str]] = []
         self.max_context_length = 4096
+        self.temperature=0.0
+        #self.tools = set()
+        self.tools = []
+        self.tool_callbacks = dict()
+
+        self.template_name = template_name
+        self.load_keys()
+        self.load_template()
+        self.setup_client()
+        
+        
 
     def load_keys(self):
         """
@@ -21,7 +38,7 @@ class Agent(ABC):
         keys_path = 'providers.key'
         with open(keys_path, 'r') as file:
             self.keys = toml.load(file)['api_keys']
-            
+
     def load_template(self):
         """
         Load the LLM template configuration from a YAML or TOML file. It also checks for
@@ -48,12 +65,75 @@ class Agent(ABC):
         pass
 
     @abstractmethod
-    def query(self, messages: List[Dict[str, str]], **kwargs) -> Dict[str, Any]:
+    def query(self, prompt: str=None, bHistory=False, messages=None, bTools=True, **kwargs: Any) -> str:
+        """
+        Send a query to the model with optional function calling capabilities.
+        """
         pass
 
     @abstractmethod
     def stream(self, messages: List[Dict[str, str]], **kwargs) -> Generator[str, None, None]:
+        """
+        Stream a response from the model with optional function calling capabilities.
+        """
         pass
+
+    def try_tool(self, message, messages: List[Dict[str, str]], **kwargs):
+        tool_calls = self.extract_tool_call(message) 
+        if tool_calls is not None:
+            if len(tool_calls) > 0:
+                print( "Agent.(try_tool):\n", message.content )
+                messages.append(message)
+                ndone = 0
+                for tool_call in tool_calls:
+                    #print("try_tool() INPUTS: tool_call=", tool_call)
+                    name = tool_call.function.name  # Use dot notation to access the function name
+                    if name is not None:
+                        if name in self.tool_callbacks:
+                            args = json.loads(tool_call.function.arguments)  # Use dot notation for arguments as well
+                            #print("try_tool() call_function() ", name, "  args= ", args)
+                            result = self.call_function(name, args)
+                            #print("try_tool() OUTPUT: ", result)
+                            messages.append({"role": "tool", "tool_call_id": tool_call.id, "content": result})  # Access tool_call.id using dot notation
+                            ndone += 1  # Increment the count correctly
+                if ndone > 0:
+                    message = self.query( prompt=None, messages=messages, bTools=False, **kwargs)
+        return message
+
+    @abstractmethod
+    def extract_tool_call(self, message: Dict[str, Any]) -> Tuple[Optional[str], Optional[Dict[str, Any]]]:
+        """
+        Check if the response contains a function call and extract the function name and arguments.
+        Return (None, None) if no function call is present.
+        """
+        pass
+
+    def call_function(self, name: str, args: Dict[str, Any]) -> str:
+        """
+        Dynamically dispatch the function based on the function name and arguments provided by the model.
+        """
+        if name in self.tool_callbacks:
+            print( "call_function().INPUT  ", name ,"  arguments= ", args  )
+            out = self.tool_callbacks[name](**args)   
+            print( "call_function().OUTPUT ", out  )
+            return out
+        else:
+            return f"Error: Function {name} is not available."
+
+    def register_tool(self, func: Callable[[Dict[str, Any]], str], name=None, bOnlyRequired=False ):
+        """
+        Register a user-defined tool (function) that can be called by the model.
+        """
+        #schema( function=function, bOnlyRequired=bOnlyRequired )
+        tool = schema(func, bOnlyRequired=bOnlyRequired )    
+        #pprint.pprint(schema, indent=2,  width=1000  )
+        if name is None:
+            name = tool['name']
+        else:
+            tool['name'] = name
+        #print(json.dumps(tool, indent=2))
+        self.tools.append( { "type": "function", "function": tool } )
+        self.tool_callbacks[name] = func
 
     def update_history(self, new_message: Dict[str, str]):
         """
@@ -74,7 +154,6 @@ class Agent(ABC):
     def estimate_token_count(self, messages: List[Dict[str, str]]) -> int:
         """
         Estimate the total token count for a list of messages.
-        Subclasses should override this method to provide a provider-specific token count estimation.
         """
         return sum(len(msg['content']) for msg in messages)
 

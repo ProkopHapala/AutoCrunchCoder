@@ -1,45 +1,31 @@
 import sys
 import os
+import pprint
+import json
 
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.append("../")
 
-from python.deepseek_agent import DeepSeekAgent
+from pyCruncher.AgentDeepSeek import AgentDeepSeek
+from pyCruncher.tools import symbolic_derivative
 
 def test_math_tools():
-    agent = DeepSeekAgent("deepseek-coder")
 
-    # Test numerical derivative
-    expr = "x^2"
-    var = "x"
-    point = 2
-    result = agent.numerical_derivative(expr, var, point)
-    print(f"Numerical derivative of {expr} at x = {point}: {result}")
+    #schema = ts.schema(symbolic_derivative, bOnlyRequired=True )    
+    #pprint.pprint(schema, indent=2,  width=1000  )
+    #print(json.dumps(schema, indent=2))
 
-    # Test expression steps
-    steps = [
-        {"name": "a", "expression": "2 * 3"},
-        {"name": "b", "expression": "a + 4"},
-        {"name": "c", "expression": "b ^ 2"}
-    ]
-    result = agent.evaluate_expression_steps(steps)
-    print("\nExpression steps result:")
-    print(result)
+    prompt = "What is the derivative of Lenard-Jones poential (use tool `symbolic_derivative`) ?"
 
-    # Test integral
-    expr = "x^2"
-    var = "x"
-    lower = 0
-    upper = 1
-    result = agent.compute_integral(expr, var, lower, upper)
-    print(f"\nIntegral of {expr} from {lower} to {upper}: {result}")
+    agent = AgentDeepSeek("deepseek-coder")
+    agent.register_tool(symbolic_derivative, bOnlyRequired=True )
 
-    # Test derivative comparison
-    expr = "x^3"
-    var = "x"
-    point = 2
-    result = agent.compare_derivatives(expr, var, point)
-    print("\nDerivative comparison result:")
-    print(result)
+    print("User:  "+prompt+"\n")
+    message = agent.query(prompt)
+    print("Agent(final):\n", message.content)
+
+    #result = symbolic_derivative( '4*epsilon*((sigma/r)^12 - (sigma/r)^6)', 'r' )
+    #print( "symbolic_derivative().result:   ", result )
+
 
 if __name__ == "__main__":
     test_math_tools()
