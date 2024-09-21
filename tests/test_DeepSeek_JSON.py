@@ -3,10 +3,10 @@ import os
 
 sys.path.append("../")
 
-from pyCruncher.deepseek_agent import DeepSeekAgent
+from pyCruncher.AgentDeepSeek import AgentDeepSeek
 
 def test_json_output( bStream = False ):
-    agent = DeepSeekAgent("deepseek-coder")
+    agent = AgentDeepSeek("deepseek-coder")
 
     if bStream:
 
