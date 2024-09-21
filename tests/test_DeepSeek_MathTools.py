@@ -6,7 +6,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from python.deepseek_agent import DeepSeekAgent
 
 def test_math_tools():
-    agent = DeepSeekAgent("deepseek-chat")
+    agent = DeepSeekAgent("deepseek-coder")
 
     # Test numerical derivative
     expr = "x^2"

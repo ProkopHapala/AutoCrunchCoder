@@ -3,7 +3,7 @@ from deepseek_agent import DeepSeekAgent
 
 class TestDeepSeekFIM(unittest.TestCase):
     def setUp(self):
-        self.agent = DeepSeekAgent("deepseek-chat")
+        self.agent = DeepSeekAgent("deepseek-coder")
 
     def test_fim_completion(self):
         prefix = "def fibonacci(n):"

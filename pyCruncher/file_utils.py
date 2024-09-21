@@ -9,6 +9,11 @@ def write_file(file_path, txt):
     with open(file_path, 'w') as file:
         file.write(txt)
 
+def remove_code_block_delimiters(text):
+    lines = text.splitlines()
+    cleaned_lines = [line for line in lines if not line.strip().startswith("```")]
+    return "\n".join(cleaned_lines)
+
 def should_ignore(path, ignores):
     """
     Checks if the given path matches any of the ignore patterns.

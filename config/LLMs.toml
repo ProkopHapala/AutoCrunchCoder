@@ -1,18 +1,57 @@
 # LLM Templates Configuration
 
-[deepseek-chat]
-api_key_file = "./deepseek.key"
-base_url = "https://api.deepseek.com"
-model_name = "deepseek-chat"
+[deepseek-coder]
+model_name    = "deepseek-coder"
+base_url      = "https://api.deepseek.com"
+contextLength =  128000
+api_key_var   = "DEEPSEEK_API_KEY"
 
-[gpt-3.5-turbo]
-api_key_file = "./openai.key"
-base_url = "https://api.openai.com/v1"
-model_name = "gpt-3.5-turbo"
+[gemini-flash]
+model_name    = "gemini-1.5-flash-latest"
+base_url      = "https://api.gemini.com"
+contextLength = 1000000
+api_key_var   = "GOOGLE_API_KEY"
 
-[local-llama]
-api_key_file = ""
-base_url = "http://localhost:8000/v1"
-model_name = "llama-7b"
+[gemini-pro]
+model_name    = "gemini-1.5-pro-latest"
+base_url      = "https://api.gemini.com"
+contextLength = 2000000
+api_key_var   = "GOOGLE_API_KEY"
 
-# Add more templates as needed
+[gemini-pro-exp]
+model_name    = "gemini-1.5-pro-exp-0827"
+base_url      = "https://api.gemini.com"
+contextLength = 2000000
+api_key_var   = "GOOGLE_API_KEY"
+
+[claude-sonnet]
+model_name    = "claude-3-5-sonnet-20240620"
+base_url      = "https://api.anthropic.com"
+contextLength =  200000
+api_key_var   = "ANTHROPIC_API_KEY"
+
+[codestral]
+model_name    = "codestral-latest"
+base_url      = "https://api.mistral.com"
+contextLength =  32000
+api_key_var   = "MISTRAL_API_KEY"
+
+[samba-llama-70b]
+model_name    = "llama3.1-70b"
+base_url      = "https://api.sambanova.com"
+contextLength =  128000
+api_key_var   = "SAMBANOVA_API_KEY"
+
+
+# ====== Local LLMs
+
+# ------ Ollama
+
+# ------ LM Studio
+
+[lm-llama-3.1]
+model_name   = "llama-3.1-7b"
+base_url     = "http://localhost:1234/v1:1234"
+contextLength =  128000
+api_key_var = "any"
+

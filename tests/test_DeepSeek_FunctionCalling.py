@@ -10,7 +10,7 @@ def get_weather(location):
     return f"The weather in {location} is sunny and 25°C."
 
 def test_function_calling():
-    agent = DeepSeekAgent("deepseek-chat")
+    agent = DeepSeekAgent("deepseek-coder")
 
     # Add a tool for getting weather information
     agent.add_tool(

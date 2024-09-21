@@ -11,7 +11,7 @@ def get_response( prompt="Who are you?", system_prompt="You are a helpful assist
     if agent is None:
         agent = initAgent( base_url="https://api.deepseek.com", key_file="./deepseek.key" )
     response = agent.chat.completions.create(
-        model="deepseek-chat",
+        model="deepseek-coder",
         messages=[
             {"role": "system", "content": system_prompt },
             {"role": "user",   "content": prompt },
@@ -24,7 +24,7 @@ def stream_response( prompt="Who are you?", system_prompt="You are a helpful ass
     if agent is None:
         agent = initAgent( base_url="https://api.deepseek.com", key_file="./deepseek.key" )
     response = agent.chat.completions.create(
-        model="deepseek-chat",
+        model="deepseek-coder",
         messages=[
             {"role": "system", "content": system_prompt },
             {"role": "user",   "content": prompt },
