@@ -6,7 +6,7 @@ sys.path.append("../")
 from pyCruncher.AgentDeepSeek import AgentDeepSeek
 
 def test_json_output( bStream = False ):
-    agent = AgentDeepSeek("deepseek-coder")
+    agent = AgentDeepSeek()
 
     post_prompt = " Output strictly JSON format."
 

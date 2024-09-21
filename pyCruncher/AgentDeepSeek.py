@@ -6,8 +6,8 @@ from .tools import compute_numerical_derivative, compute_expression_steps, compu
 
 class AgentDeepSeek(AgentOpenAI):
     
-    def __init__(self, template_name: str = "deepseek-coder" ):
-        super().__init__(template_name )
+    def __init__(self, template_name: str = "deepseek-coder", base_url=None ):
+        super().__init__(template_name, base_url=base_url )
 
     def fim_completion(self, prefix: str, suffix: str = "", max_tokens: int = 128) -> str:
         response = self.client.completions.create(

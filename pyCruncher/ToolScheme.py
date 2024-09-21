@@ -98,46 +98,6 @@ def schema(function: Callable, bOnlyRequired: bool = False) -> Dict[str, Any]:
     }
     return tool
 
-
-# def schema(function: Callable, bOnlyRequired: bool = False) -> Dict[str, Any]:  
-#     """
-#     Generate a function schema from a Python function signature.
-#     """
-#     sig = inspect.signature(function)
-#     parameters = {
-#         "type": "object",
-#         "properties": {},
-#         "required": []
-#     }
-
-#     for param_name, param in sig.parameters.items():
-#         bRequired = param.default == inspect.Parameter.empty
-
-#         if bOnlyRequired and not bRequired: continue
-
-#         # Assume types based on function defaults or hints
-#         param_type = "string"  # Default to string if no hint
-#         if param.annotation == int:
-#             param_type = "integer"
-#         elif param.annotation == float:
-#             param_type = "number"
-#         elif param.annotation == bool:
-#             param_type = "boolean"
-#         elif param.annotation == dict:
-#             param_type = "object"
-#         elif param.annotation == list:
-#             param_type = "array"
-
-#         parameters["properties"][param_name] = {"type": param_type, "description": f"{param_name} argument"}
-#         if bRequired: parameters["required"].append(param_name)
-
-#     tool = {
-#         "name": function.__name__,
-#         "description": f"Function {function.__name__}",
-#         "parameters": parameters
-#     }
-#     return tool
-
 def validate_arguments(schema: Dict[str, Any], arguments: Dict[str, Any]):
     """
     Validate the arguments provided by the model against the function schema.

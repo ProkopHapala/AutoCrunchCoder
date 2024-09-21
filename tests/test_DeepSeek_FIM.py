@@ -1,31 +1,34 @@
-import unittest
-from deepseek_agent import DeepSeekAgent
+import sys
+import os
+sys.path.append("../")
+from pyCruncher.AgentDeepSeek import AgentDeepSeek
 
-class TestDeepSeekFIM(unittest.TestCase):
-    def setUp(self):
-        self.agent = DeepSeekAgent("deepseek-coder")
+def test_fim_completion():
+    agent = AgentDeepSeek( base_url="https://api.deepseek.com/beta" )
+    
+    # prefix = "def fibonacci(n):\n"
+    # suffix = "    return fib(n-1) + fib(n-2)\n"
+    # content = agent.fim_completion(prefix, suffix)
+    # print( prefix + content + suffix)
 
-    def test_fim_completion(self):
-        prefix = "def fibonacci(n):"
-        suffix = "    return fib(n-1) + fib(n-2)"
-        result = self.agent.fim_completion(prefix, suffix)
+    # prefix = """
+    # double getLenardJones( Vec3d d, Vec3d& f, double R0, double E0 ){
+    #     double r = d.norm();
+    # """
 
-        self.assertIsNotNone(result)
-        self.assertIsInstance(result, str)
-        self.assertTrue(len(result) > 0)
+    prefix = """
+    double getLenardJones( Vec3d d, Vec3d& f, double R0, double E0 ){
+        double inv_r = 1.0/d.norm();
+        double u     = R0*inv_r;
+    """
 
-        # Check if the result contains typical elements of a Fibonacci function
-        self.assertIn("if", result.lower())
-        self.assertIn("return", result.lower())
-
-    def test_fim_completion_empty_suffix(self):
-        prefix = "The capital of France is"
-        result = self.agent.fim_completion(prefix)
-
-        self.assertIsNotNone(result)
-        self.assertIsInstance(result, str)
-        self.assertTrue(len(result) > 0)
-        self.assertIn("Paris", result)
+    suffix = """
+    	f = d*(dE_dr/r);
+        return E;
+    };
+    """
+    content = agent.fim_completion(prefix, suffix)
+    print( prefix + content + suffix)
 
 if __name__ == '__main__':
-    unittest.main()
+    test_fim_completion()

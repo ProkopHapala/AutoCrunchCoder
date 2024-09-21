@@ -9,7 +9,7 @@ from .ToolScheme import schema
 
 
 class Agent(ABC):
-    def __init__(self, template_name: str, api_key: Optional[str] = None):
+    def __init__(self, template_name: str, base_url=None ):
         self.system_prompt = "You are a helpful assistant."
         #self.model_name = model_name
         #self.api_key = api_key or self.get_api_key()
@@ -24,10 +24,9 @@ class Agent(ABC):
         self.template_name = template_name
         self.load_keys()
         self.load_template()
+        if base_url is not None: self.base_url = base_url
         self.setup_client()
         
-        
-
     def load_keys(self):
         """
         Load the API keys from a TOML file. This method will be used to

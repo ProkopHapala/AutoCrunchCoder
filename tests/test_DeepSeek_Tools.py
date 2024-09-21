@@ -16,7 +16,7 @@ def test_math_tools():
 
     prompt = "What is the derivative of Lenard-Jones poential (use tool `symbolic_derivative`) ?"
 
-    agent = AgentDeepSeek("deepseek-coder")
+    agent = AgentDeepSeek()
     agent.register_tool(symbolic_derivative, bOnlyRequired=True )
 
     print("User:  "+prompt+"\n")

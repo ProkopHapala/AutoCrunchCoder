@@ -7,16 +7,8 @@ from typing import Tuple, List, Dict, Any, Optional, Generator, Callable, Option
 from .Agent import Agent
     
 class AgentOpenAI(Agent):
-    def __init__(self, template_name: str):
-        super().__init__(template_name)
-        
-        # self.template_name = template_name
-        # self.load_keys()
-        # self.load_template()
-        # self.setup_client()
-        # self.history: List[Dict[str, str]] = []
-        # self.session = requests.Session()
-        # self.tools = {}
+    def __init__(self, template_name: str, base_url=None):
+        super().__init__(template_name, base_url=base_url )
         self.session = requests.Session()
 
     def setup_client(self):
@@ -101,19 +93,4 @@ class AgentOpenAI(Agent):
         if message.tool_calls:
             return message.tool_calls
         return None
-
-    # def add_tool(self, name: str, description: str, parameters: Dict[str, Any]) -> None:
-    #     """
-    #     Add a new tool to the agent's toolkit.
-    #     A tool is a function that the agent can call to perform a specific task by call to some extrnal API provied by user or service provider.
-    #     """
-    #     tool = {
-    #         "type": "function",
-    #         "function": {
-    #             "name": name,
-    #             "description": description,
-    #             "parameters": parameters
-    #         }
-    #     }
-    #     self.tools.append(tool)
 

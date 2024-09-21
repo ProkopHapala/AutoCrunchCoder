@@ -6,12 +6,6 @@ from typing import List, Dict, Any, Callable
 
 from .Maxima import run_maxima
 
-# def run_maxima(command: str) -> str:
-#     """Run a Maxima command and return the result."""
-#     process = subprocess.Popen(['maxima', '--very-quiet'], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-#     output, _ = process.communicate(command)
-#     return output.strip()
-
 def symbolic_derivative( expr: str, var: str, bSimplify=False, bFactor=False, bExpand=False ) -> str:
     """
     Compute analytical derivative with Maxima.
