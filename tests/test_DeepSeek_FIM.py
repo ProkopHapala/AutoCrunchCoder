@@ -3,7 +3,7 @@ import os
 sys.path.append("../")
 from pyCruncher.AgentDeepSeek import AgentDeepSeek
 
-def test_fim_completion():
+def test():
     agent = AgentDeepSeek( base_url="https://api.deepseek.com/beta" )
     
     # prefix = "def fibonacci(n):\n"
@@ -31,4 +31,4 @@ def test_fim_completion():
     print( prefix + content + suffix)
 
 if __name__ == '__main__':
-    test_fim_completion()
+    test()
