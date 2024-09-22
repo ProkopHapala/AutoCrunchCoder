@@ -128,52 +128,6 @@ class AgentGoogle(Agent):
                     }]
         return None
 
-    # def try_tool(self, response, messages: List[Dict[str, str]], **kwargs):
-    #     tool_calls = self.extract_tool_call(response)
-    #     if tool_calls is not None:
-    #         if len(tool_calls) > 0:
-    #             print("Agent.(try_tool):\n", response.text)
-    #             messages.append({"role": "model", "parts": [response.text]})
-    #             ndone = 0
-    #             for tool_call in tool_calls:
-    #                 name = tool_call['function']['name']
-    #                 if name is not None and name in self.tool_callbacks:
-    #                     args = tool_call['function']['arguments']
-    #                     result = self.call_function(name, args)
-    #                     messages.append({"role": "function", "name": name, "parts": [result]})
-    #                     ndone += 1
-    #             if ndone > 0:
-    #                 response = self.query(prompt=None, messages=messages, bTools=False, **kwargs)
-    #     return response
-
-
-    # def try_tool(self, response, messages: List[Dict[str, str]], **kwargs):
-    #     # Extract tool calls from the candidates
-    #     if response.candidates and response.candidates[0].content.parts:
-    #         for part in response.candidates[0].content.parts:
-    #             if part.function_call:
-    #                 tool_call = {
-    #                     "id": "function",
-    #                     "function": {
-    #                         "name": part.function_call.name,
-    #                         "arguments": part.function_call.args
-    #                     }
-    #                 }
-    #                 print("Agent.(try_tool):\n", tool_call)
-
-    #                 # Now append the tool call content to messages and process the tool call
-    #                 messages.append({"role": "model", "parts": [tool_call]})
-    #                 name = tool_call['function']['name']
-    #                 if name is not None and name in self.tool_callbacks:
-    #                     args = tool_call['function']['arguments']
-    #                     result = self.call_function(name, args)
-    #                     messages.append({"role": "function", "name": name, "parts": [result]})
-                        
-    #                 # Continue with the query using updated messages
-    #                 response = self.query(prompt=None, messages=messages, bTools=False, **kwargs)
-                    
-    #     return response
-
     def try_tool(self, response, messages: List[Dict[str, str]], **kwargs):
         tool_calls = self.extract_tool_call(response)
         if tool_calls is not None:

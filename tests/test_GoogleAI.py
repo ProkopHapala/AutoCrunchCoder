@@ -1,6 +1,7 @@
 import sys
 import os
 import unittest
+from google.generativeai import list_models
 sys.path.append("../")
 from pyCruncher.AgentGoogle import AgentGoogle
 
@@ -92,6 +93,7 @@ class TestAgentGoogle(unittest.TestCase):
 
 def test( bStream=False, prompt = "Write a C++ function to calculate energy and force from Lennard-Jones potential", model="gemini-flash" ):
     agent = AgentGoogle(model)
+    print("Available models:", agent.client.models.list())
     print("user:  "+prompt+"\n\n")
     print("agent: "+"\n\n")
     if bStream:
@@ -100,8 +102,20 @@ def test( bStream=False, prompt = "Write a C++ function to calculate energy and 
         result = agent.query(prompt)
         print(result)
 
+def list_available_models():
+        """List available models from Google Gemini API."""
+        models = list_models()
+        print("Available Models:")
+        for i,model in enumerate(models):
+            #print( f"model[{i}]: ", model  )
+            print( f"model[{i}]: ", model.display_name  )
+            #print(f"Model ID: {model['name']}, Model Display Name: {model['display_name']}")
+        return models
 
 if __name__ == "__main__":
+
+    list_available_models()
+
     #test( bStream = True, model="gemini-flash" )
     test( bStream = True, model="gemini-pro-exp" )
 

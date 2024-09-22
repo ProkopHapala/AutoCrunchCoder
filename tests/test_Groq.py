@@ -2,13 +2,11 @@ import sys
 import os
 
 sys.path.append("../")
-from pyCruncher.AgentDeepSeek import AgentDeepSeek
+from pyCruncher.AgentOpenAI import AgentOpenAI
 
 def test( bStream=False, prompt = "Write a C++ function to calculate energy and force from Lennard-Jones potential" ):
-    agent = AgentDeepSeek()
-
-    print("Available models:", agent.client.models.list())
-
+    agent = AgentOpenAI("groq-llama-70b")
+    #print("Available models:", agent.client.models.list())
     print("user:  "+prompt+"\n\n")
     print("agent: "+"\n\n")
     if bStream:
