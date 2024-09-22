@@ -1,8 +1,9 @@
 import os
-from typing import Tuple, List, Dict, Any, Optional, Generator
-from .Agent import Agent
+from typing import Tuple, List, Dict, Any, Optional, Generator, Callable
 import google.generativeai as genai
-from google.generativeai.types import ContentType, FunctionDeclaration
+from google.generativeai.types import FunctionDeclaration #, FunctionParam
+from .Agent import Agent
+from .ToolScheme import schema
 
 class AgentGoogle(Agent):
     def __init__(self, template_name: str, base_url=None):
@@ -38,14 +39,8 @@ class AgentGoogle(Agent):
 
     def query(self, prompt: str = None, bHistory: bool = False, messages: List[Dict[str, str]] = None, bTools: bool = True, **kwargs: Any) -> Dict[str, Any]:
         """
-        Send a query to the Google AI model.
-        
-        :param prompt: The prompt to send to the model
-        :param bHistory: Whether to use conversation history
-        :param messages: List of previous messages in the conversation
-        :param bTools: Whether to use tool calling
-        :param kwargs: Additional keyword arguments for generation config
-        :return: The model's response
+        Send a query to the model with optional tool calling.
+        Since tools are already stored in the correct format, they can be passed directly.
         """
         try:
             if messages is None:
@@ -58,17 +53,27 @@ class AgentGoogle(Agent):
                     messages = self.history + messages
                 else:
                     messages.append({"role": "user", "parts": [prompt]})
-            
+
+            #print( "AgentGoogle.query().messages = ", messages )
+
+            # Prepare generation config
             generation_config = self.prepare_generation_config(**kwargs)
-            
+
+            #print( "AgentGoogle.query().generation_config = ", generation_config )
+
+            # Directly use self.tools if tools are enabled
             if bTools and self.tools:
-                tools = [FunctionDeclaration(**tool) for tool in self.tools]
-                response = self.model.generate_content(messages, generation_config=generation_config, tools=tools)
+                #print( "AgentGoogle.query().tools = ", self.tools )
+                response = self.model.generate_content(messages, generation_config=generation_config, tools=self.tools )
             else:
                 response = self.model.generate_content(messages, generation_config=generation_config)
+
+            #print( "AgentGoogle.query().response(BEFORE TOOL CALL) = ", response )
+
+            response = self.try_tool(response, messages, **kwargs)   # Try to invoke any tool calls if present
             
-            response = self.try_tool(response, messages, **kwargs)
-            
+            #print( "AgentGoogle.query().response(AFTER TOOL CALL) = ", response )
+
             if bHistory:
                 self.history.append({"role": "model", "parts": [response.text]})
             
@@ -76,6 +81,7 @@ class AgentGoogle(Agent):
         except Exception as e:
             print(f"An error occurred during query: {str(e)}")
             raise
+
 
     def stream(self, prompt: str, bHistory: bool = False, **kwargs: Any) -> Generator[str, None, None]:
         """
@@ -110,23 +116,134 @@ class AgentGoogle(Agent):
             raise
 
     def extract_tool_call(self, response: Any) -> Optional[List[Dict[str, Any]]]:
-        """
-        Extract tool call information from the model's response.
-        
-        :param response: The model's response
-        :return: A list of tool call dictionaries, or None if no tool calls are present
-        """
         if response.candidates and response.candidates[0].content.parts:
             for part in response.candidates[0].content.parts:
                 if part.function_call:
                     return [{
-                        "id": "function",  # Google API doesn't provide an ID, so we use a placeholder
+                        "id": "function",
                         "function": {
                             "name": part.function_call.name,
                             "arguments": part.function_call.args
                         }
                     }]
         return None
+
+    # def try_tool(self, response, messages: List[Dict[str, str]], **kwargs):
+    #     tool_calls = self.extract_tool_call(response)
+    #     if tool_calls is not None:
+    #         if len(tool_calls) > 0:
+    #             print("Agent.(try_tool):\n", response.text)
+    #             messages.append({"role": "model", "parts": [response.text]})
+    #             ndone = 0
+    #             for tool_call in tool_calls:
+    #                 name = tool_call['function']['name']
+    #                 if name is not None and name in self.tool_callbacks:
+    #                     args = tool_call['function']['arguments']
+    #                     result = self.call_function(name, args)
+    #                     messages.append({"role": "function", "name": name, "parts": [result]})
+    #                     ndone += 1
+    #             if ndone > 0:
+    #                 response = self.query(prompt=None, messages=messages, bTools=False, **kwargs)
+    #     return response
+
+
+    # def try_tool(self, response, messages: List[Dict[str, str]], **kwargs):
+    #     # Extract tool calls from the candidates
+    #     if response.candidates and response.candidates[0].content.parts:
+    #         for part in response.candidates[0].content.parts:
+    #             if part.function_call:
+    #                 tool_call = {
+    #                     "id": "function",
+    #                     "function": {
+    #                         "name": part.function_call.name,
+    #                         "arguments": part.function_call.args
+    #                     }
+    #                 }
+    #                 print("Agent.(try_tool):\n", tool_call)
+
+    #                 # Now append the tool call content to messages and process the tool call
+    #                 messages.append({"role": "model", "parts": [tool_call]})
+    #                 name = tool_call['function']['name']
+    #                 if name is not None and name in self.tool_callbacks:
+    #                     args = tool_call['function']['arguments']
+    #                     result = self.call_function(name, args)
+    #                     messages.append({"role": "function", "name": name, "parts": [result]})
+                        
+    #                 # Continue with the query using updated messages
+    #                 response = self.query(prompt=None, messages=messages, bTools=False, **kwargs)
+                    
+    #     return response
+
+    def try_tool(self, response, messages: List[Dict[str, str]], **kwargs):
+        tool_calls = self.extract_tool_call(response)
+        if tool_calls is not None:
+            if len(tool_calls) > 0:
+                # Extract and handle each tool call
+                for tool_call in tool_calls:
+                    name = tool_call['function']['name']
+                    if name is not None and name in self.tool_callbacks:
+                        args = tool_call['function']['arguments']
+                        
+                        # Call the registered tool (function) and get the result
+                        result = self.call_function(name, args)
+                        
+                        # Append the result of the tool call (as text) to the messages
+                        #messages.append({"role": "function", "name": name, "parts": [result]})
+                        #messages.append({"role": "function", "parts": [result]})
+                        messages.append({"role": "model", "parts": [result]})
+
+                for i,message in enumerate(messages): print( f"AgentGoogle::try_tool().messages[{i}]: {messages}")
+
+                # Continue with the updated query, using only the tool result in the messages
+                response = self.query(prompt=None, messages=messages, bTools=False, **kwargs)
+                
+        return response
+
+
+    def register_tool(self, func: Callable[[Dict[str, Any]], str], name=None, bOnlyRequired=False):
+        """
+        Register a user-defined tool (function) in the correct format compatible with Google's API.
+        """
+        
+        #print("AgentGoogle::register_tool()")
+
+        tool_schema = schema(func, bOnlyRequired=bOnlyRequired)
+        tool_name = tool_schema['name'] if name is None else name
+
+        #print("AgentGoogle::register_tool().tool_schema: ", tool_schema)
+
+        # Prepare function parameters in the correct format for Google's schema
+        function_params = {
+            param_name: {
+                "type": param_info['type'],  # Correctly set "type" field
+                "description": param_info['description']
+            }
+            for param_name, param_info in tool_schema['parameters']['properties'].items()
+        }
+
+        # Adjust the format for Google's `Schema` object, including "type": "object"
+        function_params_for_google = {
+            "type": "object",  # Specify that the parameters schema is an object
+            "properties": function_params,
+            "required": tool_schema['parameters']['required']  # Only include `required` and `properties`
+        }
+
+        #print("AgentGoogle::register_tool().function_params_for_google: ", function_params_for_google)
+
+        # Create the tool definition directly compatible with Google API
+        tool = FunctionDeclaration(
+            name=tool_name,
+            description=tool_schema['description'],
+            parameters=function_params_for_google  # Correctly formatted parameters for Google
+        )
+
+        #print( "AgentGoogle::register_tool().tool= ", tool )
+
+        # Store the tool directly in the self.tools list in the format Google expects
+        self.tools.append(tool)
+
+        # Register the callback for the tool to be called when the model requests it
+        self.tool_callbacks[tool_name] = func
 
     def prepare_generation_config(self, **kwargs: Any) -> genai.types.GenerationConfig:
         """

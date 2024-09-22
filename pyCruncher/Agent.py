@@ -81,18 +81,18 @@ class Agent(ABC):
         tool_calls = self.extract_tool_call(message) 
         if tool_calls is not None:
             if len(tool_calls) > 0:
-                print( "Agent.(try_tool):\n", message.content )
+                #print( "Agent::try_tool().message:\n", message.content )
                 messages.append(message)
                 ndone = 0
                 for tool_call in tool_calls:
-                    #print("try_tool() INPUTS: tool_call=", tool_call)
+                    #print("Agent::try_tool() INPUTS: tool_call=", tool_call)
                     name = tool_call.function.name  # Use dot notation to access the function name
                     if name is not None:
                         if name in self.tool_callbacks:
                             args = json.loads(tool_call.function.arguments)  # Use dot notation for arguments as well
-                            #print("try_tool() call_function() ", name, "  args= ", args)
+                            #print("Agent::try_tool().call_function() ", name, "  args= ", args)
                             result = self.call_function(name, args)
-                            #print("try_tool() OUTPUT: ", result)
+                            #print("Agent::try_tool().result: ", result)
                             messages.append({"role": "tool", "tool_call_id": tool_call.id, "content": result})  # Access tool_call.id using dot notation
                             ndone += 1  # Increment the count correctly
                 if ndone > 0:
@@ -112,9 +112,9 @@ class Agent(ABC):
         Dynamically dispatch the function based on the function name and arguments provided by the model.
         """
         if name in self.tool_callbacks:
-            print( "call_function().INPUT  ", name ,"  arguments= ", args  )
+            print( "Agent::call_function().INPUT  ", name ,"  arguments= ", args  )
             out = self.tool_callbacks[name](**args)   
-            print( "call_function().OUTPUT ", out  )
+            print( "Agent::call_function().OUTPUT ", out  )
             return out
         else:
             return f"Error: Function {name} is not available."

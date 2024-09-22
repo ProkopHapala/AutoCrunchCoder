@@ -121,3 +121,63 @@ def check_type(value: Any, expected_type: str) -> bool:
     Check if a value matches the expected type.
     """
     return isinstance(value, type_mapping.get(expected_type, str))
+
+
+
+
+
+
+# def google_schema(function: Callable, bOnlyRequired: bool = False) -> FunctionDeclaration:
+#     """
+#     Generate a function schema from a Python function signature, using the docstring
+#     to fill in descriptions for the function and its parameters. This version is adapted
+#     for Google's FunctionDeclaration format.
+#     """
+
+#     from google.generativeai.types import FunctionDeclaration, FunctionParam
+
+#     sig = inspect.signature(function)
+    
+#     # Parse the docstring
+#     doc = parse_docstring(function.__doc__)
+    
+#     # Prepare the list of parameters for Google's FunctionDeclaration
+#     params = []
+#     for param_name, param in sig.parameters.items():
+#         bRequired = param.default == inspect.Parameter.empty
+
+#         if bOnlyRequired and not bRequired:
+#             continue
+
+#         # Assume types based on function defaults or hints
+#         param_type = "string"  # Default to string if no hint
+#         if param.annotation == int:
+#             param_type = "integer"
+#         elif param.annotation == float:
+#             param_type = "number"
+#         elif param.annotation == bool:
+#             param_type = "boolean"
+#         elif param.annotation == dict:
+#             param_type = "object"
+#         elif param.annotation == list:
+#             param_type = "array"
+
+#         # Use the docstring description for the parameter, if available
+#         param_description = doc["params"].get(param_name, f"{param_name} argument")
+
+#         # Add to Google API compatible parameters
+#         params.append(FunctionParam(
+#             param=param_name,
+#             param_type=param_type,
+#             description=param_description
+#         ))
+
+#     fname = function.__name__
+#     tool_description = doc["description"] or f"Function {fname}"
+#     tool = FunctionDeclaration(
+#         name=fname,
+#         description=tool_description,
+#         params=params
+#     )
+#     # Create and return the Google FunctionDeclaration object
+#     return tool
