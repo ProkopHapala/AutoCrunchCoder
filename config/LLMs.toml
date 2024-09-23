@@ -1,0 +1,86 @@
+# LLM Templates Configuration
+
+[deepseek-coder]
+model_name    = "deepseek-coder"
+base_url      = "https://api.deepseek.com"
+contextLength =  128000
+api_key_var   = "DEEPSEEK_API_KEY"
+provider      = "deepseek"
+api_lib       = "openai"   
+
+[gemini-flash]
+model_name    = "gemini-1.5-flash-latest"
+base_url      = "https://api.gemini.com"
+contextLength = 1000000
+api_key_var   = "GOOGLE_API_KEY"
+provider      = "google"
+api_lib       = "google"   
+
+[gemini-pro]
+model_name    = "gemini-1.5-pro-latest"
+base_url      = "https://api.gemini.com"
+contextLength = 2000000
+api_key_var   = "GOOGLE_API_KEY"
+provider      = "google"
+api_lib       = "google"   
+
+[gemini-pro-exp]
+model_name    = "gemini-1.5-pro-exp-0827"
+base_url      = "https://api.gemini.com"
+contextLength = 2000000
+api_key_var   = "GOOGLE_API_KEY"
+provider      = "google"
+api_lib       = "google"   
+
+[claude-sonnet]
+model_name    = "claude-3-5-sonnet-20240620"
+base_url      = "https://api.anthropic.com"
+contextLength =  200000
+api_key_var   = "ANTHROPIC_API_KEY"
+provider      = "anthropic"
+api_lib       = "anthropic"
+
+[codestral]
+model_name    = "codestral-latest"
+base_url      = "https://api.mistral.com"
+contextLength =  32000
+api_key_var   = "MISTRAL_API_KEY"
+provider      = "mistral"
+api_lib       = "openai"
+
+[groq-llama-70b]
+model_name    = "llama-3.1-70b-versatile"
+base_url      = "https://api.groq.com/openai/v1"
+contextLength =  128000
+api_key_var   = "GROQ_API_KEY"
+provider      = "groq"
+api_lib       = "openai"
+
+[groq-llama-8b]
+model_name    = "llama-3.1-8b-instant"
+base_url      = "https://api.groq.com/openai/v1"
+contextLength =  128000
+api_key_var   = "GROQ_API_KEY"
+provider      = "groq"
+api_lib       = "openai"
+
+[samba-llama-70b]
+model_name    = "llama3.1-70b"
+base_url      = "https://api.sambanova.com"
+contextLength =  128000
+api_key_var   = "SAMBANOVA_API_KEY"
+provider      = "sambanova"
+api_lib       = "openai"
+
+# ====== Local LLMs
+
+# ------ Ollama
+
+# ------ LM Studio
+
+[lm-llama-3.1]
+model_name   = "llama-3.1-7b"
+base_url     = "http://localhost:1234/v1:1234"
+contextLength =  128000
+api_key_var = "any"
+

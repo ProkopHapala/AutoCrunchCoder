@@ -35,6 +35,109 @@
         * `sudo apt-get install libclang-dev`
 
 
+### LLM Providers
+
+* Fundation Model providers
+    * [OpenAI](https://openai.com/)
+    * [Anthropic](https://www.anthropic.com/)
+        * [API doc](https://docs.anthropic.com/en/api/getting-started) 
+    * [DeepSeek](https://platform.deepseek.com/usage)
+        * models: deepseek-chat, deepseek-coder
+        * price: $0.14 / $0.28 1M tokens
+    * [Google AI studio](https://aistudio.google.com/app/)
+        * [API doc](https://ai.google.dev/gemini-api/docs/quickstart?lang=python)
+        * Models: Gemini 1.5 Pro/Flash (Experimental), Gemma 2B,9B,27B
+    * [Mistral](https://console.mistral.ai/)
+
+* Integrators
+    * [openrouter](https://openrouter.ai/models)
+    * [Hugging Face](https://huggingface.co/)
+
+* Fast Inference
+    * [Groq](https://console.groq.com/playground)
+    * [sambanova](https://cloud.sambanova.ai/) 
+        * models: Llama-3.1 (8B,70B,405B)
+        * price: 
+            * Llama-3.1-8B    0.1$ : 0.2$  / 1Mtok  
+            * Llama-3.1-70B   0.6$ : 1.2$  / 1Mtok  
+            * Llama-3.1-405B  5.0$ : 10.0$ / 1Mtok 
+
+
+### LLM Theory
+ 
+* [Understanding Modern LLMs via DeepSeek](https://planetbanatt.net/articles/deepseek.html) 
+
+### Run LLMs locally
+
+* run as LAN network server:
+   * automatic11111 - webUI -  Stable Diffusion
+      * [is_there_a_way_i_can_share_my_local_automatic1111/](https://www.reddit.com/r/StableDiffusion/comments/xtkovu/is_there_a_way_i_can_share_my_local_automatic1111/)
+        `>> export COMMANDLINE_ARGS="--listen"; ./webui.sh`
+      * [stable-diffusion-webui API](https://github.com/AUTOMATIC1111/stable-diffusion-webui/wiki/API)
+
+
+### Programing Assistands
+
+* [Aider](https://github.com/paul-gauthier/aider)
+* 
+
+### AI for research articles
+
+* [typeset.io](https://typeset.io/)
+* [consensus](https://consensus.app/search/?synthesize=on)
+
+### RAG (Retrieval Augmented Generation)
+
+
+##### [LocalGPT](https://github.com/PromtEngineer/localGPT/)  
+local RAG for PDF documents et. - chat with your personal pdf library
+
+* [LocalGPT-vision](https://github.com/PromtEngineer/localGPT/tree/localGPT-Vision) 
+    * [YouTube: Massive Update to Local GPT—Now with Vision Models!](https://www.youtube.com/watch?v=w5WGbUGAE3s)
+
+##### PDF to text
+
+* [pdftolatex](https://github.com/vinaykanigicherla/pdftolatex)
+* [Nougat: Neural Optical Understanding for Academic Documents](https://github.com/facebookresearch/nougat)
+    * [YouTube: This Open-Source Tool will make your PDFs LLM Ready](https://www.youtube.com/watch?v=mdLBr9IMmgI)
+
+### LLM Tool Use
+
+How To Tool use Tool calling using AI models
+
+##### Ollama Tool-calling 
+* https://ollama.com/blog/tool-support
+
+##### OpenAI Tool-calling  
+* [tools](https://platform.openai.com/docs/assistants/tools)
+* [function-calling](https://platform.openai.com/docs/assistants/tools/function-calling)
+* [code-interpreter](https://platform.openai.com/docs/assistants/tools/code-interpreter)
+
+##### DeepSeek Tool-calling   
+* [function_calling](https://platform.deepseek.com/api-docs/function_calling/)
+* Formated Response
+    * [prefix_completion](https://platform.deepseek.com/api-docs/chat_prefix_completion)
+    * [Fill-in-the-middle](https://platform.deepseek.com/api-docs/fim_completion)
+    * [Strict JSON output format](https://platform.deepseek.com/api-docs/json_mode)
+
+##### Qwen Tool-calling   
+* [Function Calling Qwen 2](https://qwen.readthedocs.io/en/latest/framework/function_call.html)
+
+##### Google Gemini Tool-calling
+* [Function calling tutorial (Python)](https://ai.google.dev/gemini-api/docs/function-calling/tutorial?lang=python)
+
+
+### Fine Tuning
+
+* [axolotl]( https://github.com/axolotl-ai-cloud/axolotl)
+
+
+### Prompt Engineering
+
+* [ell](https://github.com/MadcowD/ell) - ell is a lightweight, functional prompt engineering framework built on a few core principles:
+    * `pip install ell-ai`
+
+
 ### Abstract Syntax Tree using Clang @ Python
 
 ```Python

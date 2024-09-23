@@ -11,7 +11,7 @@ Help:
 command_template = """
 display2d: false$
 %s
-quit();
+quit()$
 """
 
 def run_maxima(code):
@@ -24,7 +24,6 @@ def run_maxima(code):
         return None
     output_text   = output.decode().strip()
     return output_text
-
 
 def label_maxima_output(output, labesl, sep=':'):
     output_lines = output.split('\n')
