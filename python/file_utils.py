@@ -48,7 +48,7 @@ def find_and_process_files(root_dir, process_file=None, relevant_extensions=None
     return flist
 
 
-def accumulate_files_content(file_list, process_function, max_char_limit=65536 ):
+def accumulate_files_content(file_list, process_function, max_char_limit=65536, nfiles_max=1000000 ):
     """
     Accumulate content from files into a string and process it when the length exceeds max_char_limit.
     
@@ -59,6 +59,7 @@ def accumulate_files_content(file_list, process_function, max_char_limit=65536 )
     accumulated_parts = []  # List to accumulate parts of the string
     accumulated_length = 0  # Track the current length of the accumulated content
     i0=0
+    nfiles=0
     for i,file_path in enumerate(file_list):
         if os.path.isfile(file_path):  # Check if the file exists
             with open(file_path, 'r') as f:
@@ -66,12 +67,14 @@ def accumulate_files_content(file_list, process_function, max_char_limit=65536 )
                 content = f.read()     # Read the file content
                 # If adding this content would exceed the max limit, process the current accumulated string
                 dlen = len(fnamestr) + len(content)+2
-                if accumulated_length + dlen > max_char_limit:
+                nfiles+=1
+                if ( accumulated_length + dlen > max_char_limit ) or (nfiles>=nfiles_max):
                     process_function('\n\n'.join(accumulated_parts), (i0,i) )     # Process the current accumulated string
                     # Reset the accumulator
                     accumulated_parts = []
                     accumulated_length = 0
                     i0=i
+                    nfiles=0
                 # Add the current file content to the accumulator
                 accumulated_parts.append(fnamestr)
                 accumulated_parts.append(content)
