@@ -16,21 +16,21 @@ class AgentGoogle(Agent):
         super().__init__(template_name, base_url=base_url)
         self.session = None  # Google API doesn't use a session object
 
-    def get_api_key(self) -> str:
-        """
-        Retrieve the API key from environment variables or the keys file.
+    # def get_api_key(self) -> str:
+    #     """
+    #     Retrieve the API key from environment variables or the keys file.
         
-        :return: The API key as a string
-        :raises ValueError: If the API key is not found
-        """
-        provider_key_var = self.template['api_key_var']
-        self.api_key = os.getenv(provider_key_var)
-        if not self.api_key:
-            provider_name = provider_key_var.split('_')[0].lower()
-            self.api_key = self.keys.get(provider_name)
-        if not self.api_key:
-            raise ValueError(f"API key not found for provider: {provider_name}")
-        return self.api_key
+    #     :return: The API key as a string
+    #     :raises ValueError: If the API key is not found
+    #     """
+    #     provider_key_var = self.template['api_key_var']
+    #     self.api_key = os.getenv(provider_key_var)
+    #     if not self.api_key:
+    #         provider_name = provider_key_var.split('_')[0].lower()
+    #         self.api_key = self.keys.get(provider_name)
+    #     if not self.api_key:
+    #         raise ValueError(f"API key not found for provider: {provider_name}")
+    #     return self.api_key
 
     def setup_client(self):
         """Configure the Google Generative AI client with the API key."""

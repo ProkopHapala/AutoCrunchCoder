@@ -72,15 +72,10 @@ api_key_var   = "SAMBANOVA_API_KEY"
 provider      = "sambanova"
 api_lib       = "openai"
 
-# ====== Local LLMs
-
-# ------ Ollama
-
-# ------ LM Studio
-
-[lm-llama-3.1]
-model_name   = "llama-3.1-8b"
-base_url     = "lmstudio-community/Meta-Llama-3.1-8B-Instruct-GGUF/Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf"
+[lm-llama-8b]
+model_name    = "lmstudio-community/Meta-Llama-3.1-8B-Instruct-GGUF/Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf"
+base_url      = "http://localhost:1234/v1"
 contextLength =  131072
-api_key_var = "any"
-
+api_key_var   = "any"
+provider      = "LMStudio"
+api_lib       = "openai"

@@ -32,7 +32,7 @@ def test( bStream=False,  pdf_name = "/home/prokop/Desktop/ChemPhysChem - 2024 -
     #exit()
 
     #agent = AgentOpenAI("groq-llama-70b")
-    agent = AgentOpenAI("lm-llama-3.1")
+    agent = AgentOpenAI("lm-llama-8b")
 
 
     #print("Available models:", agent.client.models.list())

@@ -14,14 +14,14 @@ class AgentOpenAI(Agent):
     def setup_client(self):
         self.client = OpenAI(api_key=self.api_key, base_url=self.base_url)
 
-    def get_api_key(self):
-        # --- get API key
-        provider_key_var = self.template['api_key_var']  # Get the environment variable name for API key
-        self.api_key = os.getenv(provider_key_var)  # Attempt to load API key from environment variable
-        if not self.api_key:                        # If not found in environment variables, fall back to the keys file
-            provider_name = provider_key_var.split('_')[0].lower()  # e.g., 'deepseek' from 'DEEPSEEK_API_KEY'
-            self.api_key  = self.keys.get(provider_name)
-            if not self.api_key:  raise ValueError(f"API key not found for provider: {provider_name}")
+    # def get_api_key(self):
+    #     # --- get API key
+    #     provider_key_var = self.template['api_key_var']  # Get the environment variable name for API key
+    #     self.api_key = os.getenv(provider_key_var)  # Attempt to load API key from environment variable
+    #     if not self.api_key:                        # If not found in environment variables, fall back to the keys file
+    #         provider_name = provider_key_var.split('_')[0].lower()  # e.g., 'deepseek' from 'DEEPSEEK_API_KEY'
+    #         self.api_key  = self.keys.get(provider_name)
+    #         if not self.api_key:  raise ValueError(f"API key not found for provider: {provider_name}")
 
     def set_system_prompt(self, system_prompt: str) -> None:
         """Set the initial system prompt for the agent."""
