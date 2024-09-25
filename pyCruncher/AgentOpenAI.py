@@ -76,15 +76,15 @@ class AgentOpenAI(Agent):
             stream=True,
             **kwargs
         )        
-        assistant_message = ""  # To accumulate the streamed content
+        self.assistant_message = ""  # To accumulate the streamed content
         for chunk in stream:    # Yield content chunks as they arrive in the stream
             if chunk.choices[0].delta.content is not None:
                 content = chunk.choices[0].delta.content
-                assistant_message += content
+                self.assistant_message += content
                 yield content
         
         # After the stream is exhausted, append the assistant's message to the history
-        if bHistory: self.history.append({"role": "assistant", "content": assistant_message})
+        if bHistory: self.history.append({"role": "assistant", "content": self.assistant_message})
 
     def extract_tool_call(self, message: Dict[str, Any]) -> Tuple[Optional[str], Optional[Dict[str, Any]]]:
         """

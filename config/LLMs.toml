@@ -79,8 +79,8 @@ api_lib       = "openai"
 # ------ LM Studio
 
 [lm-llama-3.1]
-model_name   = "llama-3.1-7b"
-base_url     = "http://localhost:1234/v1:1234"
-contextLength =  128000
+model_name   = "llama-3.1-8b"
+base_url     = "lmstudio-community/Meta-Llama-3.1-8B-Instruct-GGUF/Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf"
+contextLength =  131072
 api_key_var = "any"
 
