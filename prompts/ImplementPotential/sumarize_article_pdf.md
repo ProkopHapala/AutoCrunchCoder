@@ -1,15 +1,3 @@
-import sys
-import os
-"""
-pip install pdfminer.six
-source ~/venvML/bin/activate
-"""
-from pdfminer.high_level import extract_text
-
-sys.path.append("../")
-from pyCruncher.AgentOpenAI import AgentOpenAI
-
-prompt = """
 Please summarize the following research article.  
 The text was extracted from a PDF and may contain irrelevant characters or formatting errors, which can be ignored.
 
@@ -50,41 +38,5 @@ The text was extracted from a PDF and may contain irrelevant characters or forma
    - Focus on the **main findings**, avoiding excessive details or filler text.
 
 The raw text extracted from the article follows below:  
-----------------------
-"""
 
-def test( bStream=False,  pdf_name = None, ncharmax = 300000 ):
-    
-    if pdf_name is None:
-        pdf_name = "/home/prokophapala/Desktop/PAPERs/Elner_triazine_PhysRevB.96.075418.pdf"
-
-    pdf_txt = extract_text(pdf_name)
-    #print(pdf_txt)
-    #print("user:  "+prompt+"\n\n")
-    print(pdf_name)
-    
-    task = prompt + pdf_txt
-    nchar = len(task)
-
-    with open("pdf_in.md", "w") as f: f.write(task)
-    print( "char_count: ", nchar )
-    if nchar >= ncharmax:
-        print( "char_count: ", nchar, " >= ", ncharmax )
-        exit()
-
-    #agent = AgentOpenAI("groq-llama-70b")
-    #agent = AgentOpenAI("lm-llama-8b")
-    agent = AgentOpenAI("fzu-llama-8b")
-    #print("Available models:", agent.client.models.list())
-
-    print("agent: "+"\n\n")
-    if bStream:
-        for chunk in agent.stream(task): print(chunk, flush=True, end="")
-        result = agent.assistant_message
-    else:
-        result = agent.query(prompt)
-        print(result)
-    with open("pdf_out.md", "w") as f: f.write(result)
-
-if __name__ == "__main__":
-    test( bStream = True )
+---------------------- 

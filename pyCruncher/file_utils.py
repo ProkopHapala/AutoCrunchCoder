@@ -5,8 +5,8 @@ def read_file(file_path):
     with open(file_path, 'r') as file:
         return file.read()
     
-def write_file(file_path, txt):
-    with open(file_path, 'w') as file:
+def write_file(file_path, txt, mode='w'):
+    with open(file_path, mode) as file:
         file.write(txt)
 
 def remove_code_block_delimiters(text):
