@@ -95,7 +95,7 @@ nvidia-smi
 alone: 7098 MiB
 total: 8803 MiB
 
-#### Test 1
+#### Test 2
 
 Constext length : 32768
 Batch Size      : 512
@@ -105,15 +105,26 @@ nvidia-smi
 alone: 10916 MiB
 total: 12577 MiB
 
-#### Test 1
+#### Test 3
 
 
 Constext length : 65536
 Batch Size      : 512
-Flash Attention : yes
+Flash Attention : No
 
 nvidia-smi
 alone: 18937 MiB 
 total: 17124 MiB
+
+#### Test 4
+
+
+Constext length : 131072
+Batch Size      : 512
+Flash Attention : yes
+
+nvidia-smi
+alone: 13784 MiB
+total: 15444 MiB
 
 
