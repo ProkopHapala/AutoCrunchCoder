@@ -31,7 +31,10 @@ def test( bStream=False,  pdf_name = "/home/prokop/Desktop/ChemPhysChem - 2024 -
     #print(pdf_txt)
     #exit()
 
-    agent = AgentOpenAI("groq-llama-70b")
+    #agent = AgentOpenAI("groq-llama-70b")
+    agent = AgentOpenAI("lm-llama-3.1")
+
+
     #print("Available models:", agent.client.models.list())
     print("user:  "+prompt+"\n\n")
     taks = prompt + pdf_txt
