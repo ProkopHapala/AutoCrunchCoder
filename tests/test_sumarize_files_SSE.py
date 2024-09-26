@@ -120,4 +120,4 @@ agent.set_system_prompt( system_prompt )
 relevant_extensions = {'.h', '.c', '.cpp', '.hpp'}
 ignores={'*/Build*','*/doxygen'}
 
-flist = fu.find_and_process_files( path_in, process_file=lambda f: toLLM(f, agent),  relevant_extensions=relevant_extensions, ignores=ignores )
+flist = fu.find_files( path_in, process_file=lambda f: toLLM(f, agent),  relevant_extensions=relevant_extensions, ignores=ignores )

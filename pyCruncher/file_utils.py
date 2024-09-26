@@ -1,5 +1,6 @@
 import os
 import fnmatch
+from concurrent.futures import ThreadPoolExecutor, as_completed, TimeoutError
 
 def read_file(file_path):
     with open(file_path, 'r') as file:
@@ -8,6 +9,21 @@ def read_file(file_path):
 def write_file(file_path, txt, mode='w'):
     with open(file_path, mode) as file:
         file.write(txt)
+
+def save_file_paths(file_list, log_file):
+    """
+    Function to save PDF paths into a numbered log file
+    """
+    with open(log_file, "w") as f:
+        for i, file_path in enumerate(file_list, 1):
+            f.write(f"{i:05d} {file_path}\n")
+
+def load_file_paths(log_file):
+    """
+    Function to load the saved file paths from log file
+    """
+    with open(log_file, "r") as f:
+        return [(int(line.split()[0]), line.split()[1]) for line in f.readlines()]
 
 def remove_code_block_delimiters(text):
     lines = text.splitlines()
@@ -28,7 +44,7 @@ def should_ignore(path, ignores):
             return True
     return False
 
-def find_and_process_files(root_dir, process_file=None, relevant_extensions=None, ignores=[] ):
+def find_files(root_dir, process_file=None, relevant_extensions=None, ignores=[], saveToFile=None, bPrint=True ):
     """
     Walks through subdirectories of the root_dir, lists files with specified extensions, 
     and runs a user-defined function on them.
@@ -37,7 +53,7 @@ def find_and_process_files(root_dir, process_file=None, relevant_extensions=None
     :param relevant_extensions: Set of file extensions to include (e.g., {'.h', '.c', '.cpp', '.hpp'})
     """
     flist = []
-    #print(f"find_and_process_files: {root_dir}")
+    #print(f"find_files: {root_dir}")
     if relevant_extensions is None: relevant_extensions = {'.h', '.c', '.cpp', '.hpp'}
     for dirpath, dirnames, filenames in os.walk(root_dir):
         for file_name in filenames:
@@ -50,7 +66,52 @@ def find_and_process_files(root_dir, process_file=None, relevant_extensions=None
                 flist.append(full_path)
                 if process_file is not None:
                     process_file(full_path)
+    if(bPrint): 
+        nfound = len(flist)
+        print( f"find_files({root_dir},{relevant_extensions}) found {nfound}" )
+    if saveToFile is not None:
+        save_file_paths(flist, saveToFile)
+    flist = [ (i, file_path) for i, file_path in enumerate(flist, 1) ]
     return flist
+
+
+def process_files_serial(file_list, process_callback, log_file, output_dir):
+    """
+    Process files serially using a user-defined callback.
+    """
+    for i, file_path in file_list:
+        try:
+            result = process_callback(file_path, output_dir, i)
+            if result:
+                print(f"Processed {file_path} successfully.")
+        except Exception as exc:
+            log = f"Error processing {file_path}: {exc}\n"
+            print(log)
+            with open(log_file, "a") as f:
+                f.write(log)
+
+def process_files_parallel(file_list, process_callback, log_file, output_dir, max_workers=4, timeout=60):
+    """
+    Process files in parallel using threads and a user-defined callback.
+    """
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = {executor.submit(process_callback, file_path, output_dir, i): (i, file_path) for i, file_path in  file_list   }
+        for future in as_completed(futures):
+            i, file_path = futures[future]
+            try:
+                result = future.result(timeout=timeout)
+                if result:
+                    print(f"Processed {file_path} successfully.")
+            except TimeoutError:
+                log = f"Timeout reached for {file_path}\n"
+                print(log)
+                with open(log_file, "a") as f:
+                    f.write(log)
+            except Exception as exc:
+                log = f"Error processing {file_path}: {exc}\n"
+                print(log)
+                with open(log_file, "a") as f:
+                    f.write(log)
 
 
 def accumulate_files_content(file_list, process_function, max_char_limit=65536, nfiles_max=1000000 ):
@@ -87,10 +148,3 @@ def accumulate_files_content(file_list, process_function, max_char_limit=65536, 
     # Process any remaining accumulated content
     if accumulated_parts:
         process_function('\n\n'.join(accumulated_parts), (i0,i) )
-
-
-
-# # Example usage
-# if __name__ == '__main__':
-#     root_directory = './path_to_your_directory'  # Replace with your directory path
-#     find_and_process_files(root_directory)
