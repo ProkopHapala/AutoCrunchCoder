@@ -82,7 +82,7 @@ def toLLM(file_path, agent, max_char_limit=65000 ):
         # Process the file content (in this example, just check if content length exceeds the limit)
         if ( len(task) + len(system_prompt) + 2 )  < max_char_limit:
             print( "LLM process ", file_path )
-            response,_ = agent.send_message( task );
+            response = agent.query(prompt=task)
             with open( path_out + fname + '.md', 'w') as f: f.write(response)
             bProcessed = True
         else:
