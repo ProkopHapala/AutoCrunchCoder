@@ -87,3 +87,13 @@ contextLength =  131072
 api_key_var   = "any"
 provider      = "LMStudio"
 api_lib       = "openai"
+
+
+[fzu-Qwen25-32b]
+model_name    = "bartowski/Qwen2.5-32B-Instruct-GGUF/Qwen2.5-32B-Instruct-Q3_K_S.gguf"
+base_url      = "http://10.26.201.142:1234/v1"
+contextLength =  32768
+api_key_var   = "any"
+provider      = "LMStudio"
+api_lib       = "openai"
+
