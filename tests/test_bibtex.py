@@ -1,4 +1,5 @@
-
+import sys
+sys.path.append("../")
 from pyCruncher import file_utils as bu
 from pyCruncher.AgentOpenAI import AgentOpenAI
 

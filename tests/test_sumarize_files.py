@@ -1,6 +1,8 @@
 import os
+sys.path.append("../")
 from pyCruncher import file_utils as fu
 from pyCruncher.AgentOpenAI import AgentOpenAI
+from pyCruncher.AgentDeepSeek import AgentDeepSeek
 
 " source ~/venvML/bin/activate "
 
@@ -33,7 +35,9 @@ please, sumarize commits( %i .. %i ) contained in the following text:
 
 #model_name="lmstudio-community/Codestral-22B-v0.1-GGUF/Codestral-22B-v0.1-Q4_K_M.gguf"
 #model_name="lmstudio-community/DeepSeek-Coder-V2-Lite-Instruct-GGUF/DeepSeek-Coder-V2-Lite-Instruct-Q4_K_M.gguf"
-model_name="lmstudio-community/Meta-Llama-3.1-8B-Instruct-GGUF/Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf"
+#model_name="lmstudio-community/Meta-Llama-3.1-8B-Instruct-GGUF/Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf"
+
+model=-"fzu-Qwen25-32b"
 
 # ======= Functions
 
@@ -91,7 +95,7 @@ def clean_skipped( fnamein, fnameout ):
 #for f in flist: print(f)
 
 # # ---- 1st round of sumarization of source code files
-agent = AgentOpenAI(model_name)
+#agent = AgentOpenAI(model)
 # agent.set_system_prompt( system_prompt )
 # relevant_extensions = {'.h', '.c', '.cpp', '.hpp'}
 # ignores={'*/Build*','*/doxygen'}
@@ -105,7 +109,8 @@ agent = AgentOpenAI(model_name)
 # get_response( prompt, system_prompt, agent=None  ):
 
 
-agent = lm.initAgent( base_url="https://api.deepseek.com", key_file="./deepseek.key" )
+agent = AgentDeepSeek()
+
 with open( path_out + 'skipped_clean.log', 'r') as f:
     pre = "/home/prokop/git/FireCore/cpp/"
     for line in f:
@@ -119,7 +124,8 @@ with open( path_out + 'skipped_clean.log', 'r') as f:
         #for part in lm.stream_response( prompt=task, system_prompt=system_prompt, agent=agent ):
         #    print(part, end='', flush=True)  # Print each part as it comes in
 
-        response = lm.get_response( prompt=task, system_prompt=system_prompt, agent=agent  )
+        #response = lm.get_response( prompt=task, system_prompt=system_prompt, agent=agent  )
+        response = agent.query( task ).content
 
         fname = filepath.split('/')[-1]
         fnameout = path_out + fname + '.md'
