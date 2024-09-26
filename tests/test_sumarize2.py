@@ -1,8 +1,6 @@
-import sys
 import os
-sys.path.append('../python')
-import file_utils as fu
-import LMagent as lm
+from pyCruncher import file_utils as fu
+from pyCruncher.AgentOpenAI import AgentOpenAI
 
 " source ~/venvML/bin/activate "
 
@@ -12,13 +10,13 @@ path_out="./cpp_summaries_FireCore/"
 
 project_name="FireCore"
 system_prompt=f"""
-You are helful assistant and a senior programmer specializing in game development, physical simulations, and computational chemistry. 
-Your task is to analyze and sumarize set of markdown files summarizing C/C++ source code from the **{project_name}** project. 
+You are helful assistant and a senior programmer specializing in game development, physical simulations, and computational chemistry.
+Your task is to analyze and sumarize set of markdown files summarizing C/C++ source code from the **{project_name}** project.
 """
 
 prompt="""
 ### Objective:
-You will create a concise shortlist of what has been implemented in each source file from description provided on input. 
+You will create a concise shortlist of what has been implemented in each source file from description provided on input.
 You should mainly extract the essence, shuch as what each class or functions does (i.e. what process/algorithm it implements, what is the purpose of the class or function).
 The essence can be mostly found in the overview section at the begining and the notes section and at the end of chapter corresponing to each file.
 Do not get lost in technical details.
@@ -41,13 +39,13 @@ Your output should follow this example:
 
 ```
 ## eFF.h
-   * Classes: 
+   * Classes:
         * `EFF` : Implements "Eletron focefield" for system of electrons and nuclei. Electron forcefield represents electrons as floating Gaussian orbitals composed of single spherical Gaussian function where both position and radius are dynamical variables. (see. http://dx.doi.org/10.1016/j.mechmat.2015.02.008 )
-   * Free Functions: 
+   * Free Functions:
         * `mixLJ` : Mix Lenard-Jones interaction parameters of two atom-types i,j using Lorentz-Berthelot rules.
         * `getLJQ` : Calculates energy and force between two atoms using Lenard-Jones potential.
-   * Global variables or constants: 
-        * `EFFparams` : list of electron-nuclei interaction perameters for electron-forcefiled parameters for most common chemical elements. 
+   * Global variables or constants:
+        * `EFFparams` : list of electron-nuclei interaction perameters for electron-forcefiled parameters for most common chemical elements.
         * `default_EPCs_sp` : default enhanced core potential parameters for sp-type orbitals of most common chemical elements.
         * `COULOMB_CONST` : Constant for Coulomb interaction in units of [ electron volt * Angstroem ]
 ```
@@ -63,7 +61,7 @@ Your output should follow this example:
      - `E`, `F`, and `v` likely represent energy, force, and velocity.
      - `r` and `l` represent radius and length, while `T` stands for time or temperature.
      - `d` likely represents a difference or derivative.
-     - `L-J` refers to the **Lennard-Jones potential**, commonly used in simulations.   
+     - `L-J` refers to the **Lennard-Jones potential**, commonly used in simulations.
 
 ### Deliverables:
 - Write the shortlist in the structured format outlined above.
@@ -82,7 +80,7 @@ nchar_bare = max_char_limit - npromts
 
 def toLLM(accumulated_str, i01, agent, prompt, path_out='./', max_char_limit=max_char_limit ):
     task = prompt + "\n\n" + accumulated_str
-    nchar = len(task) 
+    nchar = len(task)
     if nchar < max_char_limit:
         print("LLM processing items ", i01[0], i01[1] )
         response, _ = agent.send_message(task)
@@ -91,7 +89,7 @@ def toLLM(accumulated_str, i01, agent, prompt, path_out='./', max_char_limit=max
     else:
         print("LLM processing items ", i01[0], i01[1], "too long, skipping nchar=",nchar )
 
-agent = lm.Agent(model_name=model_name)
+agent = AgentOpenAI("fzu-llama-8b")
 agent.set_system_prompt( system_prompt )
 
 relevant_extensions = {'.md'}

@@ -1,8 +1,6 @@
-import sys
 import os
-sys.path.append('../python')
-import file_utils as fu
-import LMagent as lm
+from pyCruncher import file_utils as fu
+from pyCruncher.AgentOpenAI import AgentOpenAI
 
 " source ~/venvML/bin/activate "
 
@@ -23,11 +21,11 @@ path_out="./cpp_summaries_SimpleSimulationEngine/"
 # List those functions and methods and write one line for each of them.
 # Write everything in concise structured way, using bullet points.
 # You may assume that the code focus mostly on physical simulations, applied mathematics, analytical geometry, 3D graphics. Therefore assume terminology and abbreviations which are appropriate for this domains.
-# For example: 
-# * `E`,`F`,`v` are probably energy, force and velocity. 
-# * `r` and `l` are radius. `T` is temperature or time. 
-# * `d` is probably difference or derivative. 
-# * `L-J` is probably Lennard-Jones potential.  
+# For example:
+# * `E`,`F`,`v` are probably energy, force and velocity.
+# * `r` and `l` are radius. `T` is temperature or time.
+# * `d` is probably difference or derivative.
+# * `L-J` is probably Lennard-Jones potential.
 # The anotation of "Simple Simulation Engine" is: a minimalistic engine for Physical simulations, Numerical math, Game development, Computer graphics, Educational purposes.
 # NOTE: the code is not well documented and maintained, therefore do not consider all comments in the code completely thrustworthy, rather try to understant the C/C++ source code itself and deduce what is the meaning, and if it match the comments.
 
@@ -35,8 +33,8 @@ path_out="./cpp_summaries_SimpleSimulationEngine/"
 # """
 
 system_prompt="""
-You are a senior programmer specializing in game development, physical simulations, and computational chemistry. 
-You are tasked with analyzing and summarizing C/C++ source code files for a project called **"Simple Simulation Engine."** 
+You are a senior programmer specializing in game development, physical simulations, and computational chemistry.
+You are tasked with analyzing and summarizing C/C++ source code files for a project called **"Simple Simulation Engine."**
 The purpose of this task is to document the project, recall what has already been implemented, and improve navigation for future development.
 
 ### Objective:
@@ -62,7 +60,7 @@ Your task is to examine each source code file provided, understand its content, 
      - `r` and `l` represent radius and length, while `T` stands for time or temperature.
      - `d` likely represents a difference or derivative.
      - `L-J` refers to the **Lennard-Jones potential**, commonly used in simulations.
-   
+
 5. **Project Annotation:**
    - The **Simple Simulation Engine** is a minimalistic engine designed for:
      - Physical simulations
@@ -70,7 +68,7 @@ Your task is to examine each source code file provided, understand its content, 
      - Game development
      - Computer graphics
      - Educational purposes
-   
+
 6. **Handling Inconsistent Documentation:**
    - The code is not well-documented or maintained. Therefore, do not rely entirely on the comments within the code.
    - Focus on understanding the C/C++ source code itself, and use your analysis to determine the functionality, correcting or overriding comments when necessary.
@@ -116,7 +114,7 @@ def toLLM(file_path, agent, max_char_limit=32768 ):
 
 #for f in flist: print(f)
 
-agent = lm.Agent(model_name=model_name)
+agent = AgentOpenAI("fzu-llama-8b")
 agent.set_system_prompt( system_prompt )
 
 relevant_extensions = {'.h', '.c', '.cpp', '.hpp'}

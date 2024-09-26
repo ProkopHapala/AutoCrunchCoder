@@ -1,8 +1,6 @@
-import sys
 import os
-sys.path.append('../python')
-import file_utils as fu
-import LMagent as lm
+from pyCruncher import file_utils as fu
+from pyCruncher.AgentOpenAI import AgentOpenAI
 
 " source ~/venvML/bin/activate "
 
@@ -24,11 +22,11 @@ Then identify all functions and methods and their purpose.
 List those functions and methods and write one line for each of them.
 Write everything in concise structured way, using bullet points.
 You may assume that the code focus mostly on physical/chemical simulations and applied mathematics. Therefore assume terminology and abbreviations which are appropriate for this domains.
-For example: 
-* `E`,`F`,`v` are probably energy, force and velocity. 
-* `r` and `l` are radius. `T` is temperature or time. 
-* `d` is probably difference or derivative. 
-* `L-J` is probably Lennard-Jones potential.  
+For example:
+* `E`,`F`,`v` are probably energy, force and velocity.
+* `r` and `l` are radius. `T` is temperature or time.
+* `d` is probably difference or derivative.
+* `L-J` is probably Lennard-Jones potential.
 
 please, sumarize commits( %i .. %i ) contained in the following text:
 """
@@ -68,13 +66,13 @@ def clean_skipped( fnamein, fnameout ):
     pre = "/home/prokop/git/FireCore/cpp/"
     npre = len(pre)
     dct = {}
-    with open( fnamein, 'r') as f: 
+    with open( fnamein, 'r') as f:
         for line in f:
             ws = line.split()
             fname = ws[1][npre:-1]
             nbyte = ws[-2][1:]
             #print(fname, nbyte)
-            #lst.append( (fname,int(nbyte)) ) 
+            #lst.append( (fname,int(nbyte)) )
             dct[fname] = int(nbyte)
     # sort by 2nd item
     lst = list( dct.items() )   #;print(lst)
@@ -82,7 +80,7 @@ def clean_skipped( fnamein, fnameout ):
     #print(lst)
     #for fname,nbyte in lst: print(fname, nbyte)
     with open( fnameout, 'w') as f:
-        for fname,nbyte in lst: 
+        for fname,nbyte in lst:
             # write alligned in columns, 100 chars for fname
             f.write(f"{fname:<100} {nbyte}\n")
 
@@ -93,7 +91,7 @@ def clean_skipped( fnamein, fnameout ):
 #for f in flist: print(f)
 
 # # ---- 1st round of sumarization of source code files
-# agent = lm.Agent(model_name=model_name)
+agent = AgentOpenAI(model_name)
 # agent.set_system_prompt( system_prompt )
 # relevant_extensions = {'.h', '.c', '.cpp', '.hpp'}
 # ignores={'*/Build*','*/doxygen'}
@@ -114,7 +112,7 @@ with open( path_out + 'skipped_clean.log', 'r') as f:
         ws = line.split()
         filepath = pre+ws[0]
         print( "\n=====================\n", filepath, " "*(100-len(filepath)), ws[1], "\n=====================\n" )
-        
+
         with open( filepath, 'r') as f: content = f.read()
 
         task = prompt + "\n\n" + content
@@ -127,9 +125,3 @@ with open( path_out + 'skipped_clean.log', 'r') as f:
         fnameout = path_out + fname + '.md'
         print("respponse saved to file: ", fnameout )
         with open( fnameout, 'w') as f: f.write(response)
-
-
-       
-
-
-

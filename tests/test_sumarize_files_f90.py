@@ -1,8 +1,6 @@
-import sys
 import os
-sys.path.append('../python')
-import file_utils as fu
-import LMagent as lm
+from pyCruncher import file_utils as fu
+from pyCruncher.AgentOpenAI import AgentOpenAI
 
 " source ~/venvML/bin/activate "
 
@@ -26,18 +24,18 @@ Your task is to understand the provided code and create a structured, concise su
     - List and categorize important variables:
         - **Local Variables**: Defined within subroutines.
         - **Global Variables**: Defined in modules or elsewhere.
-    
+
 3. **Subroutine Purpose and Algorithm:**
     - For each subroutine, determine:
         - Its physical or chemical meaning.
         - The algorithm implemented.
         - How it fits into the broader DFT workflow.
-        - specify of what other subroutines this subroutine depends on and how. 
-            - Be concise - one bullet point of sentence per one dependency. 
-    
+        - specify of what other subroutines this subroutine depends on and how.
+            - Be concise - one bullet point of sentence per one dependency.
+
 4. **Sub-Tasks in DFT:**
     When relevant, link the subroutines and algorithms to core DFT operations, such as:
-    
+
     - **Self-Consistency Loop (SCF):**
         1. **Assembling Hamiltonian (H) and Overlap (S) Matrix:**
             - Interpolation from the integral data table.
@@ -52,7 +50,7 @@ Your task is to understand the provided code and create a structured, concise su
             - Applying Fermi-Dirac occupation to set the occupancy of eigenstates.
             - Constructing the density matrix from eigenvectors.
             - Projecting the density matrix onto atomic charges.
-            
+
 5. **Terminology:**
     Assume standard abbreviations and terminology from physical and chemical simulations:
     - **E**, **F**, and **v** typically represent energy, force, and velocity.
@@ -96,7 +94,7 @@ def toLLM(file_path, agent, max_char_limit=65000 ):
 
 #for f in flist: print(f)
 
-agent = lm.Agent(model_name=model_name)
+agent = AgentOpenAI(model_name)
 agent.set_system_prompt( system_prompt )
 
 relevant_extensions = {'.f90'}
