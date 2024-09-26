@@ -95,7 +95,7 @@ agent.set_system_prompt( system_prompt )
 relevant_extensions = {'.md'}
 ignores={'*/Build*','*/doxygen','_*'}
 
-flist = fu.find_and_process_files( path_in,  relevant_extensions=relevant_extensions, ignores=ignores )
+flist = fu.find_files( path_in,  relevant_extensions=relevant_extensions, ignores=ignores )
 #print("flist: ", flist)
 #for f in flist: print(f)
 fpathout=path_out + "_summary_output.md"
