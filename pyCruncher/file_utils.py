@@ -44,7 +44,7 @@ def should_ignore(path, ignores):
             return True
     return False
 
-def find_files(root_dir, process_file=None, relevant_extensions=None, ignores=[], saveToFile=None, bPrint=True ):
+def find_files(root_dir, process_file=None, relevant_extensions=None, ignores=[], saveToFile=None, bPrint=True, bSort=True ):
     """
     Walks through subdirectories of the root_dir, lists files with specified extensions, 
     and runs a user-defined function on them.
@@ -66,6 +66,7 @@ def find_files(root_dir, process_file=None, relevant_extensions=None, ignores=[]
                 flist.append(full_path)
                 if process_file is not None:
                     process_file(full_path)
+    if bSort: flist.sort()
     if(bPrint): 
         nfound = len(flist)
         print( f"find_files({root_dir},{relevant_extensions}) found {nfound}" )

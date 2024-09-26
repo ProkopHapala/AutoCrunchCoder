@@ -30,11 +30,13 @@ def pdf_to_md(pdf_path, output_dir, pdf_num):
         write_file(output_dir + "pdf_to_md.log", log, mode="a")
         return None
 
-def sumarize_article_text(agent, fname, prompt, input_dir, output_dir, bStream=False, ncharmax=300000):
+def sumarize_article_text(agent, file_path, prompt, output_dir, bStream=False, ncharmax=300000):
     """
     Callback for processing a single .md file and feeding it to LLM.
     """
-    txt = read_file(input_dir + fname)
+    fname = os.path.basename(file_path)
+    print( "sumarize_article_text().fname ", fname )
+    txt = read_file(file_path)
     task = prompt + txt
     nchar = len(task)
     
@@ -49,7 +51,7 @@ def sumarize_article_text(agent, fname, prompt, input_dir, output_dir, bStream=F
             print(chunk, flush=True, end="")
         result = agent.assistant_message
     else:
-        result = agent.query(task)
+        result = agent.query(task).content
     
     write_file(output_dir + fname, result)
 
@@ -65,14 +67,15 @@ if __name__ == '__main__':
     pdf_log_file  = output_dir_1 + "process_pdf_files.log"
     md_log_file   = output_dir_2 + "process_md_files.log"
     
-    # Step 1: Find PDFs and save the file paths
-    pdf_files = find_files(input_dir, relevant_extensions={'.pdf'}, saveToFile=pdf_list_file)
-    # Step 2: Process PDFs to .md files in parallel
-    process_files_parallel(pdf_files, pdf_to_md, pdf_log_file, output_dir_1)
+    # # Step 1: Find PDFs and save the file paths
+    # pdf_files = find_files(input_dir, relevant_extensions={'.pdf'}, saveToFile=pdf_list_file)
+    # # Step 2: Process PDFs to .md files in parallel
+    # process_files_parallel(pdf_files, pdf_to_md, pdf_log_file, output_dir_1)
 
-    # # Step 3: Find .md files and save the file paths
-    # md_files = find_files(output_dir_1, relevant_extensions={'.md'}, saveToFile=md_list_file)
-    # prompt = read_file("../prompts/sumarize_article_pdf.md")
-    # # Step 4: Process .md files to LLM
-    # agent = AgentOpenAI("fzu-llama-8b")
-    # process_files_serial(md_files, lambda f, out, i: sumarize_article_text(agent, f, prompt, output_dir_1, output_dir_2), md_log_file, output_dir_2)
+    # Step 3: Find .md files and save the file paths
+    md_files = find_files(output_dir_1, relevant_extensions={'.md'}, saveToFile=md_list_file)
+    prompt = read_file("../prompts/sumarize_article_pdf.md")
+    # Step 4: Process .md files to LLM
+    agent = AgentOpenAI("lm-llama-8b")
+    #agent = AgentOpenAI("fzu-llama-8b")
+    process_files_serial(md_files, lambda f, out, i: sumarize_article_text(agent, f, prompt, output_dir_2), md_log_file, output_dir_2)
