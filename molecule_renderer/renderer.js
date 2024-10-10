@@ -1,4 +1,6 @@
 // renderer.js
+import * as THREE from 'three';
+import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
 
 // Set up the scene, camera, and renderer
 const scene = new THREE.Scene();
@@ -11,6 +13,9 @@ document.body.appendChild(renderer.domElement);
 const light = new THREE.DirectionalLight(0xffffff, 1);
 light.position.set(1, 1, 1).normalize();
 scene.add(light);
+
+// Set up OrbitControls for camera rotation
+const controls = new OrbitControls(camera, renderer.domElement);
 
 // Function to parse .xyz file
 function parseXYZFile(fileContent) {
@@ -63,6 +68,7 @@ function renderMolecule(atomPositions) {
         const material = new THREE.MeshPhongMaterial({ color: atom.symbol === 'O' ? 0xff0000 : 0x0000ff });
         const sphere = new THREE.Mesh(sphereGeometry, material);
         sphere.position.set(atomVectors[index].x, atomVectors[index].y, atomVectors[index].z);
+        sphere.userData = { symbol: atom.symbol, position: atomVectors[index] };
         scene.add(sphere);
     });
 
@@ -131,62 +137,42 @@ const initialAtomPositions = [
 ];
 renderMolecule(initialAtomPositions);
 
-// Camera rotation controls
-let isDragging = false;
-let previousMousePosition = { x: 0, y: 0 };
+// Mouse picking and selection
+const raycaster = new THREE.Raycaster();
+const mouse = new THREE.Vector2();
+const selectedAtoms = [];
 
-document.addEventListener('mousedown', (event) => {
-    if (event.button === 2) { // Right mouse button
-        isDragging = true;
+function onMouseClick(event) {
+    mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+    mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+    raycaster.setFromCamera(mouse, camera);
+    const intersects = raycaster.intersectObjects(scene.children, true);
+
+    console.log('Mouse coordinates:', mouse);
+    console.log('Intersected objects:', intersects);
+
+    if (intersects.length > 0) {
+        const selectedAtom = intersects[0].object;
+        console.log('Selected atom:', selectedAtom.userData);
+        if (selectedAtom.userData && selectedAtom.userData.symbol) {
+            selectedAtoms.push(selectedAtom.userData);
+            updateSelectionList();
+        }
     }
-});
-
-document.addEventListener('mouseup', () => {
-    isDragging = false;
-});
-
-document.addEventListener('mousemove', (event) => {
-    if (isDragging) {
-        const deltaMove = {
-            x: event.offsetX - previousMousePosition.x,
-            y: event.offsetY - previousMousePosition.y
-        };
-
-        const deltaRotationQuaternion = new THREE.Quaternion()
-            .setFromEuler(new THREE.Euler(
-                toRadians(deltaMove.y * 1),
-                toRadians(deltaMove.x * 1),
-                0,
-                'XYZ'
-            ));
-
-        camera.quaternion.multiplyQuaternions(deltaRotationQuaternion, camera.quaternion);
-    }
-
-    previousMousePosition = {
-        x: event.offsetX,
-        y: event.offsetY
-    };
-});
-
-document.addEventListener('keydown', (event) => {
-    const key = event.key;
-    const rotationSpeed = 0.1;
-
-    if (key === 'ArrowUp') {
-        camera.rotation.x -= rotationSpeed;
-    } else if (key === 'ArrowDown') {
-        camera.rotation.x += rotationSpeed;
-    } else if (key === 'ArrowLeft') {
-        camera.rotation.y -= rotationSpeed;
-    } else if (key === 'ArrowRight') {
-        camera.rotation.y += rotationSpeed;
-    }
-});
-
-function toRadians(angle) {
-    return angle * (Math.PI / 180);
 }
+
+function updateSelectionList() {
+    const selectionList = document.getElementById('selectionList');
+    selectionList.innerHTML = '';
+    selectedAtoms.forEach(atom => {
+        const li = document.createElement('li');
+        li.textContent = `Type: ${atom.symbol}, Position: (${atom.position.x.toFixed(2)}, ${atom.position.y.toFixed(2)}, ${atom.position.z.toFixed(2)})`;
+        selectionList.appendChild(li);
+    });
+}
+
+document.addEventListener('click', onMouseClick);
 
 // Render the scene
 function animate() {
