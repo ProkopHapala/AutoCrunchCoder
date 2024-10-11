@@ -1,7 +1,7 @@
 import sys
-sys.path.append('../python')
+sys.path.append("../")
 #import LMagent as lm
-import Maxima as ma
+import pyCruncher.Maxima as ma
 
 
 '''

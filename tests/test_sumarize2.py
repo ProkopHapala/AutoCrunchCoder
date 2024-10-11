@@ -1,4 +1,6 @@
 import os
+import sys
+sys.path.append("../")
 from pyCruncher import file_utils as fu
 from pyCruncher.AgentOpenAI import AgentOpenAI
 
@@ -83,7 +85,7 @@ def toLLM(accumulated_str, i01, agent, prompt, path_out='./', max_char_limit=max
     nchar = len(task)
     if nchar < max_char_limit:
         print("LLM processing items ", i01[0], i01[1] )
-        response, _ = agent.send_message(task)
+        response = agent.query(task)
         #response = "DEBUG RESPONSE %i .. %i \n\n" %(i01[0], i01[1])
         with open(path_out, 'a') as f:  f.write(response + "\n\n")
     else:

@@ -97,3 +97,22 @@ api_key_var   = "any"
 provider      = "LMStudio"
 api_lib       = "openai"
 
+
+[fzu-Codestral-22b]
+model_name    = "lmstudio-community/Codestral-22B-v0.1-GGUF/Codestral-22B-v0.1-Q4_K_M.gguf"
+base_url      = "http://10.26.201.142:1234/v1"
+contextLength =  32768
+api_key_var   = "any"
+provider      = "LMStudio"
+api_lib       = "openai"
+
+
+[fzu-DeepSeek-V2CL]
+model_name    = "lmstudio-community/DeepSeek-Coder-V2-Lite-Instruct-GGUF/DeepSeek-Coder-V2-Lite-Instruct-Q4_K_M.gguf"
+base_url      = "http://10.26.201.142:1234/v1"
+contextLength =  32768
+api_key_var   = "any"
+provider      = "LMStudio"
+api_lib       = "openai"
+
+

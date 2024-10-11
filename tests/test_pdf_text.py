@@ -1,12 +1,11 @@
-import sys
 import os
+import sys
+sys.path.append("../")
 """
 pip install pdfminer.six
 source ~/venvML/bin/activate
 """
 from pdfminer.high_level import extract_text
-
-sys.path.append("../")
 from pyCruncher.AgentOpenAI import AgentOpenAI
 
 prompt = """

@@ -1,6 +1,6 @@
 import sys
-sys.path.append('../python')
-import LMagent as lm
+sys.path.append("../")
+from pyCruncher.AgentOpenAI import AgentOpenAI
 
 "source ~/venvML/bin/activate"
 
@@ -30,8 +30,8 @@ After each such example, you should provide a short explanation where exactly th
 prompt="please, generate 5 subtly errorous code examples from the following code:\n\n"
 
 #model_name="lmstudio-community/Codestral-22B-v0.1-GGUF/Codestral-22B-v0.1-Q4_K_M.gguf"
-model_name="lmstudio-community/DeepSeek-Coder-V2-Lite-Instruct-GGUF/DeepSeek-Coder-V2-Lite-Instruct-Q4_K_M.gguf"
-#model_name="lmstudio-community/Meta-Llama-3.1-8B-Instruct-GGUF/Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf"
+#model_name="lmstudio-community/DeepSeek-Coder-V2-Lite-Instruct-GGUF/DeepSeek-Coder-V2-Lite-Instruct-Q4_K_M.gguf"
+model_name="lmstudio-community/Meta-Llama-3.1-8B-Instruct-GGUF/Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf"
 
 fname = "EwaldGrid.h"
 
@@ -39,7 +39,8 @@ with open(  path_in + fname, 'r') as f: code_in = f.read()
 
 task = prompt + code_in
     
-agent = lm.Agent(model_name=model_name)
+agent = AgentOpenAI(model_name=model_name)
+
 agent.set_system_prompt( system_prompt )
 with open( path_out + 'task.md', 'w') as f: f.write(task)
 response,_ = agent.send_message( task );

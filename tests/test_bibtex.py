@@ -1,4 +1,5 @@
-
+import sys
+sys.path.append("../")
 from pyCruncher import file_utils as bu
 from pyCruncher.AgentOpenAI import AgentOpenAI
 
@@ -50,7 +51,7 @@ def sumarize_pdf( fname, max_len=1024 ):
     print("LLM: " + respose)
 
 def classify_by_abstract( fout, text ):
-    respose = llm.send_message( text );
+    response = llm.query(prompt=text)
     fout.write("\n\n### LLM: \n" + respose+"\n")
 
 

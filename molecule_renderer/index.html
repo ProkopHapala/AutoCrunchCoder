@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Molecule Renderer</title>
+    <style>
+        body { margin: 0; overflow: hidden; }
+        canvas { display: block; }
+        #sidebar {
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 200px;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            color: white;
+            padding: 10px;
+            box-sizing: border-box;
+            overflow-y: auto; 
+        }
+        #selectionList {
+            list-style-type: none;
+            padding: 0;
+        }
+        #selectionList li {
+            margin: 5px 0;
+        }
+    </style>
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://unpkg.com/three@0.140.0/build/three.module.js",
+            "three/examples/jsm/controls/OrbitControls": "https://unpkg.com/three@0.140.0/examples/jsm/controls/OrbitControls.js"
+        }
+    }
+    </script>
+</head>
+<body>
+    <input type="file" id="fileInput" accept=".xyz" />
+    <div id="sidebar">
+        <h3>Selected Atoms</h3>
+        <ul id="selectionList"></ul>
+    </div>
+    <script type="module" src="renderer.js"></script>
+</body>
+</html>
