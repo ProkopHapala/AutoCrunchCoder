@@ -88,7 +88,25 @@
           "title": "Prokop_Bot: Add this tab to..."
         }
       ]
-    }
+    },
+    "viewsContainers": {
+        "activitybar": [
+          {
+            "id": "prokopBotViewContainer",
+            "title": "Prokop Bot",
+            "icon": "resources/icon.png"
+          }
+        ]
+      },
+      "views": {
+        "prokopBotViewContainer": [
+          {
+            "id": "prokopBotWebview",
+            "name": "Prokop Bot Panel",
+            "type": "webview"
+          }
+        ]
+      }
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",

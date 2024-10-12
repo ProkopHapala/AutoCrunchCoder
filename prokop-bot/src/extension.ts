@@ -13,12 +13,65 @@ import { exec } from 'child_process';
 import * as path from 'path';
 import * as fs from 'fs';
 
+
+// Webview Provider Class
+class ProkopBotWebviewProvider implements vscode.WebviewViewProvider {
+    public static readonly viewType = 'prokopBotWebview';
+
+    constructor(private readonly context: vscode.ExtensionContext) {}
+
+    resolveWebviewView(webviewView: vscode.WebviewView) {
+        webviewView.webview.options = {
+            // Enable scripts in the webview
+            enableScripts: true,
+            // Restrict the webview to only load resources from `media` directory
+            localResourceRoots: [vscode.Uri.joinPath(this.context.extensionUri, 'media')]
+        };
+        console.log('ProkopBotWebviewProvider::resolveWebviewView():  webviewView.webview.html = this.getHtmlForWebview(webviewView.webview); ');
+        webviewView.webview.html = this.getHtmlForWebview(webviewView.webview);
+    }
+
+    private getHtmlForWebview(webview: vscode.Webview): string {
+        const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(this.context.extensionUri, 'media', 'main.js'));
+        const styleUri = webview.asWebviewUri(vscode.Uri.joinPath(this.context.extensionUri, 'media', 'styles.css'));
+        console.log('ProkopBotWebviewProvider::getHtmlForWebview(): return HTML ');
+        return `
+            <!DOCTYPE html>
+            <html lang="en">
+            <head>
+                <meta charset="UTF-8">
+                <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src ${webview.cspSource}; style-src ${webview.cspSource};">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <link href="${styleUri}" rel="stylesheet">
+                <title>Prokop Bot</title>
+            </head>
+            <body>
+                <h1>Welcome to Prokop Bot!</h1>
+                <div id="content">
+                    <!-- Your webview content goes here -->
+                </div>
+                <script src="${scriptUri}"></script>
+            </body>
+            </html>
+        `;
+    }
+}
+
+
+
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
 export function activate(context: vscode.ExtensionContext) {
     // Use the console to output diagnostic information (console.log) and errors (console.error)
     console.log('Congratulations, your extension "prokop-bot" is now active!');
     console.log(`Current working directory: ${process.cwd()}`);
+
+    // Register the Webview View Provider
+    const prokopBotWebviewProvider = new ProkopBotWebviewProvider(context);
+    console.log('ProkoBot::activate():  context.subscriptions.push() ');
+    context.subscriptions.push(
+        vscode.window.registerWebviewViewProvider(ProkopBotWebviewProvider.viewType, prokopBotWebviewProvider)
+    );
 
     // Register the command to enclose selection
     let disposable_encloseSelection = vscode.commands.registerCommand('extension.encloseSelection', () => {
