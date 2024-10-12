@@ -12,6 +12,7 @@ import * as vscode from 'vscode';
 import { exec } from 'child_process';
 import * as path from 'path';
 import * as fs from 'fs';
+import { ContextTreeDataProvider } from './treeDataProvider';
 
 
 // Webview Provider Class
@@ -153,6 +154,16 @@ export function activate(context: vscode.ExtensionContext) {
         vscode.window.registerWebviewViewProvider(ProkopBotWebviewProvider.viewType, prokopBotWebviewProvider)
     );
 
+    const workspaceRoot = vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0
+        ? vscode.workspace.workspaceFolders[0].uri.fsPath : '';
+    const contextTreeDataProvider = new ContextTreeDataProvider(workspaceRoot);
+    vscode.window.registerTreeDataProvider('prokopBotContextView', contextTreeDataProvider);
+
+    // Register the command to refresh the tree view
+    let refreshTreeView = vscode.commands.registerCommand('prokopBot.refreshTreeView', () => {
+        contextTreeDataProvider.refresh();
+    });
+
     // Register the command to enclose selection
     let disposable_encloseSelection = vscode.commands.registerCommand('extension.encloseSelection', () => {
         const editor = vscode.window.activeTextEditor;
@@ -271,25 +282,25 @@ async function addToMarkdown(selectedText: string, fileName: string, fullPath: s
     vscode.window.showInformationMessage(`Added content to ${markdownFilePath} and ${jsonFilePath}`);
 }
 
-function renderMarkdownSections(markdownContent: string): string {
-    const sections = markdownContent.match(/^### .+$/gm) || [];
-    return sections.map(section => `<li>${section.replace('### ', '')}</li>`).join('');
-}
+// function renderMarkdownSections(markdownContent: string): string {
+//     const sections = markdownContent.match(/^### .+$/gm) || [];
+//     return sections.map(section => `<li>${section.replace('### ', '')}</li>`).join('');
+// }
 
-function renderJsonTree(jsonContent: any): string {
-    function renderNode(node: any): string {
-        if (typeof node !== 'object' || node === null) {
-            return `<li>${node}</li>`;
-        }
-        return Object.entries(node).map(([key, value]) => {
-            if (typeof value === 'object' && value !== null) {
-                return `<li>${key}<ul>${renderNode(value)}</ul></li>`;
-            }
-            return `<li>${key}: ${value}</li>`;
-        }).join('');
-    }
-    return `<ul>${renderNode(jsonContent)}</ul>`;
-}
+// function renderJsonTree(jsonContent: any): string {
+//     function renderNode(node: any): string {
+//         if (typeof node !== 'object' || node === null) {
+//             return `<li>${node}</li>`;
+//         }
+//         return Object.entries(node).map(([key, value]) => {
+//             if (typeof value === 'object' && value !== null) {
+//                 return `<li>${key}<ul>${renderNode(value)}</ul></li>`;
+//             }
+//             return `<li>${key}: ${value}</li>`;
+//         }).join('');
+//     }
+//     return `<ul>${renderNode(jsonContent)}</ul>`;
+// }
 
 // Register the command to add selection to Markdown
 let disposable_addToMarkdown = vscode.commands.registerCommand('extension.addToMarkdown', async () => {
@@ -448,7 +459,8 @@ let disposable_addToMarkdown = vscode.commands.registerCommand('extension.addToM
             disposable_explorerCommand,
             disposable_addToMarkdown,
             disposable_cleanMarkdown,
-            disposable_addTabToList
+            disposable_addTabToList,
+            refreshTreeView
         );
 
 }

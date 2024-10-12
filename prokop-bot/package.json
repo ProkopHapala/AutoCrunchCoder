@@ -36,6 +36,11 @@
         {
             "command": "extension.addTabToList",
             "title": "Prokop_Bot: Add this tab to..."
+        },
+        {
+            "command": "prokopBot.refreshTreeView",
+            "title": "Refresh",
+            "icon": "$(refresh)"
         }
     ],
     "keybindings": [
@@ -51,7 +56,14 @@
         }
     ],
     "menus": {
-      "editor/context": [
+        "view/title": [
+            {
+                "command": "prokopBot.refreshTreeView",
+                "when": "view == prokopBotContextView",
+                "group": "navigation"
+            }
+        ],
+        "editor/context": [
         {
             "command": "extension.encloseSelection",
             "when": "editorHasSelection",
@@ -104,6 +116,10 @@
             "id": "prokopBotWebview",
             "name": "Prokop Bot Panel",
             "type": "webview"
+          },
+          {
+            "id": "prokopBotContextView",
+            "name": "Context Tree"
           }
         ]
       }
