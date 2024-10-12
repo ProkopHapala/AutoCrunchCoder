@@ -20,6 +20,34 @@
         {
             "command": "extension.sendToPython",
             "title": "Prokop_Bot: python(Selection)"
+        },
+        {
+            "command": "prokopBot.explorerCommand",
+            "title": "Prokop Bot: Run Python Tool"
+        },
+        {
+            "command": "extension.addToMarkdown",
+            "title": "Prokop_Bot: Add Selection to Markdown"
+        },
+        {
+            "command": "extension.cleanMarkdown",
+            "title": "Prokop_Bot: Clean Markdown File"
+        },
+        {
+            "command": "extension.addTabToList",
+            "title": "Prokop_Bot: Add this tab to..."
+        }
+    ],
+    "keybindings": [
+        {
+            "command": "extension.encloseSelection",
+            "key": "ctrl+]",
+            "when": "editorTextFocus"
+        },
+        {
+            "command": "extension.sendToPython",
+            "key": "ctrl+k ctrl+p",
+            "when": "editorTextFocus"
         }
     ],
     "menus": {
@@ -33,6 +61,31 @@
             "command": "extension.sendToPython",
             "when": "editorHasSelection",
             "group": "navigation"
+        },
+        {
+            "command": "extension.addToMarkdown",
+            "when": "editorHasSelection",
+            "group": "navigation"
+        },
+        {
+            "command": "extension.cleanMarkdown",
+            "group": "navigation"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "prokopBot.explorerCommand",
+          "when": "resourceLangId == python",
+          "group": "navigation",
+          "title": "Prokop Bot: Run Python Tool"
+        }
+      ],
+      "tab/context": [
+        {
+          "command": "extension.addTabToList",
+          "when": "editorFocus",
+          "group": "navigation",
+          "title": "Prokop_Bot: Add this tab to..."
         }
       ]
     }
