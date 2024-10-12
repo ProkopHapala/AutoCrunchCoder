@@ -3,28 +3,30 @@
 (function () {
     const vscode = acquireVsCodeApi();
 
-    // Function to send a message to the extension to show the filename
-    function showFilename() {
-        vscode.postMessage({ command: 'showFilename' });
-    }
-
-    // Add event listener to the button
     document.addEventListener('DOMContentLoaded', () => {
-        const showFilenameBtn = document.getElementById('showFilenameBtn');
-        const filenameDisplay = document.getElementById('filenameDisplay');
+        const showMarkdownBtn = document.getElementById('showMarkdownBtn');
+        const showJsonBtn = document.getElementById('showJsonBtn');
+        const treeView = document.getElementById('treeView');
 
-        if (showFilenameBtn) {
-            showFilenameBtn.addEventListener('click', showFilename);
-        }
+        showMarkdownBtn.addEventListener('click', () => {
+            console.log('Show Markdown button clicked');
+            vscode.postMessage({ command: 'showMarkdownSections' });
+        });
 
-        // Listen for messages from the extension
+        showJsonBtn.addEventListener('click', () => {
+            console.log('Show JSON button clicked');
+            vscode.postMessage({ command: 'showJsonTree' });
+        });
+
         window.addEventListener('message', event => {
             const message = event.data;
             switch (message.command) {
-                case 'displayFilename':
-                    filenameDisplay.textContent = `Current file: ${message.filename}`;
+                case 'updateContent':
+                    //document.getElementById('treeView').innerHTML = message.content;
+                    treeView.innerHTML = message.content;
                     break;
             }
         });
+        
     });
 })();

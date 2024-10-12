@@ -16,11 +16,14 @@ import * as fs from 'fs';
 
 // Webview Provider Class
 class ProkopBotWebviewProvider implements vscode.WebviewViewProvider {
+
+    private webviewView: vscode.WebviewView | undefined;
     public static readonly viewType = 'prokopBotWebview';
 
     constructor(private readonly context: vscode.ExtensionContext) {}
 
     resolveWebviewView(webviewView: vscode.WebviewView) {
+        this.webviewView = webviewView;
         webviewView.webview.options = {
             // Enable scripts in the webview
             enableScripts: true,
@@ -29,6 +32,17 @@ class ProkopBotWebviewProvider implements vscode.WebviewViewProvider {
         };
         console.log('ProkopBotWebviewProvider::resolveWebviewView():  webviewView.webview.html = this.getHtmlForWebview(webviewView.webview); ');
         webviewView.webview.html = this.getHtmlForWebview(webviewView.webview);
+
+        webviewView.webview.onDidReceiveMessage(message => {
+            switch (message.command) {
+                case 'showMarkdownSections':
+                    this.showMarkdownSections();
+                    break;
+                case 'showJsonTree':
+                    this.showJsonTree();
+                    break;
+            }
+        });
     }
 
     private getHtmlForWebview(webview: vscode.Webview): string {
@@ -46,15 +60,81 @@ class ProkopBotWebviewProvider implements vscode.WebviewViewProvider {
                 <title>Prokop Bot</title>
             </head>
             <body>
-                <h1>Welcome to Prokop Bot!</h1>
+                <h1>Prokop Bot Context</h1>
                 <div id="content">
-                    <!-- Your webview content goes here -->
+                    <button id="showMarkdownBtn">Show Markdown Sections</button>
+                    <button id="showJsonBtn">Show JSON Tree</button>
+                    <div id="treeView"></div>
                 </div>
                 <script src="${scriptUri}"></script>
             </body>
             </html>
         `;
     }
+
+    private async showMarkdownSections() {
+        console.log('Reading Markdown file');
+        const markdownContent = await this.readMarkdownFile();
+        console.log('Rendering Markdown sections');
+        const sections = this.renderMarkdownSections(markdownContent);
+        console.log('Updating webview content');
+        this.updateWebviewContent(sections);
+    }
+    
+    private async showJsonTree() {
+        console.log('Reading JSON file');
+        const jsonContent = await this.readJsonFile();
+        console.log('Rendering JSON tree');
+        const tree = this.renderJsonTree(jsonContent);
+        console.log('Updating webview content');
+        this.updateWebviewContent(tree);
+    }
+
+    private async readMarkdownFile(): Promise<string> {
+        const workspaceFolders = vscode.workspace.workspaceFolders;
+        if (!workspaceFolders) {
+            return '';
+        }
+        const markdownFilePath = path.join(workspaceFolders[0].uri.fsPath, 'Prokobot_context.md');
+        return fs.promises.readFile(markdownFilePath, 'utf8');
+    }
+
+    private async readJsonFile(): Promise<any> {
+        const workspaceFolders = vscode.workspace.workspaceFolders;
+        if (!workspaceFolders) {
+            return {};
+        }
+        const jsonFilePath = path.join(workspaceFolders[0].uri.fsPath, 'Prokobot_context.json');
+        const jsonContent = await fs.promises.readFile(jsonFilePath, 'utf8');
+        return JSON.parse(jsonContent);
+    }
+
+    private renderMarkdownSections(markdownContent: string): string {
+        const sections = markdownContent.match(/^### .+$/gm) || [];
+        return `<ul>${sections.map(section => `<li>${section.replace('### ', '')}</li>`).join('')}</ul>`;
+    }
+
+    private renderJsonTree(jsonContent: any): string {
+        function renderNode(node: any): string {
+            if (typeof node !== 'object' || node === null) {
+                return `<li>${node}</li>`;
+            }
+            return Object.entries(node).map(([key, value]) => {
+                if (typeof value === 'object' && value !== null) {
+                    return `<li>${key}<ul>${renderNode(value)}</ul></li>`;
+                }
+                return `<li>${key}: ${value}</li>`;
+            }).join('');
+        }
+        return `<ul>${renderNode(jsonContent)}</ul>`;
+    }
+
+    public updateWebviewContent(content: string) {
+        if (this.webviewView) {
+            this.webviewView.webview.postMessage({ command: 'updateContent', content });
+        }
+    }
+
 }
 
 
@@ -143,8 +223,77 @@ let disposable_sendToPython = vscode.commands.registerCommand('extension.sendToP
     }
 });
 
+
+async function addToMarkdown(selectedText: string, fileName: string, fullPath: string, startLine: number, startCharacter: number, endLine: number, endCharacter: number) {
+    // ... (existing markdown content creation)
+
+    const jsonContent = {
+        file: fileName,
+        path: fullPath,
+        location: `@@ -${startLine},${startCharacter} +${endLine},${endCharacter} @@`,
+        content: selectedText
+    };
+
+    const workspaceFolders = vscode.workspace.workspaceFolders;
+    if (!workspaceFolders) {
+        vscode.window.showErrorMessage('No workspace folder found.');
+        return;
+    }
+    const workspacePath = workspaceFolders[0].uri.fsPath;
+    const markdownFilePath = path.join(workspacePath, 'Prokobot_context.md');
+    const jsonFilePath = path.join(workspacePath, 'Prokobot_context.json');
+
+
+    // Prepare the markdown content
+    const markdownContent = `### file: ${fileName}\n` +
+        `path: \`${fullPath}\n\`` +
+        `location: @@ -${startLine},${startCharacter} +${endLine},${endCharacter} @@\n` +
+        //`start line: ${startLine} character: ${startCharacter}\n` +
+        //`end line: ${endLine} character: ${endCharacter}\n` +
+        '```typescript\n' +
+        `${selectedText}\n` +
+        '```\n\n';
+
+    // Append to markdown file
+    await fs.promises.appendFile(markdownFilePath, markdownContent);
+
+    // Append to JSON file
+    let jsonData = [];
+    try {
+        const existingData = await fs.promises.readFile(jsonFilePath, 'utf8');
+        jsonData = JSON.parse(existingData);
+    } catch (error) {
+        // File doesn't exist or is empty, start with an empty array
+    }
+    jsonData.push(jsonContent);
+    await fs.promises.writeFile(jsonFilePath, JSON.stringify(jsonData, null, 2));
+
+    vscode.window.showInformationMessage(`Added content to ${markdownFilePath} and ${jsonFilePath}`);
+}
+
+function renderMarkdownSections(markdownContent: string): string {
+    const sections = markdownContent.match(/^### .+$/gm) || [];
+    return sections.map(section => `<li>${section.replace('### ', '')}</li>`).join('');
+}
+
+function renderJsonTree(jsonContent: any): string {
+    function renderNode(node: any): string {
+        if (typeof node !== 'object' || node === null) {
+            return `<li>${node}</li>`;
+        }
+        return Object.entries(node).map(([key, value]) => {
+            if (typeof value === 'object' && value !== null) {
+                return `<li>${key}<ul>${renderNode(value)}</ul></li>`;
+            }
+            return `<li>${key}: ${value}</li>`;
+        }).join('');
+    }
+    return `<ul>${renderNode(jsonContent)}</ul>`;
+}
+
 // Register the command to add selection to Markdown
 let disposable_addToMarkdown = vscode.commands.registerCommand('extension.addToMarkdown', async () => {
+    
     const editor = vscode.window.activeTextEditor;
     if (!editor) {
         vscode.window.showErrorMessage('No active editor found.');
@@ -172,47 +321,49 @@ let disposable_addToMarkdown = vscode.commands.registerCommand('extension.addToM
     const endLine = end.line + 1;
     const endCharacter = end.character + 1;
 
-    // Prepare the markdown content
-    const markdownContent = `### file: ${fileName}\n` +
-        `path: \`${fullPath}\n\`` +
-        `location: @@ -${startLine},${startCharacter} +${endLine},${endCharacter} @@\n` +
-        //`start line: ${startLine} character: ${startCharacter}\n` +
-        //`end line: ${endLine} character: ${endCharacter}\n` +
-        '```typescript\n' +
-        `${selectedText}\n` +
-        '```\n\n';
+    await addToMarkdown(selectedText, fileName, fullPath, startLine, startCharacter, endLine, endCharacter);
 
-    // Define the path for Prokobot_context.md in the workspace root
-    const workspaceFolders = vscode.workspace.workspaceFolders;
-    if (!workspaceFolders) {
-        vscode.window.showErrorMessage('No workspace folder found.');
-        return;
-    }
-    const workspacePath = workspaceFolders[0].uri.fsPath;
-    const markdownFilePath = path.join(workspacePath, 'Prokobot_context.md');
+    // // Prepare the markdown content
+    // const markdownContent = `### file: ${fileName}\n` +
+    //     `path: \`${fullPath}\n\`` +
+    //     `location: @@ -${startLine},${startCharacter} +${endLine},${endCharacter} @@\n` +
+    //     //`start line: ${startLine} character: ${startCharacter}\n` +
+    //     //`end line: ${endLine} character: ${endCharacter}\n` +
+    //     '```typescript\n' +
+    //     `${selectedText}\n` +
+    //     '```\n\n';
 
-    // Check if the file exists
-    fs.access(markdownFilePath, fs.constants.F_OK, (err) => {
-        if (err) {
-            // File does not exist, create it with the content
-            fs.writeFile(markdownFilePath, markdownContent, (err) => {
-                if (err) {
-                    vscode.window.showErrorMessage(`Failed to create ${markdownFilePath}: ${err.message}`);
-                } else {
-                    vscode.window.showInformationMessage(`Created and added content to ${markdownFilePath}`);
-                }
-            });
-        } else {
-            // File exists, append the content
-            fs.appendFile(markdownFilePath, markdownContent, (err) => {
-                if (err) {
-                    vscode.window.showErrorMessage(`Failed to append to ${markdownFilePath}: ${err.message}`);
-                } else {
-                    vscode.window.showInformationMessage(`Appended content to ${markdownFilePath}`);
-                }
-            });
-        }
-    });
+    // // Define the path for Prokobot_context.md in the workspace root
+    // const workspaceFolders = vscode.workspace.workspaceFolders;
+    // if (!workspaceFolders) {
+    //     vscode.window.showErrorMessage('No workspace folder found.');
+    //     return;
+    // }
+    // const workspacePath = workspaceFolders[0].uri.fsPath;
+    // const markdownFilePath = path.join(workspacePath, 'Prokobot_context.md');
+
+    // // Check if the file exists
+    // fs.access(markdownFilePath, fs.constants.F_OK, (err) => {
+    //     if (err) {
+    //         // File does not exist, create it with the content
+    //         fs.writeFile(markdownFilePath, markdownContent, (err) => {
+    //             if (err) {
+    //                 vscode.window.showErrorMessage(`Failed to create ${markdownFilePath}: ${err.message}`);
+    //             } else {
+    //                 vscode.window.showInformationMessage(`Created and added content to ${markdownFilePath}`);
+    //             }
+    //         });
+    //     } else {
+    //         // File exists, append the content
+    //         fs.appendFile(markdownFilePath, markdownContent, (err) => {
+    //             if (err) {
+    //                 vscode.window.showErrorMessage(`Failed to append to ${markdownFilePath}: ${err.message}`);
+    //             } else {
+    //                 vscode.window.showInformationMessage(`Appended content to ${markdownFilePath}`);
+    //             }
+    //         });
+    //     }
+    // });
 
 });
 
