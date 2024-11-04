@@ -3,7 +3,7 @@ from collections import defaultdict
 import subprocess
 import json
 import time
-import networkx as nx
+#import networkx as nx
 import traceback
 
 class_file           = 'tags_classes.log'
@@ -275,3 +275,245 @@ def process_ctags_json(json_file, base_path ):
             #     print( "    ", k,":", v )
 
     print("kinds: ", kinds)
+
+
+def process_ctags_json_by_files_2(json_file, base_path):
+  """Process ctags JSON file and organize entries by files"""
+  files_dict = {}  # Main dictionary organized by files
+  name_spaces = {} # Keep track of namespaces
+  
+  # First pass: collect all entries
+  with open(json_file, 'r') as f:
+      for line in f:
+          if line.startswith('{"_type": "tag"'):
+              entry = json.loads(line)
+              name = entry.get('name')
+              if "__anon" in name: 
+                  continue
+                  
+              kind = entry.get('kind')
+              path = entry.get('path')
+              rel_path = path[len(base_path):]  # relative path
+              
+              # Initialize file entry if not exists
+              if rel_path not in files_dict:
+                  files_dict[rel_path] = {
+                      'classes': {},      # classes defined in this file
+                      'methods': {},      # methods defined in this file
+                      'free_functions': {},  # free functions defined in this file
+                      'members': {},         # class members defined in this file
+                  }
+              
+              # Process based on kind
+              if kind == 'namespace':
+                  name_spaces[name] = entry
+                  
+              elif kind in ['class', 'struct']:
+                  # Process class directly here instead of using process_classes
+                  class_info = {
+                      'line': entry.get('line'),
+                      'kind': kind,
+                      'scope': entry.get('scope'),
+                      'scopeKind': entry.get('scopeKind'),
+                      'inherits': entry.get('inherits'),
+                      'properties': {},
+                      'methods': {}
+                  }
+                  # Use the full name (including namespace) as the key
+                  files_dict[rel_path]['classes'][name] = class_info
+                  
+              elif kind == 'function':
+                  scope = entry.get('scope')
+                  scopeK = entry.get('scopeKind')
+                  
+                  # Process function info
+                  func_info = {
+                      'line': entry.get('line'),
+                      'signature': process_signature(entry.get('signature', '')),
+                      'return_type': entry.get('typeref', '').split(":")[-1] if entry.get('typeref') else None,
+                      'name': name
+                  }
+                  
+                  if scope and (scopeK == 'class' or scopeK == 'struct'):
+                      # This is a class method
+                      files_dict[rel_path]['methods'][f"{scope}::{name}"] = func_info
+                  else:
+                      # This is a free function
+                      files_dict[rel_path]['free_functions'][name] = func_info
+                      
+              elif kind == 'member':
+                  scope = entry.get('scope')
+                  if scope:  # If member has a scope (belongs to a class)
+                      member_info = {
+                          'line': entry.get('line'),
+                          'type': entry.get('typeref', '').split(":")[-1] if entry.get('typeref') else None
+                      }
+                      # Store with full scoped name
+                      files_dict[rel_path]['members'][f"{scope}::{name}"] = member_info
+  
+  return files_dict
+
+def process_ctags_json_by_files(json_file, base_path):
+  """Process ctags JSON file and organize entries by files"""
+  files_dict = {}  # Main dictionary organized by files
+  classes = {}     # Keep track of classes for method association
+  name_spaces = {} # Keep track of namespaces
+  
+  # First pass: collect all entries
+  with open(json_file, 'r') as f:
+      for line in f:
+          if line.startswith('{"_type": "tag"'):
+              entry = json.loads(line)
+              name = entry.get('name')
+              if "__anon" in name: 
+                  continue
+                  
+              kind = entry.get('kind')
+              path = entry.get('path')
+              rel_path = path[len(base_path):]  # relative path
+              
+              # Initialize file entry if not exists
+              if rel_path not in files_dict:
+                  files_dict[rel_path] = {
+                      'classes': {},      # classes defined in this file
+                      'methods': {},      # methods defined in this file
+                      'free_functions': {},  # free functions defined in this file
+                      'members': {},         # class members defined in this file
+                  }
+              
+              # Process based on kind
+              if kind == 'namespace':
+                  name_spaces[name] = entry
+                  
+              elif kind in ['class', 'struct']:
+                  class_lines = []
+                  class_lines.append(entry)
+                  cls = process_classes(class_lines, base_path, classes)
+                  files_dict[rel_path]['classes'][name] = cls[name]
+                  
+              elif kind == 'function':
+                  scope = entry.get('scope')
+                  scopeK = entry.get('scopeKind')
+                  
+                  # Process function info
+                  func_info = {
+                      'line': entry.get('line'),
+                      'signature': process_signature(entry.get('signature', '')),
+                      'return_type': entry.get('typeref', '').split(":")[-1] if entry.get('typeref') else None,
+                      'name': name
+                  }
+                  
+                  if scope and (scopeK == 'class' or scopeK == 'struct'):
+                      # This is a class method
+                      files_dict[rel_path]['methods'][f"{scope}::{name}"] = func_info
+                  else:
+                      # This is a free function
+                      files_dict[rel_path]['free_functions'][name] = func_info
+                      
+              elif kind == 'member':
+                  files_dict[rel_path]['members'][name] = {
+                      'line': entry.get('line'),
+                      'type': entry.get('typeref', '').split(":")[-1] if entry.get('typeref') else None
+                  }
+  
+  return files_dict
+
+def process_ctags_json_claude(json_file, base_path):
+    """
+    Process ctags JSON file and return two dictionaries:
+    1. classes_dict: organized by class names
+    2. files_dict: organized by files
+    """
+    kinds = {'class', 'union', 'member', 'macro', 'header', 'variable', 
+            'namespace', 'enum', 'enumerator', 'typedef', 'struct', 'function'}
+
+    classes = {}
+    files_dict = {}  # Will store information organized by files
+    name_spaces = {}
+
+    class_lines = []
+    function_lines = []
+    member_lines = []
+
+    # First pass: collect all entries
+    with open(json_file, 'r') as f:
+        for line in f:
+            if line.startswith('{"_type": "tag"'):
+                entry = json.loads(line)
+                name = entry.get('name')
+                if "__anon" in name:
+                    continue
+                
+                kind = entry.get('kind')
+                path = entry.get('path')
+                rel_path = path[len(base_path):]  # relative path
+                
+                # Initialize file entry if not exists
+                if rel_path not in files_dict:
+                    files_dict[rel_path] = {
+                        'classes': set(),      # class names defined in this file
+                        'methods': {},         # methods defined in this file
+                        'free_functions': {},  # free functions defined in this file
+                        'members': {},         # class members defined in this file
+                    }
+
+                # Collect entries by kind
+                if kind == 'function':
+                    function_lines.append(entry)
+                    # Add to files_dict if it's a free function
+                    if not entry.get('scope') or entry.get('scopeKind') not in ['class', 'struct']:
+                        files_dict[rel_path]['free_functions'][name] = {
+                            'line': entry.get('line'),
+                            'signature': process_signature(entry.get('signature', '')),
+                            'return_type': entry.get('typeref', '').split(":")[-1] if entry.get('typeref') else None
+                        }
+
+                elif kind == 'member':
+                    member_lines.append(entry)
+                    files_dict[rel_path]['members'][name] = {
+                        'line': entry.get('line'),
+                        'type': entry.get('typeref', '').split(":")[-1] if entry.get('typeref') else None
+                    }
+
+                elif kind in ['class', 'struct']:
+                    class_lines.append(entry)
+                    files_dict[rel_path]['classes'].add(name)
+
+                elif kind == 'namespace':
+                    name_spaces[name] = entry
+
+    # Process classes and their members
+    classes = process_classes(class_lines, base_path)
+    process_members(member_lines, base_path, classes, name_spaces)
+    free_functions = process_functions(function_lines, base_path, classes, name_spaces)
+
+    # Second pass: add methods to files_dict
+    for class_name, class_info in classes.items():
+        for (_, file_path), class_data in class_info.items():
+            if file_path in files_dict:
+                # Add methods
+                for method_name, method_info in class_data['methods'].items():
+                    files_dict[file_path]['methods'][f"{class_name}::{method_name}"] = method_info
+
+    return classes, free_functions, files_dict
+
+def print_files_structure(files_dict):
+    """Helper function to print the file-based organization"""
+    for file_path, content in files_dict.items():
+        print(f"\nFile: {file_path}")
+        
+        print("  Classes:")
+        for class_name in content['classes']:
+            print(f"    - {class_name}")
+        
+        print("  Methods:")
+        for method_name, method_info in content['methods'].items():
+            print(f"    - {method_name} (line {method_info['line']})")
+        
+        print("  Free Functions:")
+        for func_name, func_info in content['free_functions'].items():
+            print(f"    - {func_name} (line {func_info['line']})")
+        
+        print("  Members:")
+        for member_name, member_info in content['members'].items():
+            print(f"    - {member_name} (line {member_info['line']})")
