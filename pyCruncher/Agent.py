@@ -22,20 +22,22 @@ class Agent(ABC):
         self.tool_callbacks = dict()
 
         self.template_name = template_name
-        self.load_keys()
+        #self.load_keys()
+        self.keys = None
         self.load_template()
         if base_url is not None: self.base_url = base_url
         self.setup_client()
 
     def get_api_key(self):
-        print( "Agent::get_api_key()" )
+        #print( "Agent::get_api_key()" )
         provider_key_var = self.template['api_key_var']  # Get the environment variable name for API key
-        print( "provider_key_var ", provider_key_var )
+        #print( "provider_key_var ", provider_key_var )
         if (provider_key_var == "any") or (provider_key_var is None):
             self.api_key = "any"
             return
         self.api_key = os.getenv(provider_key_var)  # Attempt to load API key from environment variable
         if not self.api_key:                        # If not found in environment variables, fall back to the keys file
+            if self.keys is None: self.load_keys()
             provider_name = provider_key_var.split('_')[0].lower()  # e.g., 'deepseek' from 'DEEPSEEK_API_KEY'
             self.api_key  = self.keys.get(provider_name)
             if not self.api_key:  raise ValueError(f"API key not found for provider: {provider_name}")
@@ -61,7 +63,7 @@ class Agent(ABC):
         config_path = os.path.join(config_dir, 'LLMs.toml')
         with open(config_path, 'r') as file:    templates = toml.load(file)
 
-        for t in templates: print(t)
+        #for t in templates: print(t)
         self.template  = templates.get(self.template_name)
         if not self.template : raise ValueError(f"Unknown template: {self.template_name}")
         self.base_url   = self.template.get('base_url', "http://localhost:1234/v1")   # Load the base URL for the API
@@ -126,9 +128,9 @@ class Agent(ABC):
         Dynamically dispatch the function based on the function name and arguments provided by the model.
         """
         if name in self.tool_callbacks:
-            print( "Agent::call_function().INPUT  ", name ,"  arguments= ", args  )
+            #print( "Agent::call_function().INPUT  ", name ,"  arguments= ", args  )
             out = self.tool_callbacks[name](**args)   
-            print( "Agent::call_function().OUTPUT ", out  )
+            #print( "Agent::call_function().OUTPUT ", out  )
             return out
         else:
             return f"Error: Function {name} is not available."

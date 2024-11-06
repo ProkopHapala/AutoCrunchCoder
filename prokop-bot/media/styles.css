@@ -1,0 +1,26 @@
+/* media/styles.css */
+
+body {
+    font-family: Arial, sans-serif;
+    padding: 20px;
+    background-color: #f9f9f9;
+}
+
+h1 {
+    color: #007acc;
+}
+
+#content {
+    margin-top: 20px;
+}
+
+button {
+    padding: 10px 20px;
+    font-size: 14px;
+    cursor: pointer;
+}
+
+#filenameDisplay {
+    margin-top: 15px;
+    font-weight: bold;
+}
