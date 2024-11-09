@@ -12,9 +12,7 @@ from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_community.vectorstores import FAISS
 
 # Initialize loader for cpp and h files
-loader = DirectoryLoader('/home/prokophapala/git/FireCore_cpp_export', 
-                        glob="**/*.[ch]pp", 
-                        show_progress=True)
+loader = DirectoryLoader('/home/prokophapala/git/FireCore_cpp_export',   glob="**/*.[ch]pp",     show_progress=True)
 
 # Load documents
 documents = loader.load()
