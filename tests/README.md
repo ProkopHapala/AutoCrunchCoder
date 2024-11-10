@@ -1,60 +1,101 @@
-# pyCruncher Tests
+# AutoCrunchCoder `/tests` 
 
-This directory contains test files for the pyCruncher project, including tests for various AI agents such as Google AI and DeepSeek.
+## Features Implemented and Tested
 
-## Setup
+This project contains a collection of scripts that demonstrate various functionalities, primarily focused on utilizing Large Language Models (LLMs) for different tasks and integrating them with other tools.  The following sections detail the individual scripts and their purposes.
 
-Before running the tests, make sure you have:
+### Research
 
-1. Installed all required dependencies:
-   ```
-   pip install -r ../requirements.txt
-   ```
+##### Research Article Classification 
 
-2. Set up your API keys:
-   - Create a file named `providers.key` in this directory
-   - Add your API keys to this file in the following format:
-     ```
-     [api_keys]
-     google = "your_google_api_key_here"
-     deepseek = "your_deepseek_api_key_here"
-     # Add other provider keys as needed
-     ```
+These scripts classify research articles based on their BibTeX entries and abstracts, extracting keywords and research areas.
 
-## Running Tests
+- **files**: 
+    - `test_bibtex.py`
+    - `test_bibtex2.py`
 
-To run a specific test file, use the following command:
+##### Summarization using LLMs
 
-```
-python -m unittest test_file_name.py
-```
+These scripts demonstrate various approaches summarization of PDFs and text files and source-code, including parallel processing and different LLM agents.  Variations likely explore different summarization techniques or handle different file types (Fortran 90, SSE).
 
-For example, to run the Google AI tests:
+- **files**: 
+    - PDF Summarization:
+        - `test_sumarize_pdfs.py` 
+        - `test_sumarize_pdfs_new.py`, 
+    - Source Code Summarization:
+        - `test_sumarize_files.py`, 
+        - `test_sumarize_files_f90.py`, 
+        - `test_sumarize_files_SSE.py`, 
+        - `test_sumarize2.py`
 
-```
-python -m unittest test_GoogleAI.py
-```
+### Coding AI
 
-To run all tests in this directory:
+##### Retrieval Augmented Generation (RAG) for code
 
-```
-python -m unittest discover
-```
+These scripts demonstrate different RAG implementations using Langchain, OpenAI, and potentially other LLM providers (DeepSeek, Gemini). They showcase various methods for querying and retrieving information from a vector database built from a codebase.
 
-## Test Files
+- **files**:
+    - Generation (Vector Database Creation ): 
+        -`ingest_codebase.py` - 
+    - Retrieval & generation : 
+        - `RAG_retrival_langchain_openai.py`
+        - `RAG_retrival_DeepSeek.py`
+        - `RAG_retrival_GeminiFlash.py`
+        - `RAG_retrival_GeminiFlash_chroma.py`
 
-- `test_GoogleAI.py`: Tests for the Google AI agent
-- `test_DeepSeek_Tools.py`: Tests for the DeepSeek agent and tools
-- (Add descriptions for other test files as they are created)
+##### LLM Agent Testing 
+- **files**:
+  - *LMstudio* : 
+     - `LMstudio_agents.py`
+     - `LMstudio_client.py`
+     - `test_LMstutio.py`
+  - *DeepSeek* : 
+     - `test_DeepSeek.py`
+     - `test_DeepSeek_FIM.py`
+     - `test_DeepSeek_JSON.py`
+     - `test_DeepSeek_Tools.py`
+     -  `test_deepseek_curl.py`
 
-## Note on API Usage
 
-These tests interact with various AI APIs and may incur costs. Make sure you understand the pricing and usage limits of your API keys before running these tests. It's recommended to monitor your usage and set up billing alerts to avoid unexpected charges.
 
-## Contributing
+- **Description**: These scripts test the interaction with and capabilities of different LLM agents through the LMstudio interface.
+- **Key Components**: LMstudio integration, testing of various LLM agents.
 
-When adding new tests or modifying existing ones, please ensure that:
+##### Code Analysis
 
-1. All tests are properly documented with clear docstrings
-2. Any new dependencies are added to the project's `requirements.txt` file
-3. This README is updated to reflect any new test files or setup requirements
+These scripts likely perform static code analysis on C++ code using Clang.
+ 
+ - **files**:
+
+  - `test_ctags.py` - Use universal ctags to generate a tags file for a codebase (C,C++, fortran etc. ) and export it as python dictionary (class, methods, free functions, files etc. )
+  - `test_documenter.py` - Script to generate doc-strings for each function in a C/C++ codebase using LLMs and ctags.
+  - `test_gen_math.py` 
+
+  - `test_GitToMarkdown.py`, 
+  - `test_GoogleAI_Tools.py` 
+  - `test_GoogleAI.py` 
+  - `test_Groq_Tools.py` 
+  - `test_Groq.py` 
+  - `test_maxima_derivs.py` 
+  - `test_pdf_text.py`, 
+
+- **files**:
+  - `test_clang_lint copy.py`
+  - `test_cpp_lint.py`
+- **Description**: These scripts likely perform static code analysis on C++ code using Clang.
+- **Key Components**: Clang integration, static code analysis.
+
+
+### Other Coding
+
+This category encompasses various utility scripts for tasks such code documentation, mathematical expression generation, error code generation, Git commit message conversion to Markdown, interaction with Google AI tools, Groq tools, Maxima symbolic calculations, PDF text extraction, and CUDA/OpenCL code testing.  These scripts demonstrate the versatility of the project in integrating LLMs with various tools and workflows.
+
+- **files**:
+ - `test_GenerateErrorCode.py` - Atempt to automatically generate errors in code as a way of generating examples for LLMs training to correct these errors.
+ - `test_pyCUDA.py` - 
+ - `test_pymaxima.py` - 
+ - `test_pyOpenCL.py` -
+ - `test_compile.py` - This script compiles and tests a C++ shared library for n-body simulations (Coulomb interactions), demonstrating the integration of compiled code with Python.
+ - `test_coder_forcefield.py` -  This script tests the implementation of a force field equation (likely Lenard-Jones potential) and its derivatives, using LLMs to simplify mathematical expressions.
+
+
