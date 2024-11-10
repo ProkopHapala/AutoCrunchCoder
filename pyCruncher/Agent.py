@@ -36,9 +36,10 @@ class Agent(ABC):
             self.api_key = "any"
             return
         self.api_key = os.getenv(provider_key_var)  # Attempt to load API key from environment variable
-        if not self.api_key:                        # If not found in environment variables, fall back to the keys file
+        if not self.api_key:   # If not found in environment variables, fall back to the keys file
             if self.keys is None: self.load_keys()
             provider_name = provider_key_var.split('_')[0].lower()  # e.g., 'deepseek' from 'DEEPSEEK_API_KEY'
+            print( f"API_KEY not found by getenv({provider_key_var}) => try keys.get({provider_name})" )   
             self.api_key  = self.keys.get(provider_name)
             if not self.api_key:  raise ValueError(f"API key not found for provider: {provider_name}")
 
@@ -74,6 +75,10 @@ class Agent(ABC):
     # @abstractmethod
     # def get_api_key(self) -> str:
     #     pass
+
+    @abstractmethod
+    def get_response_text(self, response):
+        pass
 
     @abstractmethod
     def setup_client(self):

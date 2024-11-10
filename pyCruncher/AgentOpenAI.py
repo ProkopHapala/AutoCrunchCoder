@@ -28,6 +28,10 @@ class AgentOpenAI(Agent):
         self.system_prompt = system_prompt
         self.history = [{"role": "system", "content": system_prompt}]
 
+    def get_response_text(self, message):
+        #return response.choices[0].message.content
+        return message.content
+
     def query(self, prompt: str=None, bHistory=False, messages=None, bTools=True, **kwargs: Any) -> str:
         """
         Send a message to the model while keeping track of the conversation history.
@@ -53,7 +57,8 @@ class AgentOpenAI(Agent):
         else: 
             response = self.client.chat.completions.create(  model=self.model_name,  messages=messages,                   **kwargs)
         message = response.choices[0].message
-        message = self.try_tool(message, messages, **kwargs)
+        if bTools:
+            message = self.try_tool(message, messages, **kwargs)
         #content = message.content                                 # Extract assistant's message from the response
         if bHistory: self.history.append(message)   # Append assistant's message to history for future context
         return message

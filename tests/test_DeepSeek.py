@@ -15,7 +15,9 @@ def test( bStream=False, prompt = "Write a C++ function to calculate energy and 
         for chunk in agent.stream(prompt): print(chunk, flush=True, end="")
     else:
         result = agent.query(prompt)
-        print(result)
+        print(result.content)
+        with open("debug_LLM_answer.md", "w") as f:  f.write(result.content)
 
 if __name__ == "__main__":
     test( bStream = True )
+    #test( bStream = False )

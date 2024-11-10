@@ -35,7 +35,11 @@ class AgentGoogle(Agent):
     def setup_client(self):
         """Configure the Google Generative AI client with the API key."""
         genai.configure(api_key=self.api_key)
-        self.model = genai.GenerativeModel(self.model_name)
+        self.client = genai.GenerativeModel( self.model_name  )
+
+    def get_response_text(self, message):
+        #return response.choices[0].message.content
+        return message.text
 
     def query(self, prompt: str = None, bHistory: bool = False, messages: List[Dict[str, str]] = None, bTools: bool = True, **kwargs: Any) -> Dict[str, Any]:
         """
@@ -64,9 +68,9 @@ class AgentGoogle(Agent):
             # Directly use self.tools if tools are enabled
             if bTools and self.tools:
                 #print( "AgentGoogle.query().tools = ", self.tools )
-                response = self.model.generate_content(messages, generation_config=generation_config, tools=self.tools )
+                response = self.client.generate_content(messages, generation_config=generation_config, tools=self.tools )
             else:
-                response = self.model.generate_content(messages, generation_config=generation_config)
+                response = self.client.generate_content(messages, generation_config=generation_config)
 
             #print( "AgentGoogle.query().response(BEFORE TOOL CALL) = ", response )
 
@@ -101,7 +105,7 @@ class AgentGoogle(Agent):
             
             generation_config = self.prepare_generation_config(**kwargs)
             
-            stream = self.model.generate_content(messages, generation_config=generation_config, stream=True)
+            stream = self.client.generate_content(messages, generation_config=generation_config, stream=True)
             
             assistant_message = ""
             for chunk in stream:

@@ -26,28 +26,69 @@ api_key_var   = "GOOGLE_API_KEY"
 provider      = "google"
 api_lib       = "google"   
 
-[gemini-pro-exp]
-model_name    = "gemini-1.5-pro-exp-0827"
-base_url      = "https://api.gemini.com"
-contextLength = 2000000
-api_key_var   = "GOOGLE_API_KEY"
-provider      = "google"
-api_lib       = "google"   
 
 [claude-sonnet]
-model_name    = "claude-3-5-sonnet-20240620"
+model_name    = "claude-3-5-sonnet-20241022"
 base_url      = "https://api.anthropic.com"
 contextLength =  200000
 api_key_var   = "ANTHROPIC_API_KEY"
 provider      = "anthropic"
 api_lib       = "anthropic"
 
-[codestral]
-model_name    = "codestral-latest"
-base_url      = "https://api.mistral.com"
-contextLength =  32000
+[claude-haiku]
+model_name    = "claude-3-5-haiku-20241022"
+base_url      = "https://api.anthropic.com"
+contextLength =  200000
+api_key_var   = "ANTHROPIC_API_KEY"
+provider      = "anthropic"
+api_lib       = "anthropic"
+
+[mistral]
+model_name    = "mistral-large-latest"
+base_url      = "https://api.mistral.ai/v1"
+contextLength =  128000
 api_key_var   = "MISTRAL_API_KEY"
 provider      = "mistral"
+api_lib       = "openai"
+
+[codestral]
+model_name    = "codestral-latest"
+base_url      = "https://codestral.mistral.ai/v1/" 
+contextLength =  32000
+api_key_var   = "CODESTRAL_API_KEY"
+provider      = "mistral"
+api_lib       = "openai"
+
+[grok]
+model_name    = "grok-beta"
+base_url      = "https://api.x.ai/v1"
+contextLength =  8000
+api_key_var   = "XAI_API_KEY"
+provider      = "xAI"
+api_lib       = "openai"
+
+[github-GPT4o-mini]
+model_name    = "gpt-4o-mini"
+base_url      = "https://models.inference.ai.azure.com"
+contextLength =  8000
+api_key_var   = "GITHUB_API_KEY"
+provider      = "github"
+api_lib       = "openai"
+
+[github-GPT4o]
+model_name    = "gpt-4o"
+base_url      = "https://models.inference.ai.azure.com"
+contextLength =  128000
+api_key_var   = "GITHUB_API_KEY"
+provider      = "github"
+api_lib       = "openai"
+
+[openrouter-GPT4o-mini]
+model_name    = "gpt-4o-mini"
+base_url      = "https://openrouter.ai/api/v1/"
+contextLength =  8000
+api_key_var   = "OPENROUTER_API_KEY"
+provider      = "OpenRouter"
 api_lib       = "openai"
 
 [groq-llama-70b]
@@ -67,19 +108,27 @@ provider      = "groq"
 api_lib       = "openai"
 
 [samba-llama-70b]
-model_name    = "llama3.1-70b"
-base_url      = "https://api.sambanova.com"
+model_name    = "Meta-Llama-3.1-70B-Instruct"
+base_url      = "https://api.sambanova.ai/v1"
 contextLength =  128000
 api_key_var   = "SAMBANOVA_API_KEY"
 provider      = "sambanova"
 api_lib       = "openai"
 
-[lm-llama-8b]
-model_name    = "lmstudio-community/Meta-Llama-3.1-8B-Instruct-GGUF/Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf"
-base_url      = "http://localhost:1234/v1"
-contextLength =  131072
-api_key_var   = "any"
-provider      = "LMStudio"
+[samba-llama-405b]
+model_name    = "Meta-Llama-3.1-405B-Instruct"
+base_url      = "https://api.sambanova.ai/v1"
+contextLength =  128000
+api_key_var   = "SAMBANOVA_API_KEY"
+provider      = "sambanova"
+api_lib       = "openai"
+
+[cerebras-llama-70b]
+model_name    = "llama3.1-70b"
+base_url      = "https://api.cerebras.ai/v1"
+contextLength =  8192
+api_key_var   = "CEREBRAS_API_KEY"
+provider      = "cerebras"
 api_lib       = "openai"
 
 [fzu-llama-8b]
@@ -90,7 +139,6 @@ api_key_var   = "any"
 provider      = "LMStudio"
 api_lib       = "openai"
 
-
 [fzu-Qwen25-32b]
 model_name    = "bartowski/Qwen2.5-32B-Instruct-GGUF/Qwen2.5-32B-Instruct-Q3_K_S.gguf"
 base_url      = "http://10.26.201.142:1234/v1"
@@ -99,7 +147,6 @@ api_key_var   = "any"
 provider      = "LMStudio"
 api_lib       = "openai"
 
-
 [fzu-Codestral-22b]
 model_name    = "lmstudio-community/Codestral-22B-v0.1-GGUF/Codestral-22B-v0.1-Q4_K_M.gguf"
 base_url      = "http://10.26.201.142:1234/v1"
@@ -107,7 +154,6 @@ contextLength =  32768
 api_key_var   = "any"
 provider      = "LMStudio"
 api_lib       = "openai"
-
 
 [fzu-DeepSeek-V2CL]
 model_name    = "lmstudio-community/DeepSeek-Coder-V2-Lite-Instruct-GGUF/DeepSeek-Coder-V2-Lite-Instruct-Q4_K_M.gguf"

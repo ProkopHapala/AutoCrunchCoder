@@ -309,7 +309,7 @@ Focus on the role (purpose) of the function, what it does, and document the para
         with open(full_path, 'w') as f:
             f.writelines(lines)
 
-    def process_project(self, project_path, selected_files, tags_file="tags_all.json"):
+    def process_project(self, project_path, selected_files, tags_file="tags_all.json" , agent_type="deepseek"):
         # 2. Check and prepare database
         if os.path.exists(tags_file):
             print(f"Using existing tags from {tags_file}")
@@ -323,7 +323,7 @@ Focus on the role (purpose) of the function, what it does, and document the para
             return False
             
         # 4. Initialize LLM agent
-        if not self.setup_agent("deepseek"):
+        if not self.setup_agent(agent_type=agent_type):
             print("Failed to initialize LLM agent!")
             return False
         
