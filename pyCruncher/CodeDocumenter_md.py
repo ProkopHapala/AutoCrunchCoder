@@ -95,13 +95,17 @@ class CodeDocumenter_md:
 
     def get_all_files(self, project_path, filter="*.*", ignore=None):
         """Get all files in the project path matching the filter"""
-        print( f"CodeDocumenter_md.py::get_all_files() {project_path} filter={filter}" )
+        print(f"CodeDocumenter_md.py::get_all_files() {project_path} filter={filter}")
         import glob
         import os
         import fnmatch
 
         def find_files(directory, pattern, ignore=None):
             for root, dirs, files in os.walk(directory):
+                # Ignore directories specified in the ignore list
+                if ignore:
+                    dirs[:] = [d for d in dirs if not any(fnmatch.fnmatch(os.path.join(root, d), i) for i in ignore)]
+            
                 for basename in files:
                     if fnmatch.fnmatch(basename, pattern):
                         filename = os.path.join(root, basename)
@@ -117,7 +121,7 @@ class CodeDocumenter_md:
             pattern = pattern.strip()
             if pattern:
                 selected_files.extend(find_files(project_path, pattern, ignore))
-        
+    
         return selected_files
 
     def read_example_doc(self, fname="file_documentation_example.md" ):
