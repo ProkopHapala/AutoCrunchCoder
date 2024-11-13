@@ -184,7 +184,11 @@ Keep descriptions concise and focus on the purpose and role of each component. M
         
         for file_path in selected_files:
             print(f"\nProcessing file: {file_path}")
-            
+                
+            if file_path not in self.files_dict:
+                print(f"Warning: File {file_path} not found in ctags database. Skipping.")
+                continue
+                
             skeleton = self.generate_markdown_skeleton(file_path)
 
             if bSaveSkeleton:
@@ -192,7 +196,7 @@ Keep descriptions concise and focus on the purpose and role of each component. M
                 print(f"Documentation skeleton saved to : {debug_file}")
                 with open(debug_file, 'w') as f:
                     f.write(skeleton)
-            
+                
             if bLLM:
                 md_path = self.generate_markdown_doc(file_path, skeleton=skeleton)
                 print(f"Generated markdown documentation: {md_path}")
