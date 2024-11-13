@@ -93,10 +93,33 @@ class CodeDocumenter_md:
             f.write("\nSKELETON:\n")
             f.write(skeleton)
 
+    def get_all_files(self, project_path, filter="*.*"):
+        """Get all files in the project path matching the filter"""
+        import glob
+        import os
+        import fnmatch
+
+        def find_files(directory, pattern):
+            for root, dirs, files in os.walk(directory):
+                for basename in files:
+                    if fnmatch.fnmatch(basename, pattern):
+                        filename = os.path.join(root, basename)
+                        yield filename
+
+        patterns = filter.split(',')
+        selected_files = []
+        for pattern in patterns:
+            pattern = pattern.strip()
+            if pattern:
+                selected_files.extend(find_files(project_path, pattern))
+        
+        return selected_files
+
     def read_example_doc(self, fname="file_documentation_example.md" ):
         """Read the example markdown documentation"""
-        #example_path = os.path.join(os.path.dirname(__file__), fname )
-        with open(fname, 'r') as f: return f.read()
+        # example_path = os.path.join(os.path.dirname(__file__), fname )
+        with open(fname, 'r') as f:
+            return f.read()
 
     def generate_markdown_doc(self, file_path, skeleton=None ):
         """Generate complete markdown documentation for a file"""
@@ -107,23 +130,24 @@ class CodeDocumenter_md:
         if self.bLogPrompts:  self.log_prompt(source_code, skeleton, file_path)
         prompt = f"""Given the following C++ source code, create a markdown documentation listing all classes, functions, and their brief descriptions.
 
-the format of the markdown documentation should be as in following example:
+The format of the markdown documentation should be as in the following example:
 {example}
         
-This is the actuall source code you should process:
+This is the actual source code you should process:
 ```cpp
 {source_code}
 ```
 
-Fill in descriptions of free functions, classes as well as their properties and methods listed in the following markdown documentation template based on previous source code.
+Fill in descriptions of free functions, classes as well as their properties and methods listed in the following markdown documentation template based on the previous source code.
 Keep descriptions concise and focus on the purpose and role of each component. Maintain the exact structure of the template, just add brief descriptions after each item.
 
 {skeleton}
         """
 
-        # split path into directory and filename, add debug_ prefix and join it back
-        debug_file =self.project_path +  os.path.join(os.path.dirname(file_path), f"debug_{os.path.basename(file_path)}")
-        with open( debug_file, 'w') as f: f.write( prompt )
+        # Split path into directory and filename, add debug_ prefix and join it back
+        debug_file = self.project_path + os.path.join(os.path.dirname(file_path), f"debug_{os.path.basename(file_path)}")
+        with open(debug_file, 'w') as f:
+            f.write(prompt)
         
         response = self.agent.query(prompt)
 
@@ -131,7 +155,8 @@ Keep descriptions concise and focus on the purpose and role of each component. M
 
         # Write markdown output
         md_path = self.project_path + out_name
-        with open(md_path, 'w') as f: f.write( llm_text )
+        with open(md_path, 'w') as f:
+            f.write(llm_text)
 
         return md_path
 
@@ -146,7 +171,7 @@ Keep descriptions concise and focus on the purpose and role of each component. M
             return False
         
         if selected_files is None:
-            selected_files = self.get_all_files(project_path)
+            selected_files = self.get_all_files(project_path, filter)
         
         for file_path in selected_files:
             print(f"\nProcessing file: {file_path}")
