@@ -162,7 +162,7 @@ Keep descriptions concise and focus on the purpose and role of each component. M
 
         return md_path
 
-    def process_project(self, project_path, selected_files=None, agent_type="deepseek", bLLM=True, bSaveSkeleton=False, filter="*." ):
+    def process_project(self, project_path, selected_files=None, agent_type="deepseek", bLLM=True, bSaveSkeleton=False, filter="*.cpp,*.h,*.hpp,*.cc,*.cxx" ):
         """Process selected files in the project"""
         if not self.prepare_database(project_path):
             print("Failed to prepare code database!")
