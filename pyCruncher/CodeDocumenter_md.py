@@ -154,12 +154,13 @@ Keep descriptions concise and focus on the purpose and role of each component. M
             skeleton = self.generate_markdown_skeleton(file_path)
 
             if bSaveSkeleton:
-                debug_file =self.project_path +  file_path+".skeleton.md"
+                debug_file = self.project_path + file_path + ".skeleton.md"
                 print(f"Documentation skeleton saved to : {debug_file}")
-                with open( debug_file, 'w') as f: f.write( skeleton )
+                with open(debug_file, 'w') as f:
+                    f.write(skeleton)
             
             if bLLM:
-                md_path = self.generate_markdown_doc(file_path, skeleton=skeleton )
+                md_path = self.generate_markdown_doc(file_path, skeleton=skeleton)
                 print(f"Generated markdown documentation: {md_path}")
             
         return True
