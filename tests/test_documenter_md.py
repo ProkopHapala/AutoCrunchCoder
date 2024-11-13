@@ -11,4 +11,4 @@ if __name__ == "__main__":
     #documenter.process_project(project_path, selected_files, agent_type="gemini-flash" )
 
     #documenter.process_project(project_path, selected_files, agent_type="gemini-flash", bLLM=False, bSaveSkeleton=True )
-    documenter.process_project(project_path, selected_files=None, agent_type="gemini-flash", bLLM=False, bSaveSkeleton=True )
+    documenter.process_project(project_path, selected_files=None, agent_type="gemini-flash", bLLM=False, bSaveSkeleton=True, ignore=["*/Build-*/*", "*/debug/*"])
