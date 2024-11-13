@@ -93,19 +93,22 @@ class CodeDocumenter_md:
             f.write("\nSKELETON:\n")
             f.write(skeleton)
 
-    def get_all_files(self, project_path, filter="*.*"):
+    def get_all_files(self, project_path, filter="*.*", ignore=None):
         """Get all files in the project path matching the filter"""
         print( f"CodeDocumenter_md.py::get_all_files() {project_path} filter={filter}" )
         import glob
         import os
         import fnmatch
 
-        def find_files(directory, pattern):
+        def find_files(directory, pattern, ignore=None):
             for root, dirs, files in os.walk(directory):
                 for basename in files:
                     if fnmatch.fnmatch(basename, pattern):
                         filename = os.path.join(root, basename)
-                        print( f"CodeDocumenter_md.py::get_all_files() add {filename}" )
+                        if ignore and any(fnmatch.fnmatch(filename, i) for i in ignore):
+                            print(f"CodeDocumenter_md.py::get_all_files() ignore {filename}")
+                            continue
+                        print(f"CodeDocumenter_md.py::get_all_files() add {filename}")
                         yield filename
 
         patterns = filter.split(',')
@@ -113,7 +116,7 @@ class CodeDocumenter_md:
         for pattern in patterns:
             pattern = pattern.strip()
             if pattern:
-                selected_files.extend(find_files(project_path, pattern))
+                selected_files.extend(find_files(project_path, pattern, ignore))
         
         return selected_files
 
@@ -162,7 +165,7 @@ Keep descriptions concise and focus on the purpose and role of each component. M
 
         return md_path
 
-    def process_project(self, project_path, selected_files=None, agent_type="deepseek", bLLM=True, bSaveSkeleton=False, filter="*.cpp,*.h,*.hpp,*.cc,*.cxx" ):
+    def process_project(self, project_path, selected_files=None, agent_type="deepseek", bLLM=True, bSaveSkeleton=False, filter="*.cpp,*.h,*.hpp,*.cc,*.cxx", ignore=None ):
         """Process selected files in the project"""
         if not self.prepare_database(project_path):
             print("Failed to prepare code database!")
@@ -173,7 +176,7 @@ Keep descriptions concise and focus on the purpose and role of each component. M
             return False
         
         if selected_files is None:
-            selected_files = self.get_all_files(project_path, filter)
+            selected_files = self.get_all_files(project_path, filter, ignore)
         
         for file_path in selected_files:
             print(f"\nProcessing file: {file_path}")
