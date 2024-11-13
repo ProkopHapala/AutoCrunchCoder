@@ -98,10 +98,10 @@ class CodeDocumenter_md:
         #example_path = os.path.join(os.path.dirname(__file__), fname )
         with open(fname, 'r') as f: return f.read()
 
-    def generate_markdown_doc(self, file_path):
+    def generate_markdown_doc(self, file_path, skeleton=None ):
         """Generate complete markdown documentation for a file"""
         source_code = self.read_file_content(file_path)
-        skeleton    = self.generate_markdown_skeleton(file_path)
+        if skeleton is None: skeleton = self.generate_markdown_skeleton(file_path)
         out_name    = file_path + '.md'
         example     = self.read_example_doc()
         if self.bLogPrompts:  self.log_prompt(source_code, skeleton, file_path)
@@ -135,7 +135,7 @@ Keep descriptions concise and focus on the purpose and role of each component. M
 
         return md_path
 
-    def process_project(self, project_path, selected_files, agent_type="deepseek" ):
+    def process_project(self, project_path, selected_files=None, agent_type="deepseek", bLLM=True, bSaveSkeleton=False, filter="*." ):
         """Process selected files in the project"""
         if not self.prepare_database(project_path):
             print("Failed to prepare code database!")
@@ -145,9 +145,21 @@ Keep descriptions concise and focus on the purpose and role of each component. M
             print("Failed to initialize LLM agent!")
             return False
         
+        if selected_files is None:
+            selected_files = self.get_all_files(project_path)
+        
         for file_path in selected_files:
             print(f"\nProcessing file: {file_path}")
-            md_path = self.generate_markdown_doc(file_path)
-            print(f"Generated markdown documentation: {md_path}")
+            
+            skeleton = self.generate_markdown_skeleton(file_path)
+
+            if bSaveSkeleton:
+                debug_file =self.project_path +  file_path+".skeleton.md"
+                print(f"Documentation skeleton saved to : {debug_file}")
+                with open( debug_file, 'w') as f: f.write( skeleton )
+            
+            if bLLM:
+                md_path = self.generate_markdown_doc(file_path, skeleton=skeleton )
+                print(f"Generated markdown documentation: {md_path}")
             
         return True
