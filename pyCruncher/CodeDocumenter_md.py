@@ -95,6 +95,7 @@ class CodeDocumenter_md:
 
     def get_all_files(self, project_path, filter="*.*"):
         """Get all files in the project path matching the filter"""
+        print( f"CodeDocumenter_md.py::get_all_files() {project_path} filter={filter}" )
         import glob
         import os
         import fnmatch
@@ -104,6 +105,7 @@ class CodeDocumenter_md:
                 for basename in files:
                     if fnmatch.fnmatch(basename, pattern):
                         filename = os.path.join(root, basename)
+                        print( f"CodeDocumenter_md.py::get_all_files() add {filename}" )
                         yield filename
 
         patterns = filter.split(',')
