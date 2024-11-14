@@ -1,5 +1,6 @@
 from tree_sitter import Language, Parser
 import os
+from utils import hello
 
 # Load the C++ language
 Language.build_library(
@@ -45,6 +46,7 @@ def parse_cpp_file(file_path):
     return classes_dict
 
 def main():
+    hello()
     project_path = os.path.expanduser("~/git/FireCore/cpp")
     selected_files = ["/common/molecular/MolWorld_sp3_simple.h"]
 
