@@ -60,26 +60,24 @@ class CodeDocumenter_md:
                 sections.append("\n##### Properties\n")
                 
                 # Get members for this class
-                class_members = {name: info for name, info in file_info['members'].items() 
-                               if name.startswith(f"{class_name}::")}
+                class_members = {name: info for name, info in file_info['members'].items()   if name.startswith(f"{class_name}::")}
                 for member_name, member_info in class_members.items():
                     name = member_name.split("::")[-1]
-                    sections.append(f"* `{name}`\n")
+                    sections.append(f"* `{name}`")
                 
                 sections.append("\n##### Methods\n")
                 # Get methods for this class
-                class_methods = {name: info for name, info in file_info['methods'].items() 
-                               if name.startswith(f"{class_name}::")}
+                class_methods = {name: info for name, info in file_info['methods'].items()    if name.startswith(f"{class_name}::")}
                 for method_name, method_info in class_methods.items():
                     name = method_name.split("::")[-1]
-                    sections.append(f"* `{name}`\n")
+                    sections.append(f"* `{name}`")
                 sections.append("\n")
         
         # Free Functions section
         if file_info['free_functions']:
             sections.append("# Free Functions\n")
             for func_name, func_info in file_info['free_functions'].items():
-                sections.append(f"* `{func_name}`\n")
+                sections.append(f"* `{func_name}`")
             
         return '\n'.join(sections)
 
@@ -93,37 +91,72 @@ class CodeDocumenter_md:
             f.write("\nSKELETON:\n")
             f.write(skeleton)
 
+    def get_all_files(self, project_path, filter="*.*", ignore=None):
+        """Get all files in the project path matching the filter"""
+        print(f"CodeDocumenter_md.py::get_all_files() {project_path} filter={filter}")
+        import glob
+        import os
+        import fnmatch
+
+        def find_files(directory, pattern, ignore=None):
+            for root, dirs, files in os.walk(directory):
+                # Ignore directories specified in the ignore list
+                if ignore:
+                    dirs[:] = [d for d in dirs if not any(fnmatch.fnmatch(os.path.join(root, d), i) for i in ignore)]
+            
+                for basename in files:
+                    if fnmatch.fnmatch(basename, pattern):
+                        filename = os.path.join(root, basename)
+                        if ignore and any(fnmatch.fnmatch(filename, i) for i in ignore):
+                            #print(f"CodeDocumenter_md.py::get_all_files() ignore {filename}")
+                            continue
+                        #print(f"CodeDocumenter_md.py::get_all_files() add {filename}")
+                        file_path = "/"+os.path.relpath( filename, project_path )
+                        #print(f"CodeDocumenter_md.py::get_all_files() add {file_path}")
+                        yield file_path
+
+        patterns = filter.split(',')
+        selected_files = []
+        for pattern in patterns:
+            pattern = pattern.strip()
+            if pattern:
+                selected_files.extend(find_files(project_path, pattern, ignore))
+        #exit()
+        return selected_files
+
     def read_example_doc(self, fname="file_documentation_example.md" ):
         """Read the example markdown documentation"""
-        #example_path = os.path.join(os.path.dirname(__file__), fname )
-        with open(fname, 'r') as f: return f.read()
+        # example_path = os.path.join(os.path.dirname(__file__), fname )
+        with open(fname, 'r') as f:
+            return f.read()
 
-    def generate_markdown_doc(self, file_path):
+    def generate_markdown_doc(self, file_path, skeleton=None ):
         """Generate complete markdown documentation for a file"""
         source_code = self.read_file_content(file_path)
-        skeleton    = self.generate_markdown_skeleton(file_path)
+        if skeleton is None: skeleton = self.generate_markdown_skeleton(file_path)
         out_name    = file_path + '.md'
         example     = self.read_example_doc()
         if self.bLogPrompts:  self.log_prompt(source_code, skeleton, file_path)
         prompt = f"""Given the following C++ source code, create a markdown documentation listing all classes, functions, and their brief descriptions.
 
-the format of the markdown documentation should be as in following example:
+The format of the markdown documentation should be as in the following example:
 {example}
         
-This is the actuall source code you should process:
+This is the actual source code you should process:
 ```cpp
 {source_code}
 ```
 
-Fill in descriptions of free functions, classes as well as their properties and methods listed in the following markdown documentation template based on previous source code.
+Fill in descriptions of free functions, classes as well as their properties and methods listed in the following markdown documentation template based on the previous source code.
 Keep descriptions concise and focus on the purpose and role of each component. Maintain the exact structure of the template, just add brief descriptions after each item.
 
 {skeleton}
         """
 
-        # split path into directory and filename, add debug_ prefix and join it back
-        debug_file =self.project_path +  os.path.join(os.path.dirname(file_path), f"debug_{os.path.basename(file_path)}")
-        with open( debug_file, 'w') as f: f.write( prompt )
+        # Split path into directory and filename, add debug_ prefix and join it back
+        debug_file = self.project_path + os.path.join(os.path.dirname(file_path), f"debug_{os.path.basename(file_path)}")
+        with open(debug_file, 'w') as f:
+            f.write(prompt)
         
         response = self.agent.query(prompt)
 
@@ -131,11 +164,12 @@ Keep descriptions concise and focus on the purpose and role of each component. M
 
         # Write markdown output
         md_path = self.project_path + out_name
-        with open(md_path, 'w') as f: f.write( llm_text )
+        with open(md_path, 'w') as f:
+            f.write(llm_text)
 
         return md_path
 
-    def process_project(self, project_path, selected_files, agent_type="deepseek" ):
+    def process_project(self, project_path, selected_files=None, agent_type="deepseek", bLLM=True, bSaveSkeleton=False, filter="*.cpp,*.h,*.hpp,*.cc,*.cxx", ignore=None ):
         """Process selected files in the project"""
         if not self.prepare_database(project_path):
             print("Failed to prepare code database!")
@@ -145,9 +179,32 @@ Keep descriptions concise and focus on the purpose and role of each component. M
             print("Failed to initialize LLM agent!")
             return False
         
+        if selected_files is None:
+            selected_files = self.get_all_files(project_path, filter, ignore)
+
+        #print( "self.files_dict" ); 
+        #for k in self.files_dict.keys(): print(k)
+        #exit()
+        
         for file_path in selected_files:
-            print(f"\nProcessing file: {file_path}")
-            md_path = self.generate_markdown_doc(file_path)
-            print(f"Generated markdown documentation: {md_path}")
+            #print(f"\nProcessing file: {file_path}")
+                
+            if file_path not in self.files_dict:
+                print(f"WARRNING: File not found in ctags database (=>Skip) {file_path} ")
+                continue
+            else:
+                print(f"Processing file: {file_path}")
+                
+            skeleton = self.generate_markdown_skeleton(file_path)
+
+            if bSaveSkeleton:
+                debug_file = self.project_path + file_path + ".skeleton.md"
+                print(f"Documentation skeleton saved to : {debug_file}")
+                with open(debug_file, 'w') as f:
+                    f.write(skeleton)
+                
+            if bLLM:
+                md_path = self.generate_markdown_doc(file_path, skeleton=skeleton)
+                print(f"Generated markdown documentation: {md_path}")
             
         return True
