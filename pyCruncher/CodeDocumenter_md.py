@@ -60,26 +60,24 @@ class CodeDocumenter_md:
                 sections.append("\n##### Properties\n")
                 
                 # Get members for this class
-                class_members = {name: info for name, info in file_info['members'].items() 
-                               if name.startswith(f"{class_name}::")}
+                class_members = {name: info for name, info in file_info['members'].items()   if name.startswith(f"{class_name}::")}
                 for member_name, member_info in class_members.items():
                     name = member_name.split("::")[-1]
-                    sections.append(f"* `{name}`\n")
+                    sections.append(f"* `{name}`")
                 
                 sections.append("\n##### Methods\n")
                 # Get methods for this class
-                class_methods = {name: info for name, info in file_info['methods'].items() 
-                               if name.startswith(f"{class_name}::")}
+                class_methods = {name: info for name, info in file_info['methods'].items()    if name.startswith(f"{class_name}::")}
                 for method_name, method_info in class_methods.items():
                     name = method_name.split("::")[-1]
-                    sections.append(f"* `{name}`\n")
+                    sections.append(f"* `{name}`")
                 sections.append("\n")
         
         # Free Functions section
         if file_info['free_functions']:
             sections.append("# Free Functions\n")
             for func_name, func_info in file_info['free_functions'].items():
-                sections.append(f"* `{func_name}`\n")
+                sections.append(f"* `{func_name}`")
             
         return '\n'.join(sections)
 
@@ -110,10 +108,12 @@ class CodeDocumenter_md:
                     if fnmatch.fnmatch(basename, pattern):
                         filename = os.path.join(root, basename)
                         if ignore and any(fnmatch.fnmatch(filename, i) for i in ignore):
-                            print(f"CodeDocumenter_md.py::get_all_files() ignore {filename}")
+                            #print(f"CodeDocumenter_md.py::get_all_files() ignore {filename}")
                             continue
-                        print(f"CodeDocumenter_md.py::get_all_files() add {filename}")
-                        yield filename
+                        #print(f"CodeDocumenter_md.py::get_all_files() add {filename}")
+                        file_path = "/"+os.path.relpath( filename, project_path )
+                        #print(f"CodeDocumenter_md.py::get_all_files() add {file_path}")
+                        yield file_path
 
         patterns = filter.split(',')
         selected_files = []
@@ -121,7 +121,7 @@ class CodeDocumenter_md:
             pattern = pattern.strip()
             if pattern:
                 selected_files.extend(find_files(project_path, pattern, ignore))
-    
+        #exit()
         return selected_files
 
     def read_example_doc(self, fname="file_documentation_example.md" ):
@@ -181,13 +181,19 @@ Keep descriptions concise and focus on the purpose and role of each component. M
         
         if selected_files is None:
             selected_files = self.get_all_files(project_path, filter, ignore)
+
+        #print( "self.files_dict" ); 
+        #for k in self.files_dict.keys(): print(k)
+        #exit()
         
         for file_path in selected_files:
-            print(f"\nProcessing file: {file_path}")
+            #print(f"\nProcessing file: {file_path}")
                 
             if file_path not in self.files_dict:
-                print(f"Warning: File {file_path} not found in ctags database. Skipping.")
+                print(f"WARRNING: File not found in ctags database (=>Skip) {file_path} ")
                 continue
+            else:
+                print(f"Processing file: {file_path}")
                 
             skeleton = self.generate_markdown_skeleton(file_path)
 

@@ -83,6 +83,15 @@ api_key_var   = "GITHUB_API_KEY"
 provider      = "github"
 api_lib       = "openai"
 
+[hyperbolic-Qwen25-32b]
+model_name    = "Qwen/Qwen2.5-Coder-32B-Instruct"
+base_url      = "https://api.hyperbolic.xyz/v1/"
+contextLength =  128000
+api_key_var   = "HYPERBOLIC_API_KEY"
+provider      = "hyperbolic"
+api_lib       = "openai"
+
+
 [openrouter-GPT4o-mini]
 model_name    = "gpt-4o-mini"
 base_url      = "https://openrouter.ai/api/v1/"

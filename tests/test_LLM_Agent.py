@@ -55,7 +55,9 @@ if __name__ == "__main__":
     #test( bStream = False, template_name="cerebras-llama-70b" )
     #test( bStream = False, template_name="grok" )
     #test( bStream = False, template_name="github-GPT4o-mini" )
-    test( bStream = False, template_name="openrouter-GPT4o-mini" )
+    #test( bStream = False, template_name="openrouter-GPT4o-mini" )
+    test( bStream = False, template_name="hyperbolic-Qwen25-32b" )
+
     
 
     #test( bStream = True )
