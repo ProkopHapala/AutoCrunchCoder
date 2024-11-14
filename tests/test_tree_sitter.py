@@ -79,15 +79,29 @@ def parse_cpp_file(file_path):
 
         elif node.type == 'function_definition' and parent_class:
             method_name = node.child_by_field_name('declarator')
+            return_type = node.child_by_field_name('type')
+            modifiers = []
+
+            # Check for modifiers like const, override, etc.
+            for child in node.children:
+                if child.type in ['const', 'override', 'abstract']:
+                    modifiers.append(child.type)
+
             if method_name:
                 method_name = method_name.text.decode('utf8')
-                classes_dict[parent_class]['methods'].append(method_name)
+                return_type = return_type.text.decode('utf8') if return_type else 'void'
+                method_signature = f"{return_type} {method_name} {' '.join(modifiers)}"
+                classes_dict[parent_class]['methods'].append(method_signature)
 
         elif node.type == 'field_declaration' and parent_class:
             property_name = node.child_by_field_name('declarator')
+            property_type = node.child_by_field_name('type')
+
             if property_name:
                 property_name = property_name.text.decode('utf8')
-                classes_dict[parent_class]['properties'].append(property_name)
+                property_type = property_type.text.decode('utf8') if property_type else 'unknown'
+                property_signature = f"{property_type} {property_name}"
+                classes_dict[parent_class]['properties'].append(property_signature)
 
         for child in node.children:
             traverse(child, parent_class)
