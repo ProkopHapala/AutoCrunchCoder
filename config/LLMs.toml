@@ -139,8 +139,16 @@ api_key_var   = "any"
 provider      = "LMStudio"
 api_lib       = "openai"
 
+# [fzu-Qwen25-32b]
+# model_name    = "bartowski/Qwen2.5-32B-Instruct-GGUF/Qwen2.5-32B-Instruct-Q3_K_S.gguf"
+# base_url      = "http://10.26.201.142:1234/v1"
+# contextLength =  32768
+# api_key_var   = "any"
+# provider      = "LMStudio"
+# api_lib       = "openai"
+
 [fzu-Qwen25-32b]
-model_name    = "bartowski/Qwen2.5-32B-Instruct-GGUF/Qwen2.5-32B-Instruct-Q3_K_S.gguf"
+model_name    = "lmstudio-community/Qwen2.5-Coder-32B-Instruct-GGUF/Qwen2.5-Coder-32B-Instruct-Q4_K_M.gguf"
 base_url      = "http://10.26.201.142:1234/v1"
 contextLength =  32768
 api_key_var   = "any"
@@ -162,5 +170,7 @@ contextLength =  32768
 api_key_var   = "any"
 provider      = "LMStudio"
 api_lib       = "openai"
+
+
 
 

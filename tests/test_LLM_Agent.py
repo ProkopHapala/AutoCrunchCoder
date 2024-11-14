@@ -1,10 +1,15 @@
+"""
+>> source ~/venvML/bin/activate
+"""
+
 import sys
 import os
-
 sys.path.append("../")
 from pyCruncher.AgentOpenAI   import AgentOpenAI
 from pyCruncher.AgentGoogle   import AgentGoogle
 from pyCruncher.AgentDeepSeek import AgentDeepSeek
+
+
 
 def test( bStream=False, template_name="deepseek-coder", prompt="Write function double getLJ(Vec3d dij, Vec2d RE, Vec3d& force) in C++ which calculate energy and force using Lennard-Jones potential. dij=pi-pj is vector between the atoms, RE{R0,E0} are energy minimum E0 and equilibrium distance R0. Keep it concise, generate just code, <20 lines, no bulshit around." ):
     """
@@ -55,7 +60,8 @@ if __name__ == "__main__":
     #test( bStream = False, template_name="cerebras-llama-70b" )
     #test( bStream = False, template_name="grok" )
     #test( bStream = False, template_name="github-GPT4o-mini" )
-    test( bStream = False, template_name="openrouter-GPT4o-mini" )
+    #test( bStream = False, template_name="openrouter-GPT4o-mini" )
+    test( bStream = False, template_name="fzu-Qwen25-32b" )
     
 
     #test( bStream = True )

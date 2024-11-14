@@ -66,7 +66,12 @@ class Agent(ABC):
 
         #for t in templates: print(t)
         self.template  = templates.get(self.template_name)
-        if not self.template : raise ValueError(f"Unknown template: {self.template_name}")
+        if not self.template : 
+            print( f"ERROR in Agent::load_template() not such template ({self.template_name}) ")
+            print( "available templates are: " )
+            for k in templates.keys(): print(k)
+            print( "eventually edit LLMs.toml to add new one" )
+            raise ValueError(f"Unknown template: {self.template_name}")
         self.base_url   = self.template.get('base_url', "http://localhost:1234/v1")   # Load the base URL for the API
         self.model_name = self.template['model_name']
         self.max_context_length = self.template.get('max_context_length')
