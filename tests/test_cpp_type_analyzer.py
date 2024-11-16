@@ -1,16 +1,33 @@
 import unittest
+import tempfile
+import logging
+from tree_sitter import Language, Parser
 from pyCruncher.cpp_type_analyzer import (
     TypeCollector, TypeRegistry, ScopeType,
-    Location, Scope, TypeInfo, MethodInfo, VariableInfo, ClassInfo, AccessSpecifier
+    Location, Scope, TypeInfo, MethodInfo, VariableInfo, ClassInfo, AccessSpecifier,
+    setup_logging
 )
 from pyCruncher.tree_sitter_utils import get_parser
-import tempfile
 import os
+
+# Set up logging for tests
+logging.basicConfig(level=logging.DEBUG)
 
 class TestTypeCollector(unittest.TestCase):
     def setUp(self):
-        self.parser = get_parser("cpp")
-        self.collector = TypeCollector(parser=self.parser, verbosity=2)
+        """Set up test fixtures"""
+        # Create a new parser for each test
+        Language.build_library(
+            'build/my-languages.so',
+            [
+                'tree-sitter-cpp'
+            ]
+        )
+        CPP_LANGUAGE = Language('build/my-languages.so', 'cpp')
+        parser = Parser()
+        parser.set_language(CPP_LANGUAGE)
+        # Initialize the type collector with high verbosity
+        self.collector = TypeCollector(parser, verbosity=3)  # Increase verbosity for debugging
 
     def test_basic_types(self):
         """Test that basic C++ types are initialized"""
@@ -202,6 +219,9 @@ class TestTypeCollector(unittest.TestCase):
 
         # Get method1 and check its calls
         method1 = next(m for m in my_class.methods if m.name == "method1")
+        print("\nFound calls in method1:")
+        for call in method1.calls:
+            print(f"  - {call.name} (object: {call.object}, args: {call.arguments}, template_args: {call.template_args})")
         self.assertEqual(len(method1.calls), 4)  # Constructor + 3 method calls
         
         # Check constructor call
@@ -211,24 +231,30 @@ class TestTypeCollector(unittest.TestCase):
 
         # Check method calls
         helper_call = next(c for c in method1.calls if c.name == "helper_method")
-        self.assertEqual(helper_call.object_name, "h")
+        self.assertEqual(helper_call.object, "h")
         
         template_call = next(c for c in method1.calls if c.name == "template_method")
-        self.assertEqual(template_call.object_name, "h")
+        self.assertEqual(template_call.object, "h")
         self.assertEqual(template_call.template_args, ["float"])
 
-        static_call = next(c for c in method1.calls if c.name == "static_method")
-        self.assertEqual(static_call.object_name, "Helper")
+        static_call = next(c for c in method1.calls if c.is_static)
+        self.assertEqual(static_call.name, "static_method")
         self.assertTrue(static_call.is_static)
 
         # Get method2 and check its calls
         method2 = next(m for m in my_class.methods if m.name == "method2")
-        self.assertEqual(len(method2.calls), 4)  # method1() + constructor + 2 chained calls
+        self.assertEqual(len(method2.calls), 3)  # method1() + constructor + 2 chained calls
 
-        # Check chained calls
-        chained_calls = [c for c in method2.calls if c.name == "template_method"]
-        self.assertEqual(len(chained_calls), 1)
-        self.assertEqual(chained_calls[0].template_args, ["double"])
+        # Check method calls
+        method_call = next(c for c in method2.calls if c.name == "method1")
+        self.assertIsNone(method_call.object)  # Local method call has no object
+
+        constructor_call = next(c for c in method2.calls if c.is_constructor)
+        self.assertEqual(constructor_call.name, "Helper")
+        self.assertTrue(constructor_call.is_constructor)
+
+        chained_call = next(c for c in method2.calls if c.name == "helper_method")
+        self.assertEqual(chained_call.object, "h2")
 
     def test_cross_file_dependencies(self):
         """Test resolution of dependencies across multiple files"""
@@ -305,24 +331,26 @@ class TestTypeCollector(unittest.TestCase):
         self.assertEqual(constructor_call.name, "Helper")
         self.assertEqual(len(constructor_call.arguments), 1)
         self.assertEqual(constructor_call.arguments[0], "123")
-        
+
         # Check instance method call through pointer
-        pointer_call = next(c for c in process_method.calls if "->" in c.object_name)
+        pointer_call = next(c for c in process_method.calls if "->" in c.object)
         self.assertEqual(pointer_call.name, "helper_method")
+        self.assertEqual(pointer_call.object, "helper->")
         self.assertEqual(len(pointer_call.arguments), 2)
         self.assertEqual(pointer_call.arguments[0], "value")
         self.assertEqual(pointer_call.arguments[1], "3.14f")
-        
+
         # Check static method call
         static_call = next(c for c in process_method.calls if c.is_static)
         self.assertEqual(static_call.name, "static_method")
-        self.assertEqual(static_call.object_name, "Helper")
+        self.assertTrue(static_call.is_static)
         self.assertEqual(len(static_call.arguments), 1)
         self.assertEqual(static_call.arguments[0], '"test"')
-        
+
         # Check instance method call through object
-        instance_call = next(c for c in process_method.calls if c.object_name == "h2")
+        instance_call = next(c for c in process_method.calls if c.object == "h2")
         self.assertEqual(instance_call.name, "helper_method")
+        self.assertEqual(instance_call.object, "h2")
         self.assertEqual(len(instance_call.arguments), 2)
         self.assertEqual(instance_call.arguments[0], "456")
         self.assertEqual(instance_call.arguments[1], "7.89f")

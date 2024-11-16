@@ -96,15 +96,15 @@ class ParameterInfo:
 class FunctionCall:
     """Represents a function call in the code"""
     name: str
-    object_name: Optional[str] = None
+    object: Optional[str] = None
     location: Optional[Location] = None
     resolved_file: Optional[str] = None
-    caller: Optional['MethodInfo'] = None
+    template_args: List[str] = field(default_factory=list)
+    arguments: List[str] = field(default_factory=list)
     is_constructor: bool = False
     is_static: bool = False
-    template_args: List[str] = field(default_factory=list)
+    caller: Optional['MethodInfo'] = None
     resolved_method: Optional['MethodInfo'] = None
-    arguments: List[str] = field(default_factory=list)
     resolved_parameters: List[ParameterInfo] = field(default_factory=list)
     scope: Optional['Scope'] = None
 
@@ -400,18 +400,20 @@ class TypeCollector:
         # Remove quotes from path
         include_path = include_path.strip('"<>')
         
-        # Try to find the header file relative to the current file
-        current_dir = os.path.dirname(file_path)
-        header_path = os.path.join(current_dir, include_path)
+        # Convert relative path to absolute path based on current file's directory
+        if not os.path.isabs(include_path):
+            current_dir = os.path.dirname(os.path.abspath(file_path))
+            include_path = os.path.normpath(os.path.join(current_dir, include_path))
         
-        # Track the include in the current file
-        current_file = self.registry.get_file(file_path)
-        if current_file:
-            current_file.add_include(include_path)
-        
-        if os.path.exists(header_path):
-            logging.info(f"Processing included header: {header_path}")
-            self.process_file(header_path)
+        # Add the include to the current file's info
+        file_info = self.registry.get_file(file_path)
+        if file_info:
+            file_info.add_include(include_path)
+            debug(f"Added include {include_path} to {file_path}", 2)
+
+        if os.path.exists(include_path):
+            logging.info(f"Processing included header: {include_path}")
+            self.process_file(include_path)
 
     def _process_namespace(self, node: Node, content: str, file_path: str):
         """Process a namespace definition"""
@@ -594,8 +596,7 @@ class TypeCollector:
         # Get return type
         return_type = None
         type_node = node.child_by_field_name("type")
-        if type_node:
-            return_type = type_node.text.decode('utf-8')
+        return_type = self._get_node_text(type_node, content) if type_node else "void"
 
         # Create function info
         debug(f"Processing function: {function_name} (return type: {return_type})", 1)
@@ -610,157 +611,272 @@ class TypeCollector:
             self.registry.current_scope.functions[function_name] = function_info
 
     def _process_call_expression(self, node: Node, content: str, file_path: str, method_info: Optional[MethodInfo] = None):
-        """Process a function or method call"""
-        if not method_info:
+        """Process a call expression node to extract function call information"""
+        if not node:
             return
 
-        # Handle constructor calls (new expressions)
+        debug(f"\nProcessing call expression node: {content[node.start_byte:node.end_byte]}", 1)
+        debug(f"Node type: {node.type}", 1)
+        debug("Node structure:", 1)
+        for child in node.children:
+            debug(f"  Child type: {child.type}", 1)
+            debug(f"  Child text: {content[child.start_byte:child.end_byte]}", 1)
+            if child.type == "function":
+                debug("  Function node structure:", 1)
+                for fchild in child.children:
+                    debug(f"    Child type: {fchild.type}", 1)
+                    debug(f"    Child text: {content[fchild.start_byte:fchild.end_byte]}", 1)
+
+        # Handle new expressions (constructor calls)
         if node.type == "new_expression":
+            debug(f"Processing new expression: {content[node.start_byte:node.end_byte]}", 2)
             type_node = node.child_by_field_name("type")
             if type_node:
                 type_name = self._get_node_text(type_node, content)
                 if type_name:
+                    # Strip template parameters from type name
+                    base_type = type_name.split('<')[0]
                     call_info = FunctionCall(
-                        name=type_name,
+                        name=base_type,
                         is_constructor=True,
                         location=self._get_location(node, file_path)
                     )
-                    # Get constructor arguments
-                    arguments_node = node.child_by_field_name("arguments")
-                    if arguments_node:
-                        for arg_node in arguments_node.children:
+                    
+                    # Add arguments if present
+                    argument_list = node.child_by_field_name("arguments")
+                    if argument_list:
+                        for arg_node in argument_list.children:
                             if arg_node.type not in ["(", ")", ",", "argument_list"]:
                                 arg_text = self._get_node_text(arg_node, content)
                                 if arg_text:
                                     call_info.arguments.append(arg_text)
-                    method_info.calls.append(call_info)
+                    
+                    if method_info:
+                        method_info.calls.append(call_info)
                     debug(f"Found constructor call (new): {type_name} with args: {call_info.arguments}", 2)
             return
 
-        # Handle direct constructor calls (e.g. Helper h2(123))
-        if node.type == "declaration":
-            type_node = node.child_by_field_name("type")
-            init_declarator = next((child for child in node.children if child.type == "init_declarator"), None)
-            if type_node and init_declarator:
-                type_name = self._get_node_text(type_node, content)
-                argument_list = next((child for child in init_declarator.children if child.type == "argument_list"), None)
-                if type_name and argument_list:
-                    call_info = FunctionCall(
-                        name=type_name,
-                        is_constructor=True,
-                        location=self._get_location(node, file_path)
-                    )
-                    # Get constructor arguments
-                    for arg_node in argument_list.children:
-                        if arg_node.type not in ["(", ")", ",", "argument_list"]:
-                            arg_text = self._get_node_text(arg_node, content)
-                            if arg_text:
-                                call_info.arguments.append(arg_text)
-                    method_info.calls.append(call_info)
-                    debug(f"Found constructor call (direct): {type_name} with args: {call_info.arguments}", 2)
-            return
-
-        # Handle normal function/method calls
+        # Get function node and argument list
         function_node = node.child_by_field_name("function")
+        argument_list = node.child_by_field_name("arguments")
+        template_arguments = node.child_by_field_name("template_arguments")
+
         if not function_node:
+            debug("No function node found", 2)
             return
 
-        # Get function name and check if it's a static call
-        function_name = None
-        if function_node.type == "field_expression":
-            field_node = function_node.child_by_field_name("field")
-            if field_node:
-                function_name = self._get_node_text(field_node, content)
-        else:
-            function_name = self._get_node_text(function_node, content)
+        debug(f"Function node type: {function_node.type}", 1)
+        debug(f"Function node text: {content[function_node.start_byte:function_node.end_byte]}", 1)
 
-        if not function_name:
-            return
-
-        # Handle static method calls (Class::method)
-        is_static = "::" in function_name
-        if is_static:
-            class_name, method_name = function_name.split("::", 1)
-            function_name = method_name
-
-        # Create call info
+        # Initialize call info
         call_info = FunctionCall(
-            name=function_name,
-            is_constructor=False,
-            is_static=is_static,
+            name="",
             location=self._get_location(node, file_path)
         )
 
-        # Set object name for static calls
-        if is_static:
-            call_info.object_name = class_name
+        # Process template arguments if present
+        if template_arguments:
+            debug(f"Processing template arguments: {content[template_arguments.start_byte:template_arguments.end_byte]}", 2)
+            for arg_node in template_arguments.children:
+                if arg_node.type not in ["<", ">", ",", "template_argument_list"]:
+                    arg_text = self._get_node_text(arg_node, content)
+                    if arg_text:
+                        call_info.template_args.append(arg_text)
+                        debug(f"Added template argument: {arg_text}", 2)
 
-        # Handle object name for method calls
-        if function_node.type == "field_expression":
-            object_node = function_node.child_by_field_name("argument")
-            operator_node = function_node.child_by_field_name("operator")
-            if object_node:
-                object_name = self._get_node_text(object_node, content)
-                operator = self._get_node_text(operator_node, content) if operator_node else "."
-                # Only include operator for pointer calls
-                if operator == "->":
-                    call_info.object_name = f"{object_name}{operator}"
-                else:
-                    call_info.object_name = object_name
-
-        # Process arguments
-        arguments_node = node.child_by_field_name("arguments")
-        if arguments_node:
-            for arg_node in arguments_node.children:
+        # Process regular arguments if present
+        if argument_list:
+            debug(f"Processing arguments: {content[argument_list.start_byte:argument_list.end_byte]}", 2)
+            for arg_node in argument_list.children:
                 if arg_node.type not in ["(", ")", ",", "argument_list"]:
                     arg_text = self._get_node_text(arg_node, content)
                     if arg_text:
                         call_info.arguments.append(arg_text)
+                        debug(f"Added argument: {arg_text}", 2)
 
-        method_info.calls.append(call_info)
-        debug(f"Found function call: {function_name} (static={call_info.is_static}) with args: {call_info.arguments}", 2)
+        # Handle different types of function calls
+        if function_node.type == "field_expression":
+            # Method call on an object (e.g., obj.method()) or static call (e.g., Class::method())
+            field_node = function_node.child_by_field_name("field")
+            object_node = function_node.child_by_field_name("argument")
+
+            if field_node:
+                field_text = self._get_node_text(field_node, content)
+                object_text = ""
+                if object_node:
+                    # Check for template arguments in the object
+                    template_args = []
+                    for child in object_node.children:
+                        if child.type == "template_argument_list":
+                            for arg in child.children:
+                                if arg.type not in ["<", ">", ","]:
+                                    template_args.append(self._get_node_text(arg, content))
+                    
+                    # Get the base object name (before any template arguments)
+                    base_object = self._get_node_text(object_node, content).split("<")[0]
+                    object_text = base_object
+                    if template_args:
+                        object_text = f"{base_object}<{', '.join(template_args)}>"
+
+                # Check if this is a static method call (e.g., Class::method())
+                if "::" in content[function_node.start_byte:function_node.end_byte]:
+                    debug(f"Found static method call: {content[function_node.start_byte:function_node.end_byte]}", 1)
+                    call_info.name = f"{object_text}::{field_text}"
+                    call_info.is_static = True
+                else:
+                    call_info.name = field_text
+                    if object_node:
+                        # Handle chained method calls
+                        if object_node.type == "call_expression":
+                            # Process the chained call first
+                            self._process_call_expression(object_node, content, file_path, method_info)
+                            # Use the result of the previous call as the object
+                            call_info.object = self._get_node_text(object_node, content)
+                        else:
+                            # Get the object text
+                            # Check for pointer access
+                            if "->" in content[object_node.start_byte:object_node.end_byte]:
+                                call_info.object = object_text + "->"
+                            else:
+                                call_info.object = object_text
+
+                debug(f"Found {'static ' if call_info.is_static else ''}method call: {call_info.name} (object: {call_info.object}, args: {call_info.arguments}, template_args: {call_info.template_args})", 1)
+        elif function_node.type == "identifier":
+            # Direct function call (e.g., function())
+            call_info.name = self._get_node_text(function_node, content)
+            debug(f"Found function call: {call_info.name} (args: {call_info.arguments}, template_args: {call_info.template_args})", 2)
+        elif function_node.type == "template_function":
+            # Template function call (e.g., function<T>())
+            name_node = function_node.child_by_field_name("name")
+            if name_node:
+                call_info.name = self._get_node_text(name_node, content)
+                # Process template arguments
+                template_args = function_node.child_by_field_name("template_arguments")
+                if template_args:
+                    for arg_node in template_args.children:
+                        if arg_node.type not in ["<", ">", ",", "template_argument_list"]:
+                            arg_text = self._get_node_text(arg_node, content)
+                            if arg_text:
+                                call_info.template_args.append(arg_text)
+                debug(f"Found template function call: {call_info.name} (args: {call_info.arguments}, template_args: {call_info.template_args})", 2)
+
+        if method_info and call_info.name:
+            debug(f"Adding call to method {method_info.name}: {call_info.name} (object: {call_info.object}, args: {call_info.arguments}, template_args: {call_info.template_args}, is_static: {call_info.is_static})", 1)
+            method_info.calls.append(call_info)
 
     def _process_method_body(self, node: Node, content: str, file_path: str, method_info: MethodInfo):
         """Process a method body to find function calls"""
         if not node:
             return
 
-        debug(f"Processing node type: {node.type} text: {content[node.start_byte:node.end_byte]}", 2)
+        debug(f"\nProcessing method body node type: {node.type} text: {content[node.start_byte:node.end_byte]}", 1)
 
         # Process node based on its type
         if node.type == "call_expression":
-            self._process_call_expression(node, content, file_path, method_info)
-            debug(f"Processing call_expression in method body", 2)
-        elif node.type == "new_expression":
-            self._process_call_expression(node, content, file_path, method_info)
-            debug(f"Processing new_expression in method body", 2)
-        elif node.type == "declaration":
-            # Handle constructor calls in declarations (e.g., Helper h2(123))
-            type_node = node.child_by_field_name("type")
-            init_declarator = next((child for child in node.children if child.type == "init_declarator"), None)
-            if type_node and init_declarator:
-                type_name = self._get_node_text(type_node, content)
-                argument_list = next((child for child in init_declarator.children if child.type == "argument_list"), None)
-                if type_name and argument_list:
-                    call_info = FunctionCall(
-                        name=type_name,
-                        is_constructor=True,
-                        location=self._get_location(node, file_path)
-                    )
-                    # Get constructor arguments
+            debug(f"Found call_expression in method body: {content[node.start_byte:node.end_byte]}", 1)
+            # Check if this is a scoped static method call
+            function_node = node.child_by_field_name("function")
+            if function_node and "::" in content[function_node.start_byte:function_node.end_byte]:
+                debug(f"Found scoped static method call: {content[function_node.start_byte:function_node.end_byte]}", 1)
+                # Get the scoped name parts
+                scoped_name = content[function_node.start_byte:function_node.end_byte]
+                
+                call_info = FunctionCall(
+                    name=scoped_name,
+                    is_static=True,
+                    location=self._get_location(node, file_path)
+                )
+                
+                # Add arguments if present
+                argument_list = node.child_by_field_name("arguments")
+                if argument_list:
                     for arg_node in argument_list.children:
                         if arg_node.type not in ["(", ")", ",", "argument_list"]:
                             arg_text = self._get_node_text(arg_node, content)
                             if arg_text:
                                 call_info.arguments.append(arg_text)
+                                debug(f"Added argument to static call: {arg_text}", 1)
+                
+                method_info.calls.append(call_info)
+                debug(f"Added static method call: {call_info.name} (args: {call_info.arguments})", 1)
+            else:
+                self._process_call_expression(node, content, file_path, method_info)
+        elif node.type == "declaration":
+            debug(f"Found declaration in method body: {content[node.start_byte:node.end_byte]}", 1)
+            # Handle constructor calls in declarations
+            type_node = node.child_by_field_name("type")
+            init_declarator = next((child for child in node.children if child.type == "init_declarator"), None)
+            if type_node:
+                type_name = self._get_node_text(type_node, content)
+                if type_name:
+                    # Strip template parameters from type name
+                    base_type = type_name.split('<')[0]
+                    call_info = FunctionCall(
+                        name=base_type,
+                        is_constructor=True,
+                        location=self._get_location(node, file_path)
+                    )
+                    
+                    # If there's an init_declarator with argument list, add the arguments
+                    if init_declarator:
+                        argument_list = next((child for child in init_declarator.children if child.type == "argument_list"), None)
+                        if argument_list:
+                            for arg_node in argument_list.children:
+                                if arg_node.type not in ["(", ")", ",", "argument_list"]:
+                                    arg_text = self._get_node_text(arg_node, content)
+                                    if arg_text:
+                                        call_info.arguments.append(arg_text)
+                    
                     method_info.calls.append(call_info)
-                    debug(f"Found constructor call (direct): {type_name} with args: {call_info.arguments}", 2)
+                    debug(f"Found constructor call: {base_type} with args: {call_info.arguments}", 1)
+        elif node.type == "template_function":
+            debug(f"Found template_function in method body: {content[node.start_byte:node.end_byte]}", 1)
+            # Process the template function node
+            self._process_call_expression(node, content, file_path, method_info)
+        elif node.type == "new_expression":
+            debug(f"Found new_expression in method body: {content[node.start_byte:node.end_byte]}", 1)
+            self._process_call_expression(node, content, file_path, method_info)
+        elif node.type == "field_expression":
+            debug(f"Found field_expression in method body: {content[node.start_byte:node.end_byte]}", 1)
+            # Check for pointer access
+            operator_node = node.child_by_field_name("operator")
+            if operator_node and operator_node.text.decode('utf-8') == "->":
+                debug(f"Found pointer access operator ->", 1)
+                field_node = node.child_by_field_name("field")
+                argument_node = node.child_by_field_name("argument")
+                if field_node and argument_node:
+                    # Find the call_expression that contains this field_expression
+                    parent_call = None
+                    current = node
+                    while current and current.type != "call_expression":
+                        current = current.parent
+                    if current and current.type == "call_expression":
+                        parent_call = current
 
-        # Process children recursively, skipping comments
+                    call_info = FunctionCall(
+                        name=self._get_node_text(field_node, content),
+                        object=self._get_node_text(argument_node, content) + "->",
+                        location=self._get_location(node, file_path)
+                    )
+
+                    # Add arguments from the parent call_expression
+                    if parent_call:
+                        argument_list = parent_call.child_by_field_name("arguments")
+                        if argument_list:
+                            for arg_node in argument_list.children:
+                                if arg_node.type not in ["(", ")", ",", "argument_list"]:
+                                    arg_text = self._get_node_text(arg_node, content)
+                                    if arg_text:
+                                        call_info.arguments.append(arg_text)
+                                        debug(f"Added argument to pointer call: {arg_text}", 1)
+
+                    method_info.calls.append(call_info)
+                    debug(f"Added pointer method call: {call_info.name} (object: {call_info.object}, args: {call_info.arguments})", 1)
+
+        # Recursively process all children
         for child in node.children:
-            if child.type != "comment":
-                debug(f"Child node type: {child.type}", 2)
-                self._process_method_body(child, content, file_path, method_info)
+            debug(f"Processing child node type: {child.type} text: {content[child.start_byte:child.end_byte]}", 1)
+            self._process_method_body(child, content, file_path, method_info)
 
     def _get_node_text(self, node: Node, content: str) -> str:
         """Get the text of a node"""
