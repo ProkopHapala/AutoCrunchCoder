@@ -120,6 +120,7 @@ def main():
             markdown = generate_markdown(file_path, class_info)
             #save markdown to file
             with open(f"debug_tree_sitter.md", "w") as f: f.write(markdown)
+            print( "result saved to file: debug_tree_sitter.md" )
 
             #print(f"Classes in {file_path}: {class_info}")
         except FileNotFoundError as e:
