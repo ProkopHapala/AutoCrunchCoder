@@ -34,8 +34,7 @@ A static code analysis system for tracking function and class dependencies acros
 
 ## Test Status
 
-### Passing Tests (7/10)
-- ✅ test_base_class_processing
+### Passing Tests (6/9)
 - ✅ test_basic_types
 - ✅ test_class_in_namespace
 - ✅ test_class_processing
@@ -43,18 +42,27 @@ A static code analysis system for tracking function and class dependencies acros
 - ✅ test_namespace_processing
 - ✅ test_scope_names
 
-### Failing Tests (3/10)
-1. ❌ test_cross_file_dependencies
-   - Issue: Header file paths not being stored correctly
-   - Error: Header path stored as relative instead of absolute
-
-2. ❌ test_function_calls
-   - Issue: Function calls not being tracked
-   - Error: No calls being recorded (0 vs expected 4)
-
-3. ❌ test_method_resolution
+### Failing Tests (3/9)
+1. ❌ test_method_resolution
    - Issue: Class attribute access
    - Error: Missing 'classes' attribute
+   - Priority: High
+   - Fix: Simple attribute error, should be quick to resolve
+   - Next steps: Add classes property to TypeCollector
+
+2. ❌ test_cross_file_dependencies
+   - Issue: Header file paths not being stored correctly
+   - Error: Absolute path not found in includes list
+   - Priority: Medium
+   - Example: 'helper.h' vs '/tmp/tmpe_h014r8/helper.h'
+   - Next steps: Implement proper path resolution
+
+3. ❌ test_function_calls
+   - Issue: Function calls not being tracked
+   - Error: No calls being recorded (0 vs expected 4)
+   - Priority: Low
+   - Complex issue involving template handling
+   - Next steps: Implement call tracking system
 
 ## Key Files
 
@@ -66,7 +74,7 @@ A static code analysis system for tracking function and class dependencies acros
 
 ### Test Suite
 - `tests/test_cpp_type_analyzer.py`: Test suite
-  - Status: 7 passing, 3 failing
+  - Status: 6 passing, 3 failing
   - Coverage: Basic types, namespaces, classes, inheritance
 
 ### Planned Files
