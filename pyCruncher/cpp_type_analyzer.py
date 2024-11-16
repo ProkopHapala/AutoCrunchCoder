@@ -155,6 +155,8 @@ class MethodInfo:
     location: Optional[Location] = None
     scope: Optional[Scope] = None
     parent_class: Optional['ClassInfo'] = None
+    is_virtual: bool = False
+    is_override: bool = False
 
     @property
     def full_name(self) -> str:
@@ -458,8 +460,20 @@ class TypeCollector:
             scope=self.registry.current_scope
         )
 
-        # Add to registry
-        debug(f"Adding type to registry: {class_info.full_name()} (scope: {class_info.scope.full_name if class_info.scope else 'None'})", 1)
+        # Process base classes
+        base_classes = []
+        for child in node.children:
+            if child.type == "base_class_clause":
+                debug(f"Processing base classes for {class_name}", 2)
+                for base_child in child.children:
+                    if base_child.type == "type_identifier":
+                        base_name = base_child.text.decode('utf-8')
+                        debug(f"Found base class: {base_name}", 2)
+                        base_classes.append(base_name)
+
+        # Add base classes to class info
+        class_info.base_classes = base_classes
+        debug(f"Adding type to registry: {class_info.full_name()} with {len(class_info.base_classes)} base classes", 1)
         self.registry.add_type(class_info)
 
         # Add to parent's scopes and enter the new scope
@@ -472,55 +486,59 @@ class TypeCollector:
         # Process class body
         declaration_list = node.child_by_field_name("body")
         if declaration_list:
-            self.process_node(declaration_list, content, file_path)
+            for child in declaration_list.children:
+                if child.type in ["field_declaration", "function_definition", "method_definition"]:
+                    self._process_declaration(child, content, file_path, class_info)
 
         # Exit class scope
         self.registry.exit_scope()
 
-    def _process_declaration(self, node: Node, content: str, file_path: str, parent_class: ClassInfo):
-        """Process a declaration in a class"""
-        if node.type == "field_declaration":
+    def _process_declaration(self, node: Node, content: str, file_path: str, parent_class: Optional[ClassInfo] = None):
+        """Process a field or method declaration"""
+        # Check if this is a method declaration
+        if node.type == "function_definition":
+            debug("Found function_definition", 1)
+            
+            # Get method name
+            declarator = node.child_by_field_name("declarator")
+            if not declarator:
+                return
+                
+            method_name = self._get_node_text(declarator, content)
+            if not method_name:
+                return
+
+            # Get return type
+            type_node = node.child_by_field_name("type")
+            return_type = self._get_node_text(type_node, content) if type_node else "void"
+
+            # Create method info
+            debug(f"Processing method: {method_name} (return type: {return_type})", 1)
+            method_info = MethodInfo(
+                name=method_name,
+                return_type=return_type,
+                access=AccessSpecifier.PUBLIC,  # Will be updated by access specifier
+                parent_class=parent_class,
+            )
+
+            # Check if method is virtual
+            for child in node.children:
+                debug(f"Checking child node: {child.type} text: {child.text.decode('utf-8')}", 2)
+                if child.type == "virtual":
+                    debug("Method {method_name} is virtual", 2)
+                    method_info.is_virtual = True
+                elif child.type == "function_declarator":
+                    # Check for override specifier in function_declarator
+                    for subchild in child.children:
+                        if subchild.type == "virtual_specifier" and subchild.text.decode('utf-8') == "override":
+                            debug(f"Method {method_name} is override", 2)
+                            method_info.is_override = True
+
+            if parent_class:
+                debug(f"Added method {method_name} to class {parent_class.name} (virtual={method_info.is_virtual}, override={method_info.is_override})", 2)
+                parent_class.methods.append(method_info)
+        elif node.type == "field_declaration":
             self._process_field(node, content, file_path, parent_class)
-        elif node.type == "function_definition":
-            self._process_method(node, content, file_path, parent_class)
-
-    def _process_method(self, node: Node, content: str, file_path: str, parent_class: ClassInfo):
-        """Process a method definition"""
-        # Get method name and return type
-        declarator = node.child_by_field_name("declarator")
-        if not declarator:
-            return
-        
-        name_node = declarator.child_by_field_name("declarator")
-        if not name_node:
-            return
-        
-        method_name = self._get_node_text(name_node, content)
-        if not method_name:
-            return
-
-        # Get return type
-        type_node = node.child_by_field_name("type")
-        return_type = self._get_node_text(type_node, content) if type_node else "void"
-
-        logging.debug(f"Processing method: {method_name}")
-        
-        # Create method info
-        method_info = MethodInfo(
-            name=method_name,
-            return_type=return_type,
-            parent_class=parent_class,
-            scope=self.registry.current_scope,
-            location=self._get_location(node, file_path)
-        )
-
-        # Process method body for function calls
-        body_node = node.child_by_field_name("body")
-        if body_node:
-            self._process_method_body(body_node, content, file_path, method_info)
-
-        # Add method to class
-        parent_class.methods.append(method_info)
 
     def _process_field(self, node: Node, content: str, file_path: str, parent_class: ClassInfo):
         """Process a field declaration in a class"""

@@ -1,4 +1,4 @@
-# C++ Dependency Analyzer Status
+# C++ Analyzer Status
 
 ## Project Overview
 A static code analysis system for tracking function and class dependencies across C++ source files using tree-sitter.
@@ -9,35 +9,73 @@ A static code analysis system for tracking function and class dependencies acros
 - ✅ Basic type system architecture
 - ✅ Namespace processing
 - ✅ Basic class definition parsing
-- ✅ Location tracking
 - ✅ Scope management
 - ✅ Access specifier support
 - ✅ Basic type registry with C++ built-in types
 - ✅ Base class detection and inheritance tracking
+- ✅ Virtual method detection
+- ✅ Override specifier support
 
 ### In Progress
 - 🔄 Function call tracking
   - Issue: Need to capture and track function calls across classes
   - Next: Implement function call graph construction
+  - See [Function Call Tracking Improvements](function_call_tracking_improvements.md) for detailed analysis
+
+- 🔄 Location tracking
+  - Issue: Location information not being stored for some nodes
+  - Next: Implement consistent location tracking across all node types
+
+- 🔄 Cross-file dependencies
+  - Issue: Include paths not being stored correctly
+  - Next: Implement proper header file resolution
 
 ### Pending Tasks
 - ⏳ Type inference system
 - ⏳ Template support
-- ⏳ Cross-file dependency resolution
 - ⏳ Dependency graph visualization
+
+## Test Status
+
+### Passing Tests (6/10)
+- ✅ test_base_class_processing
+- ✅ test_basic_types
+- ✅ test_class_in_namespace
+- ✅ test_class_processing
+- ✅ test_namespace_processing
+- ✅ test_scope_names
+
+### Failing Tests (4/10)
+1. ❌ test_cross_file_dependencies
+   - Issue: Header file paths not being stored correctly
+   - Error: Header path stored as relative instead of absolute
+
+2. ❌ test_function_calls
+   - Issue: Function calls not being tracked
+   - Error: No calls being recorded (0 vs expected 4)
+
+3. ❌ test_location_tracking
+   - Issue: Location information missing
+   - Error: Location attribute is None
+
+4. ❌ test_method_resolution
+   - Issue: Class attribute access
+   - Error: Missing 'classes' attribute
 
 ## Key Files
 
-### Existing Files
+### Core Implementation
 - `pyCruncher/cpp_type_analyzer.py`: Main analyzer implementation
   - Contains: TypeCollector, TypeRegistry, and type information classes
-  - Status: Base class detection fixed, all tests passing
+  - Recent Changes: Fixed base class detection and method override tracking
+  - Status: Base functionality working, need to add function call tracking
 
+### Test Suite
 - `tests/test_cpp_type_analyzer.py`: Test suite
-  - Status: All tests passing
-  - Coverage: Basic types, namespaces, classes, inheritance, locations
+  - Status: 6 passing, 4 failing
+  - Coverage: Basic types, namespaces, classes, inheritance
 
-### Files to Add
+### Planned Files
 - `pyCruncher/dependency_graph.py`: For dependency visualization
 - `pyCruncher/type_inference.py`: For type resolution
 - `tests/test_dependency_graph.py`
@@ -45,52 +83,50 @@ A static code analysis system for tracking function and class dependencies acros
 
 ## Current Issues
 
-1. Function Call Tracking
-   ```cpp
-   class MyClass {
-   public:
-       void method1() {
-           method2();  // Need to track this call
-       }
-       void method2() {}
-   };
-   ```
-   - Need to implement proper function call tracking
-   - Build call graph for dependency analysis
+### 1. Function Call Tracking
+- **Issue**: Function calls not being recorded
+- **Error**: `AssertionError: 0 != 4` in call count check
+- **Files**: `_process_declaration` in cpp_type_analyzer.py
+- **Fix Needed**: 
+  - Implement function call tracking in method bodies
+  - Add support for constructor calls
+  - Handle virtual function calls
 
-2. Template Support
-   - Not yet handling template classes or functions
-   - Need to implement template parameter tracking
+### 2. Location Tracking
+- **Issue**: Location information missing for some nodes
+- **Error**: `AttributeError: 'NoneType' object has no attribute 'start'`
+- **Files**: Various methods in cpp_type_analyzer.py
+- **Fix Needed**:
+  - Add location tracking to all node processors
+  - Implement consistent location storage
+
+### 3. Cross-File Dependencies
+- **Issue**: Include paths stored as relative
+- **Error**: Absolute path not found in includes list
+- **Files**: File processing in cpp_type_analyzer.py
+- **Fix Needed**:
+  - Store absolute paths for included files
+  - Implement proper header resolution
 
 ## Next Steps
 
-1. Implement Function Call Analysis
-   - Track function calls within methods
-   - Build call graph
-   - Handle virtual functions
+1. Implement Function Call Tracking
+   - Add call tracking to function bodies
+   - Handle constructor and virtual calls
+   - Add method resolution
 
-2. Add Template Support
-   - Add template parameter parsing
-   - Handle template specializations
-   - Track template dependencies
+2. Fix Location Tracking
+   - Implement basic location tracking
+   - Fix point adjustment logic
+   - Add location info to all node types
 
-3. Enhance Type Resolution
-   - Implement type inference system
-   - Handle templates
-   - Resolve cross-file dependencies
+3. Improve Cross-File Dependencies
+   - Fix include path handling
+   - Add header file resolution
+   - Track dependencies across files
 
-## Development Guidelines
-
-1. Test-Driven Development
-   - Add tests for new features before implementation
-   - Maintain high test coverage
-
-2. Code Organization
-   - Keep type-related code in cpp_type_analyzer.py
-   - Move dependency graph logic to separate module
-   - Use clear class hierarchies for type information
-
-3. Documentation
-   - Update this status document as features are completed
-   - Add docstrings for all new classes and methods
-   - Include examples in documentation
+## Development Strategy
+- Continue test-driven development approach
+- Maintain detailed logging for debugging
+- Focus on one failing test at a time
+- Keep modular, extensible architecture
