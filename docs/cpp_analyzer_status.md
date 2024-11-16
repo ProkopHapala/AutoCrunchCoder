@@ -13,14 +13,14 @@ A static code analysis system for tracking function and class dependencies acros
 - ✅ Scope management
 - ✅ Access specifier support
 - ✅ Basic type registry with C++ built-in types
+- ✅ Base class detection and inheritance tracking
 
 ### In Progress
-- 🔄 Class member processing (methods and variables)
-  - Issue: Not correctly capturing method names and variables from class definitions
-  - Next: Fix parsing of function_definition and field_declaration nodes
+- 🔄 Function call tracking
+  - Issue: Need to capture and track function calls across classes
+  - Next: Implement function call graph construction
 
 ### Pending Tasks
-- ⏳ Function call tracking
 - ⏳ Type inference system
 - ⏳ Template support
 - ⏳ Cross-file dependency resolution
@@ -31,11 +31,11 @@ A static code analysis system for tracking function and class dependencies acros
 ### Existing Files
 - `pyCruncher/cpp_type_analyzer.py`: Main analyzer implementation
   - Contains: TypeCollector, TypeRegistry, and type information classes
-  - Status: Needs fixes for class member processing
+  - Status: Base class detection fixed, all tests passing
 
 - `tests/test_cpp_type_analyzer.py`: Test suite
-  - Status: 5/7 tests passing
-  - Failing: class_processing and class_in_namespace tests
+  - Status: All tests passing
+  - Coverage: Basic types, namespaces, classes, inheritance, locations
 
 ### Files to Add
 - `pyCruncher/dependency_graph.py`: For dependency visualization
@@ -45,35 +45,36 @@ A static code analysis system for tracking function and class dependencies acros
 
 ## Current Issues
 
-1. Class Member Processing
+1. Function Call Tracking
    ```cpp
    class MyClass {
    public:
-       void method();  // Not being captured
-   private:
-       int var;        // Not being captured
+       void method1() {
+           method2();  // Need to track this call
+       }
+       void method2() {}
    };
    ```
-   - Problem: Method and variable nodes not properly extracted from AST
-   - Fix: Update _process_class_body to correctly traverse function_definition and field_declaration nodes
+   - Need to implement proper function call tracking
+   - Build call graph for dependency analysis
 
-2. Type Information
-   - Currently simplified (using "void" as placeholder)
-   - Need to implement proper type extraction from declarations
+2. Template Support
+   - Not yet handling template classes or functions
+   - Need to implement template parameter tracking
 
 ## Next Steps
 
-1. Fix Class Processing
-   - Update AST traversal in _process_class_body
-   - Add proper type extraction
-   - Fix access specifier handling
-
-2. Implement Function Analysis
-   - Add function parameter processing
-   - Track function calls
+1. Implement Function Call Analysis
+   - Track function calls within methods
    - Build call graph
+   - Handle virtual functions
 
-3. Add Type Resolution
+2. Add Template Support
+   - Add template parameter parsing
+   - Handle template specializations
+   - Track template dependencies
+
+3. Enhance Type Resolution
    - Implement type inference system
    - Handle templates
    - Resolve cross-file dependencies
