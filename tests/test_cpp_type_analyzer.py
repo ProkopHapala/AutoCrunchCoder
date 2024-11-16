@@ -165,20 +165,27 @@ class TestTypeCollector(unittest.TestCase):
     def test_function_calls(self):
         """Test tracking of function calls within methods"""
         code = """
+        template<typename T>
         class Helper {
         public:
             void helper_method() {}
+            static void static_method() {}
+            T template_method() {}
         };
 
         class MyClass {
         public:
             void method1() {
-                Helper h;
+                Helper<int> h;
                 h.helper_method();
+                h.template_method<float>();
+                Helper<int>::static_method();
             }
 
             void method2() {
                 method1();
+                Helper<int> h2;
+                h2.helper_method().template_method<double>();
             }
         };
         """
@@ -193,10 +200,35 @@ class TestTypeCollector(unittest.TestCase):
         self.assertIn("method1", [m.name for m in my_class.methods])
         self.assertIn("method2", [m.name for m in my_class.methods])
 
+        # Get method1 and check its calls
+        method1 = next(m for m in my_class.methods if m.name == "method1")
+        self.assertEqual(len(method1.calls), 4)  # Constructor + 3 method calls
+        
+        # Check constructor call
+        constructor_call = next(c for c in method1.calls if c.is_constructor)
+        self.assertEqual(constructor_call.name, "Helper")
+        self.assertTrue(constructor_call.is_constructor)
+
         # Check method calls
+        helper_call = next(c for c in method1.calls if c.name == "helper_method")
+        self.assertEqual(helper_call.object_name, "h")
+        
+        template_call = next(c for c in method1.calls if c.name == "template_method")
+        self.assertEqual(template_call.object_name, "h")
+        self.assertEqual(template_call.template_args, ["float"])
+
+        static_call = next(c for c in method1.calls if c.name == "static_method")
+        self.assertEqual(static_call.object_name, "Helper")
+        self.assertTrue(static_call.is_static)
+
+        # Get method2 and check its calls
         method2 = next(m for m in my_class.methods if m.name == "method2")
-        self.assertEqual(len(method2.calls), 1)
-        self.assertEqual(method2.calls[0].name, "method1")
+        self.assertEqual(len(method2.calls), 4)  # method1() + constructor + 2 chained calls
+
+        # Check chained calls
+        chained_calls = [c for c in method2.calls if c.name == "template_method"]
+        self.assertEqual(len(chained_calls), 1)
+        self.assertEqual(chained_calls[0].template_args, ["double"])
 
     def test_cross_file_dependencies(self):
         """Test resolution of dependencies across multiple files"""
@@ -237,6 +269,63 @@ class TestTypeCollector(unittest.TestCase):
             # Check that the include was tracked
             impl_file_info = self.collector.registry.files[impl_path]
             self.assertIn(header_path, impl_file_info.includes)
+
+    def test_method_resolution(self):
+        """Test resolution of method calls and parameter tracking"""
+        code = """
+        class Helper {
+        public:
+            Helper(int x) {}
+            void helper_method(int x, float y) {}
+            static void static_method(const std::string& msg) {}
+        };
+
+        class MyClass {
+        private:
+            Helper* helper;
+        public:
+            MyClass() : helper(new Helper(42)) {}
+            
+            void process(int value) {
+                helper->helper_method(value, 3.14f);
+                Helper::static_method("test");
+                Helper h2(123);
+                h2.helper_method(456, 7.89f);
+            }
+        };
+        """
+        
+        self.collector.process_code(code)
+        
+        my_class = next(c for c in self.collector.classes if c.name == "MyClass")
+        process_method = next(m for m in my_class.methods if m.name == "process")
+        
+        # Check constructor call
+        constructor_call = next(c for c in process_method.calls if c.is_constructor)
+        self.assertEqual(constructor_call.name, "Helper")
+        self.assertEqual(len(constructor_call.arguments), 1)
+        self.assertEqual(constructor_call.arguments[0], "123")
+        
+        # Check instance method call through pointer
+        pointer_call = next(c for c in process_method.calls if "->" in c.object_name)
+        self.assertEqual(pointer_call.name, "helper_method")
+        self.assertEqual(len(pointer_call.arguments), 2)
+        self.assertEqual(pointer_call.arguments[0], "value")
+        self.assertEqual(pointer_call.arguments[1], "3.14f")
+        
+        # Check static method call
+        static_call = next(c for c in process_method.calls if c.is_static)
+        self.assertEqual(static_call.name, "static_method")
+        self.assertEqual(static_call.object_name, "Helper")
+        self.assertEqual(len(static_call.arguments), 1)
+        self.assertEqual(static_call.arguments[0], '"test"')
+        
+        # Check instance method call through object
+        instance_call = next(c for c in process_method.calls if c.object_name == "h2")
+        self.assertEqual(instance_call.name, "helper_method")
+        self.assertEqual(len(instance_call.arguments), 2)
+        self.assertEqual(instance_call.arguments[0], "456")
+        self.assertEqual(instance_call.arguments[1], "7.89f")
 
 if __name__ == '__main__':
     unittest.main()
