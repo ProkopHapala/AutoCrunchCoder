@@ -6,7 +6,7 @@ from typing import Dict, List, Optional, Set, Tuple
 from tree_sitter import Parser, Node
 
 # Debug logging setup
-DEBUG_LEVEL = 0  # 0=INFO, 1=DEBUG, 2=TRACE
+DEBUG_LEVEL = 2  # 0=INFO, 1=DEBUG, 2=TRACE
 def setup_logging(level: int):
     if level == 0:
         logging.basicConfig(level=logging.INFO)
@@ -326,6 +326,11 @@ class TypeCollector:
         setup_logging(DEBUG_LEVEL)
         debug("TypeCollector initialized", 1)
 
+    @property
+    def classes(self) -> List[ClassInfo]:
+        """Get all classes that have been collected"""
+        return self._classes
+
     def process_code(self, code: str):
         """Process C++ code directly"""
         debug("Processing code string", 1)
@@ -446,56 +451,51 @@ class TypeCollector:
 
     def _process_class(self, node: Node, content: str, file_path: str):
         """Process a class definition"""
+        debug(f"Processing class node: {node.type}", 2)
+        
         # Get class name
-        name_node = node.child_by_field_name("name")
-        if not name_node:
-            return
-
-        class_name = self._get_node_text(name_node, content)
+        class_name = None
+        for child in node.children:
+            if child.type == "type_identifier":
+                class_name = self._get_node_text(child, content)
+                break
+        
         if not class_name:
+            debug("No class name found", 1)
             return
-
-        debug(f"Processing class: {class_name}", 1)
 
         # Create class info
         class_info = ClassInfo(
             name=class_name,
             type_type=TypeType.CLASS,
             scope=self.registry.current_scope,
-            location=self._get_location(node, file_path),
+            location=self._get_location(node, file_path)
         )
-
+        
         # Process base classes
-        base_classes = []
-        for child in node.children:
-            if child.type == "base_class_clause":
-                debug(f"Processing base classes for {class_name}", 2)
-                for base_child in child.children:
-                    if base_child.type == "type_identifier":
-                        base_name = base_child.text.decode('utf-8')
-                        debug(f"Found base class: {base_name}", 2)
-                        base_classes.append(base_name)
+        base_clause = next((child for child in node.children if child.type == "base_class_clause"), None)
+        if base_clause:
+            for child in base_clause.children:
+                if child.type == "type_identifier":
+                    base_class = self._get_node_text(child, content)
+                    class_info.base_classes.append(base_class)
 
-        # Add base classes to class info
-        class_info.base_classes = base_classes
-        debug(f"Adding type to registry: {class_info.full_name()} with {len(class_info.base_classes)} base classes", 1)
+        # Add to registry and enter scope
         self.registry.add_type(class_info)
-
-        # Add to parent's scopes and enter the new scope
-        if self.registry.current_scope:
-            self.registry.current_scope.scopes.append(class_info)
-            debug(f"Added to parent scope: {self.registry.current_scope.name}", 2)
-
         self.registry.enter_scope(class_info)
+        self._classes.append(class_info)  # Add to classes list
 
         # Process class body
-        declaration_list = node.child_by_field_name("body")
-        if declaration_list:
-            for child in declaration_list.children:
-                if child.type in ["field_declaration", "function_definition", "method_definition"]:
+        body = next((child for child in node.children if child.type == "field_declaration_list"), None)
+        if body:
+            for child in body.children:
+                if child.type in ["field_declaration", "function_definition"]:
                     self._process_declaration(child, content, file_path, class_info)
+                elif child.type == "access_specifier":
+                    specifier = self._get_node_text(child, content).upper()
+                    class_info.access_specifier = AccessSpecifier[specifier]
 
-        # Exit class scope
+        # Exit scope
         self.registry.exit_scope()
 
     def _process_declaration(self, node: Node, content: str, file_path: str, parent_class: Optional[ClassInfo] = None):
@@ -542,6 +542,13 @@ class TypeCollector:
             if parent_class:
                 debug(f"Added method {method_name} to class {parent_class.name} (virtual={method_info.is_virtual}, override={method_info.is_override})", 2)
                 parent_class.methods.append(method_info)
+
+                # Process method body to find function calls
+                body_node = node.child_by_field_name("body")
+                if body_node:
+                    debug(f"Processing method body for {method_name}", 2)
+                    self._process_method_body(body_node, content, file_path, method_info)
+
         elif node.type == "field_declaration":
             self._process_field(node, content, file_path, parent_class)
 
@@ -602,16 +609,6 @@ class TypeCollector:
         if self.registry.current_scope:
             self.registry.current_scope.functions[function_name] = function_info
 
-    def _get_node_text(self, node: Node, content: str) -> str:
-        """Get the text of a node"""
-        if node:
-            text = content[node.start_byte:node.end_byte].strip()
-            # Remove parentheses and parameters for function names
-            if node.type == "function_declarator":
-                text = text.split('(')[0]
-            return text
-        return ""
-
     def _process_call_expression(self, node: Node, content: str, file_path: str, method_info: Optional[MethodInfo] = None):
         """Process a function or method call"""
         if not method_info:
@@ -628,8 +625,39 @@ class TypeCollector:
                         is_constructor=True,
                         location=self._get_location(node, file_path)
                     )
+                    # Get constructor arguments
+                    arguments_node = node.child_by_field_name("arguments")
+                    if arguments_node:
+                        for arg_node in arguments_node.children:
+                            if arg_node.type not in ["(", ")", ",", "argument_list"]:
+                                arg_text = self._get_node_text(arg_node, content)
+                                if arg_text:
+                                    call_info.arguments.append(arg_text)
                     method_info.calls.append(call_info)
-                    logging.debug(f"Found constructor call: {type_name}")
+                    debug(f"Found constructor call (new): {type_name} with args: {call_info.arguments}", 2)
+            return
+
+        # Handle direct constructor calls (e.g. Helper h2(123))
+        if node.type == "declaration":
+            type_node = node.child_by_field_name("type")
+            init_declarator = next((child for child in node.children if child.type == "init_declarator"), None)
+            if type_node and init_declarator:
+                type_name = self._get_node_text(type_node, content)
+                argument_list = next((child for child in init_declarator.children if child.type == "argument_list"), None)
+                if type_name and argument_list:
+                    call_info = FunctionCall(
+                        name=type_name,
+                        is_constructor=True,
+                        location=self._get_location(node, file_path)
+                    )
+                    # Get constructor arguments
+                    for arg_node in argument_list.children:
+                        if arg_node.type not in ["(", ")", ",", "argument_list"]:
+                            arg_text = self._get_node_text(arg_node, content)
+                            if arg_text:
+                                call_info.arguments.append(arg_text)
+                    method_info.calls.append(call_info)
+                    debug(f"Found constructor call (direct): {type_name} with args: {call_info.arguments}", 2)
             return
 
         # Handle normal function/method calls
@@ -637,44 +665,112 @@ class TypeCollector:
         if not function_node:
             return
 
-        # Get function name
-        function_name = self._get_node_text(function_node, content)
+        # Get function name and check if it's a static call
+        function_name = None
+        if function_node.type == "field_expression":
+            field_node = function_node.child_by_field_name("field")
+            if field_node:
+                function_name = self._get_node_text(field_node, content)
+        else:
+            function_name = self._get_node_text(function_node, content)
+
         if not function_name:
             return
+
+        # Handle static method calls (Class::method)
+        is_static = "::" in function_name
+        if is_static:
+            class_name, method_name = function_name.split("::", 1)
+            function_name = method_name
 
         # Create call info
         call_info = FunctionCall(
             name=function_name,
             is_constructor=False,
+            is_static=is_static,
             location=self._get_location(node, file_path)
         )
+
+        # Set object name for static calls
+        if is_static:
+            call_info.object_name = class_name
+
+        # Handle object name for method calls
+        if function_node.type == "field_expression":
+            object_node = function_node.child_by_field_name("argument")
+            operator_node = function_node.child_by_field_name("operator")
+            if object_node:
+                object_name = self._get_node_text(object_node, content)
+                operator = self._get_node_text(operator_node, content) if operator_node else "."
+                # Only include operator for pointer calls
+                if operator == "->":
+                    call_info.object_name = f"{object_name}{operator}"
+                else:
+                    call_info.object_name = object_name
 
         # Process arguments
         arguments_node = node.child_by_field_name("arguments")
         if arguments_node:
             for arg_node in arguments_node.children:
-                if arg_node.type != "," and arg_node.type != "(":
+                if arg_node.type not in ["(", ")", ",", "argument_list"]:
                     arg_text = self._get_node_text(arg_node, content)
                     if arg_text:
                         call_info.arguments.append(arg_text)
 
         method_info.calls.append(call_info)
-        logging.debug(f"Found function call: {function_name}")
+        debug(f"Found function call: {function_name} (static={call_info.is_static}) with args: {call_info.arguments}", 2)
 
     def _process_method_body(self, node: Node, content: str, file_path: str, method_info: MethodInfo):
         """Process a method body to find function calls"""
         if not node:
             return
 
-        # Process call expressions
-        if node.type == "call_expression" or node.type == "new_expression":
-            self._process_call_expression(node, content, file_path, method_info)
+        debug(f"Processing node type: {node.type} text: {content[node.start_byte:node.end_byte]}", 2)
 
-        # Process children recursively
+        # Process node based on its type
+        if node.type == "call_expression":
+            self._process_call_expression(node, content, file_path, method_info)
+            debug(f"Processing call_expression in method body", 2)
+        elif node.type == "new_expression":
+            self._process_call_expression(node, content, file_path, method_info)
+            debug(f"Processing new_expression in method body", 2)
+        elif node.type == "declaration":
+            # Handle constructor calls in declarations (e.g., Helper h2(123))
+            type_node = node.child_by_field_name("type")
+            init_declarator = next((child for child in node.children if child.type == "init_declarator"), None)
+            if type_node and init_declarator:
+                type_name = self._get_node_text(type_node, content)
+                argument_list = next((child for child in init_declarator.children if child.type == "argument_list"), None)
+                if type_name and argument_list:
+                    call_info = FunctionCall(
+                        name=type_name,
+                        is_constructor=True,
+                        location=self._get_location(node, file_path)
+                    )
+                    # Get constructor arguments
+                    for arg_node in argument_list.children:
+                        if arg_node.type not in ["(", ")", ",", "argument_list"]:
+                            arg_text = self._get_node_text(arg_node, content)
+                            if arg_text:
+                                call_info.arguments.append(arg_text)
+                    method_info.calls.append(call_info)
+                    debug(f"Found constructor call (direct): {type_name} with args: {call_info.arguments}", 2)
+
+        # Process children recursively, skipping comments
         for child in node.children:
-            if child.type == "comment":
-                continue
-            self._process_method_body(child, content, file_path, method_info)
+            if child.type != "comment":
+                debug(f"Child node type: {child.type}", 2)
+                self._process_method_body(child, content, file_path, method_info)
+
+    def _get_node_text(self, node: Node, content: str) -> str:
+        """Get the text of a node"""
+        if node:
+            text = content[node.start_byte:node.end_byte].strip()
+            # Remove parentheses and parameters for function names
+            if node.type == "function_declarator":
+                text = text.split('(')[0]
+            return text
+        return ""
 
     def _get_location(self, node: Node, file_path: str = "<unknown>") -> Location:
         """Get the location of a node"""

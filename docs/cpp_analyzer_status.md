@@ -16,6 +16,7 @@ A static code analysis system for tracking function and class dependencies acros
 - ✅ Virtual method detection
 - ✅ Override specifier support
 - ✅ Location tracking
+- ✅ Method resolution improvements
 
 ### In Progress
 - 🔄 Function call tracking
@@ -34,35 +35,29 @@ A static code analysis system for tracking function and class dependencies acros
 
 ## Test Status
 
-### Passing Tests (6/9)
+### Passing Tests (7/9)
 - ✅ test_basic_types
 - ✅ test_class_in_namespace
 - ✅ test_class_processing
 - ✅ test_location_tracking
 - ✅ test_namespace_processing
 - ✅ test_scope_names
+- ✅ test_method_resolution
 
-### Failing Tests (3/9)
-1. ❌ test_method_resolution
-   - Issue: Class attribute access
-   - Error: Missing 'classes' attribute
-   - Priority: High
-   - Fix: Simple attribute error, should be quick to resolve
-   - Next steps: Add classes property to TypeCollector
-
-2. ❌ test_cross_file_dependencies
+### Failing Tests (2/9)
+1. ❌ test_cross_file_dependencies
    - Issue: Header file paths not being stored correctly
    - Error: Absolute path not found in includes list
-   - Priority: Medium
+   - Priority: High
    - Example: 'helper.h' vs '/tmp/tmpe_h014r8/helper.h'
    - Next steps: Implement proper path resolution
 
-3. ❌ test_function_calls
-   - Issue: Function calls not being tracked
-   - Error: No calls being recorded (0 vs expected 4)
-   - Priority: Low
+2. ❌ test_function_calls
+   - Issue: Function calls not being tracked correctly
+   - Error: Missing constructor call (3 vs expected 4)
+   - Priority: Medium
    - Complex issue involving template handling
-   - Next steps: Implement call tracking system
+   - Next steps: Implement template method call tracking
 
 ## Key Files
 
@@ -74,7 +69,7 @@ A static code analysis system for tracking function and class dependencies acros
 
 ### Test Suite
 - `tests/test_cpp_type_analyzer.py`: Test suite
-  - Status: 6 passing, 3 failing
+  - Status: 7 passing, 2 failing
   - Coverage: Basic types, namespaces, classes, inheritance
 
 ### Planned Files
@@ -86,12 +81,11 @@ A static code analysis system for tracking function and class dependencies acros
 ## Current Issues
 
 ### 1. Function Call Tracking
-- **Issue**: Function calls not being recorded
-- **Error**: `AssertionError: 0 != 4` in call count check
+- **Issue**: Function calls not being recorded correctly
+- **Error**: `AssertionError: 3 != 4` in call count check
 - **Files**: `_process_declaration` in cpp_type_analyzer.py
 - **Fix Needed**: 
-  - Implement function call tracking in method bodies
-  - Add support for constructor calls
+  - Implement template method call tracking
   - Handle virtual function calls
 
 ### 2. Cross-File Dependencies
@@ -102,30 +96,24 @@ A static code analysis system for tracking function and class dependencies acros
   - Store absolute paths for included files
   - Implement proper header resolution
 
-### 3. Location Tracking
-- **Issue**: Location information missing for some nodes
-- **Error**: `AttributeError: 'NoneType' object has no attribute 'start'`
-- **Files**: Various methods in cpp_type_analyzer.py
-- **Fix Needed**:
-  - Add location tracking to all node processors
-  - Implement consistent location storage
-  - **Fixed**: Location tracking for namespaces and classes, converted line numbers from 0-based to 1-based indexing
+## Recent Progress
+
+### Method Resolution Improvements ✅
+- Fixed pointer method call tracking (`->` operator)
+- Improved static method call handling (`::` operator)
+- Enhanced constructor call detection
+- Separated class name from method name in static calls
+- Added proper argument processing for all call types
+- Fixed object name handling for different call styles:
+  * Pointer calls (e.g., `helper->method()`)
+  * Static calls (e.g., `Class::method()`)
+  * Instance calls (e.g., `obj.method()`)
 
 ## Next Steps
 
-1. Implement Function Call Tracking
-   - Add call tracking to function bodies
-   - Handle constructor and virtual calls
-   - Add method resolution
-
-2. Fix Cross-File Dependencies
-   - Fix include path handling
-   - Add header file resolution
-   - Track dependencies across files
-
-3. Improve Method Resolution
-   - Implement proper method lookup
-   - Handle overloaded methods
+1. Fix cross-file dependencies (header path resolution)
+2. Implement template method call tracking
+3. Complete function call tracking system
 
 ## Development Strategy
 - Continue test-driven development approach
