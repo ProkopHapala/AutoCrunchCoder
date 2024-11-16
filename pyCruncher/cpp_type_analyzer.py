@@ -199,10 +199,21 @@ class NamespaceInfo(TypeInfo):
     """Information about a C++ namespace"""
     pass
 
-@dataclass
-class ClassInfo(TypeInfo):
-    """Information about a C++ class"""
-    access_specifier: AccessSpecifier = AccessSpecifier.PRIVATE
+class ClassInfo(TypeInfo, Scope):
+    """Information about a class"""
+    def __init__(self, name: str, type_type: TypeType, scope: Optional[Scope] = None, location: Optional[Location] = None):
+        TypeInfo.__init__(self, name=name, type_type=type_type, scope=scope)
+        Scope.__init__(self, type=ScopeType.CLASS, name=name, parent=scope, location=location)
+        self.fields: List[VariableInfo] = []
+        self.methods: List[MethodInfo] = []
+        self.base_classes: List[str] = []
+        self.access_specifier = AccessSpecifier.PRIVATE
+
+    def full_name(self) -> str:
+        """Get the fully qualified name of the class"""
+        if self.parent:
+            return f"{self.parent.get_full_name()}::{self.name}"
+        return self.name
 
 class TypeRegistry:
     """Registry of all types and scopes"""
@@ -417,6 +428,7 @@ class TypeCollector:
             name=namespace_name,
             parent=self.registry.current_scope
         )
+        namespace_scope.location = self._get_location(node, file_path)
         debug(f"Added to parent scope: {self.registry.current_scope.name if self.registry.current_scope else 'None'}", 2)
 
         # Add to parent's scopes and enter the new scope
@@ -435,29 +447,22 @@ class TypeCollector:
     def _process_class(self, node: Node, content: str, file_path: str):
         """Process a class definition"""
         # Get class name
-        class_name = None
-        for child in node.children:
-            if child.type == "type_identifier":
-                class_name = child.text.decode('utf-8')
-                break
+        name_node = node.child_by_field_name("name")
+        if not name_node:
+            return
 
+        class_name = self._get_node_text(name_node, content)
         if not class_name:
             return
 
         debug(f"Processing class: {class_name}", 1)
 
-        # Create class scope
-        class_scope = Scope(
-            type=ScopeType.CLASS,
-            name=class_name,
-            parent=self.registry.current_scope
-        )
-
         # Create class info
         class_info = ClassInfo(
             name=class_name,
             type_type=TypeType.CLASS,
-            scope=self.registry.current_scope
+            scope=self.registry.current_scope,
+            location=self._get_location(node, file_path),
         )
 
         # Process base classes
@@ -478,10 +483,10 @@ class TypeCollector:
 
         # Add to parent's scopes and enter the new scope
         if self.registry.current_scope:
-            self.registry.current_scope.scopes.append(class_scope)
+            self.registry.current_scope.scopes.append(class_info)
             debug(f"Added to parent scope: {self.registry.current_scope.name}", 2)
 
-        self.registry.enter_scope(class_scope)
+        self.registry.enter_scope(class_info)
 
         # Process class body
         declaration_list = node.child_by_field_name("body")
@@ -675,6 +680,6 @@ class TypeCollector:
         """Get the location of a node"""
         return Location(
             file_path=file_path,
-            start_point=node.start_point,
-            end_point=node.end_point
+            start_point=(node.start_point[0] + 1, node.start_point[1]),
+            end_point=(node.end_point[0] + 1, node.end_point[1])
         )

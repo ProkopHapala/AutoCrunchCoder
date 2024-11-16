@@ -3,11 +3,65 @@
 ## Overview
 This document outlines the test-driven development plan for implementing remaining features in the C++ analyzer.
 
+## Test Development Guidelines
+
+### Critical Development Rules
+
+1. **One Test at a Time**
+   - ALWAYS focus on fixing one failing test at a time
+   - Do not move on to other tests until the current test is passing
+   - If multiple tests are failing, pick the simplest one first
+
+2. **Code Preservation**
+   - When possible, void modify working code that has already passed tests
+   - When modifying functionality, prefer to create new versions of functions with different names
+   - Only replace old functions with new versions after thorough testing and after the test passed
+
+3. **Incremental Changes**
+   - Make small, focused changes
+   - Test after each change
+   - If a change causes other tests to fail, immediately revert it
+
+4. **Version Control**
+   - Create checkpoints of working code
+   - Roll back to last working version if multiple tests start failing
+   - Document which tests were passing at each checkpoint
+
 ## Testing Strategy
 1. Each issue will be addressed individually with dedicated test cases
 2. High verbosity logging will be enabled only for failing tests
 3. Debug prints will be strategically placed to understand failures
 4. Tests will be implemented in order of dependency (simpler features first)
+
+### Focused Test-Driven Development
+
+1. **Focus on One Test at a Time**
+   - Run only the specific test you're working on using the following format:
+   ```bash
+   python3 -m pytest tests/test_cpp_type_analyzer.py::TestTypeCollector::<test_name> -v
+   ```
+   - Example for location tracking:
+   ```bash
+   python3 -m pytest tests/test_cpp_type_analyzer.py::TestTypeCollector::test_location_tracking -v
+   ```
+
+2. **Development Cycle**
+   - Choose one failing test to focus on
+   - Run only that specific test
+   - Make minimal changes needed to fix the test
+   - Verify the test passes
+   - Commit the changes after the failing test is corrected and passes
+   - Only then move on to the next failing test
+
+3. **Benefits of This Approach**
+   - Reduces confusion by focusing on one issue at a time
+   - Prevents unintended side effects
+   - Makes debugging easier
+   - Ensures clear understanding of each test's requirements
+   - reduces runtime and lenght of the debugging output (log) which can be otherwise overwhelming and hard to read
+   - Maintains code quality through incremental improvements
+
+### Test Categories
 
 ## Current Test Status (6/10 Passing)
 

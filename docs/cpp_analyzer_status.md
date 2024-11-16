@@ -15,16 +15,13 @@ A static code analysis system for tracking function and class dependencies acros
 - ✅ Base class detection and inheritance tracking
 - ✅ Virtual method detection
 - ✅ Override specifier support
+- ✅ Location tracking
 
 ### In Progress
 - 🔄 Function call tracking
   - Issue: Need to capture and track function calls across classes
   - Next: Implement function call graph construction
   - See [Function Call Tracking Improvements](function_call_tracking_improvements.md) for detailed analysis
-
-- 🔄 Location tracking
-  - Issue: Location information not being stored for some nodes
-  - Next: Implement consistent location tracking across all node types
 
 - 🔄 Cross-file dependencies
   - Issue: Include paths not being stored correctly
@@ -37,15 +34,16 @@ A static code analysis system for tracking function and class dependencies acros
 
 ## Test Status
 
-### Passing Tests (6/10)
+### Passing Tests (7/10)
 - ✅ test_base_class_processing
 - ✅ test_basic_types
 - ✅ test_class_in_namespace
 - ✅ test_class_processing
+- ✅ test_location_tracking
 - ✅ test_namespace_processing
 - ✅ test_scope_names
 
-### Failing Tests (4/10)
+### Failing Tests (3/10)
 1. ❌ test_cross_file_dependencies
    - Issue: Header file paths not being stored correctly
    - Error: Header path stored as relative instead of absolute
@@ -54,11 +52,7 @@ A static code analysis system for tracking function and class dependencies acros
    - Issue: Function calls not being tracked
    - Error: No calls being recorded (0 vs expected 4)
 
-3. ❌ test_location_tracking
-   - Issue: Location information missing
-   - Error: Location attribute is None
-
-4. ❌ test_method_resolution
+3. ❌ test_method_resolution
    - Issue: Class attribute access
    - Error: Missing 'classes' attribute
 
@@ -67,12 +61,12 @@ A static code analysis system for tracking function and class dependencies acros
 ### Core Implementation
 - `pyCruncher/cpp_type_analyzer.py`: Main analyzer implementation
   - Contains: TypeCollector, TypeRegistry, and type information classes
-  - Recent Changes: Fixed base class detection and method override tracking
+  - Recent Changes: Fixed base class detection and method override tracking, improved location tracking
   - Status: Base functionality working, need to add function call tracking
 
 ### Test Suite
 - `tests/test_cpp_type_analyzer.py`: Test suite
-  - Status: 6 passing, 4 failing
+  - Status: 7 passing, 3 failing
   - Coverage: Basic types, namespaces, classes, inheritance
 
 ### Planned Files
@@ -92,21 +86,22 @@ A static code analysis system for tracking function and class dependencies acros
   - Add support for constructor calls
   - Handle virtual function calls
 
-### 2. Location Tracking
-- **Issue**: Location information missing for some nodes
-- **Error**: `AttributeError: 'NoneType' object has no attribute 'start'`
-- **Files**: Various methods in cpp_type_analyzer.py
-- **Fix Needed**:
-  - Add location tracking to all node processors
-  - Implement consistent location storage
-
-### 3. Cross-File Dependencies
+### 2. Cross-File Dependencies
 - **Issue**: Include paths stored as relative
 - **Error**: Absolute path not found in includes list
 - **Files**: File processing in cpp_type_analyzer.py
 - **Fix Needed**:
   - Store absolute paths for included files
   - Implement proper header resolution
+
+### 3. Location Tracking
+- **Issue**: Location information missing for some nodes
+- **Error**: `AttributeError: 'NoneType' object has no attribute 'start'`
+- **Files**: Various methods in cpp_type_analyzer.py
+- **Fix Needed**:
+  - Add location tracking to all node processors
+  - Implement consistent location storage
+  - **Fixed**: Location tracking for namespaces and classes, converted line numbers from 0-based to 1-based indexing
 
 ## Next Steps
 
@@ -115,15 +110,14 @@ A static code analysis system for tracking function and class dependencies acros
    - Handle constructor and virtual calls
    - Add method resolution
 
-2. Fix Location Tracking
-   - Implement basic location tracking
-   - Fix point adjustment logic
-   - Add location info to all node types
-
-3. Improve Cross-File Dependencies
+2. Fix Cross-File Dependencies
    - Fix include path handling
    - Add header file resolution
    - Track dependencies across files
+
+3. Improve Method Resolution
+   - Implement proper method lookup
+   - Handle overloaded methods
 
 ## Development Strategy
 - Continue test-driven development approach
