@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from enum import Enum, auto
 from typing import Dict, List, Optional, Set, Tuple
 from tree_sitter import Parser, Node
+from pathlib import Path
 
 # Debug logging setup
 DEBUG_LEVEL = 2  # 0=INFO, 1=DEBUG, 2=TRACE
@@ -112,16 +113,42 @@ class TypeRegistry:
         self.scope_stack: List[Scope] = []
         self.current_scope: Optional[Scope] = None
         self.files: Dict[str, str] = {}  # file_path -> module_name mapping
+        self.imports: Dict[str, Dict[str, Optional[str]]] = {}  # file_path -> {module_name -> alias}
+        self.functions: Dict[str, FunctionInfo] = {}  # function_name -> FunctionInfo
 
     def add_type(self, type_info: ClassInfo):
         """Add a type to the registry"""
         debug(f"Adding type {type_info.name} with full name {type_info.full_name()}", 2)
-        self.types[type_info.name] = type_info  # Use simple name as key
+        self.types[type_info.name] = type_info
 
     def get_type(self, name: str) -> Optional[ClassInfo]:
         """Get a type by name"""
         debug(f"Getting type {name}", 2)
-        return self.types.get(name)  # Use simple name as key
+        return self.types.get(name)
+
+    def add_function(self, func_info: FunctionInfo):
+        """Add a function to the registry"""
+        debug(f"Adding function {func_info.name}", 2)
+        self.functions[func_info.name] = func_info
+
+    def get_function(self, name: str) -> Optional[FunctionInfo]:
+        """Get a function by name"""
+        return self.functions.get(name)
+
+    def add_import(self, file_path: str, module_name: str, alias: Optional[str] = None):
+        """Add an import to the registry"""
+        debug(f"Adding import {module_name} (alias: {alias}) to {file_path}", 1)
+        # Use Path.name to get just the filename
+        filename = Path(file_path).name
+        if filename not in self.imports:
+            self.imports[filename] = {}
+        self.imports[filename][module_name] = alias
+
+    def get_imports(self, file_path: str) -> Optional[Dict[str, Optional[str]]]:
+        """Get imports for a file"""
+        # Use Path.name to get just the filename
+        filename = Path(file_path).name
+        return self.imports.get(filename)
 
     def get_scope(self, name: str) -> Optional[Scope]:
         """Get a scope by name"""
@@ -166,17 +193,35 @@ class TypeCollector:
 
     def process_file(self, file_path: str):
         """Process a Python source file"""
+        debug(f"Processing file: {file_path}", 1)
         with open(file_path, 'r') as f:
             content = f.read()
-        self.process_code(content, file_path)
+        tree = self.parser.parse(bytes(content, "utf8"))
+        debug(f"AST root type: {tree.root_node.type}", 2)
+        # Use Path.name to get just the filename
+        filename = Path(file_path).name
+        self._process_node(tree.root_node, content, filename)
 
     def _process_node(self, node: Node, content: str, file_path: str):
         """Process a node in the AST"""
         debug(f"Processing node type: {node.type}", 2)
+        debug(f"Node structure: {node.sexp()}", 2)  # Print S-expression of node
         
         if node.type == "module":
             for child in node.children:
+                debug(f"Processing module child: {child.type} with text: {self._get_node_text(child, content)}", 2)
+                debug(f"Child structure: {child.sexp()}", 2)  # Print S-expression of child node
                 self._process_node(child, content, file_path)
+        
+        elif node.type == "import_statement":
+            debug(f"Found import statement in {file_path}: {self._get_node_text(node, content)}", 1)
+            debug(f"Import statement structure: {node.sexp()}", 2)  # Print S-expression of import node
+            self._process_import(node, content, file_path)
+        
+        elif node.type == "import_from_statement":
+            debug(f"Found from import statement in {file_path}: {self._get_node_text(node, content)}", 1)
+            debug(f"From import statement structure: {node.sexp()}", 2)  # Print S-expression of from import node
+            self._process_from_import(node, content, file_path)
         
         elif node.type == "class_definition":
             self._process_class(node, content, file_path)
@@ -191,6 +236,73 @@ class TypeCollector:
                 # Skip processing as method - it will be handled by _process_class
                 return
             self._process_function(node, content, file_path)
+
+    def _process_import(self, node: Node, content: str, file_path: str):
+        """Process an import statement"""
+        debug(f"Processing import statement: {self._get_node_text(node, content)}", 2)
+        debug(f"Import node structure: {node.sexp()}", 2)
+        
+        # Find all import names (handles multiple imports in one statement)
+        for import_node in node.children:
+            if import_node.type == "aliased_import":
+                # Handle "import module as alias"
+                name_node = import_node.child_by_field_name("name")
+                alias_node = import_node.child_by_field_name("alias")
+                if name_node:
+                    module_name = self._get_node_text(name_node, content)
+                    alias = self._get_node_text(alias_node, content) if alias_node else None
+                    debug(f"Found aliased import {module_name} as {alias}", 1)
+                    self.registry.add_import(file_path, module_name, alias)
+            elif import_node.type == "dotted_name":
+                # Handle "import module"
+                module_name = self._get_node_text(import_node, content)
+                alias = None
+                
+                # Check for "as alias" after the dotted name
+                next_node = import_node.next_sibling
+                if next_node and next_node.type == "as":
+                    alias_node = next_node.next_sibling
+                    if alias_node and alias_node.type == "identifier":
+                        alias = self._get_node_text(alias_node, content)
+                
+                debug(f"Found import {module_name} with alias {alias}", 1)
+                self.registry.add_import(file_path, module_name, alias)
+
+    def _process_from_import(self, node: Node, content: str, file_path: str):
+        """Process a from import statement"""
+        debug(f"Processing from import statement: {self._get_node_text(node, content)}", 2)
+        debug(f"From import node structure: {node.sexp()}", 2)
+        
+        # Get module name
+        module_node = node.child_by_field_name("module_name")
+        if not module_node:
+            debug(f"No module_name found in from import", 1)
+            return
+        
+        module_name = self._get_node_text(module_node, content)
+        debug(f"Found module name: {module_name}", 2)
+        
+        # Process imported names
+        for import_node in node.children:
+            if import_node.type == "aliased_import":
+                # Handle "from module import name as alias"
+                name_node = import_node.child_by_field_name("name")
+                alias_node = import_node.child_by_field_name("alias")
+                if name_node:
+                    name = self._get_node_text(name_node, content)
+                    alias = self._get_node_text(alias_node, content) if alias_node else None
+                    debug(f"Found aliased from import {name} as {alias} from {module_name}", 1)
+                    self.registry.add_import(file_path, name, alias)
+            elif import_node.type == "identifier":
+                # Handle "from module import name"
+                name = self._get_node_text(import_node, content)
+                debug(f"Found from import {name} from {module_name}", 1)
+                self.registry.add_import(file_path, name, None)
+            elif import_node.type == "dotted_name":
+                # Handle "from module import submodule"
+                name = self._get_node_text(import_node, content)
+                debug(f"Found from import {name} from {module_name}", 1)
+                self.registry.add_import(file_path, name, None)
 
     def _process_class(self, node: Node, content: str, file_path: str):
         """Process a class definition"""
@@ -263,6 +375,7 @@ class TypeCollector:
         # Add function to current scope
         if self.registry.current_scope:
             self.registry.current_scope.functions[func_name] = func_info
+        self.registry.add_function(func_info)
 
     def _process_method(self, node: Node, content: str, file_path: str, class_info: ClassInfo):
         """Process a method definition"""
