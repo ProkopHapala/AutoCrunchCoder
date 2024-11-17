@@ -355,5 +355,260 @@ class TestTypeCollector(unittest.TestCase):
         self.assertEqual(instance_call.arguments[0], "456")
         self.assertEqual(instance_call.arguments[1], "7.89f")
 
+    def test_basic_method_call(self):
+        """Test basic method call tracking"""
+        code = """
+        class Helper {
+        public:
+            void helper_method() {}
+        };
+        
+        class MyClass {
+            void method() {
+                Helper h;
+                h.helper_method();
+            }
+        };
+        """
+        self.collector.process_code(code)
+        my_class = self.collector.registry.get_type("MyClass")
+        method = next(m for m in my_class.methods if m.name == "method")
+        
+        # Should have 2 calls: constructor and method
+        self.assertEqual(len(method.calls), 2)
+        
+        # Check constructor call
+        constructor_call = next(c for c in method.calls if c.is_constructor)
+        self.assertEqual(constructor_call.name, "Helper")
+        self.assertTrue(constructor_call.is_constructor)
+        
+        # Check method call
+        method_call = next(c for c in method.calls if not c.is_constructor)
+        self.assertEqual(method_call.name, "helper_method")
+        self.assertEqual(method_call.object, "h")
+        self.assertEqual(method_call.arguments, [])
+
+    def test_template_method_call(self):
+        """Test template method call tracking"""
+        code = """
+        template<typename T>
+        class Helper {
+        public:
+            T template_method() {}
+        };
+        
+        class MyClass {
+            void method() {
+                Helper<int> h;
+                h.template_method<float>();
+            }
+        };
+        """
+        self.collector.process_code(code)
+        my_class = self.collector.registry.get_type("MyClass")
+        method = next(m for m in my_class.methods if m.name == "method")
+        
+        # Check template method call
+        template_call = next(c for c in method.calls if not c.is_constructor)
+        self.assertEqual(template_call.name, "template_method")
+        self.assertEqual(template_call.object, "h")
+        self.assertEqual(template_call.template_args, ["float"])
+
+    def test_static_method_call(self):
+        """Test static method call tracking"""
+        code = """
+        class Helper {
+        public:
+            static void static_method(const std::string& msg) {}
+        };
+        
+        class MyClass {
+            void method() {
+                Helper::static_method("test");
+            }
+        };
+        """
+        self.collector.process_code(code)
+        my_class = self.collector.registry.get_type("MyClass")
+        method = next(m for m in my_class.methods if m.name == "method")
+        
+        # Check static method call
+        static_call = next(c for c in method.calls if c.is_static)
+        self.assertEqual(static_call.name, "static_method")
+        self.assertEqual(static_call.arguments, ["\"test\""])
+        self.assertTrue(static_call.is_static)
+
+    def test_pointer_method_call(self):
+        """Test method call through pointer"""
+        code = """
+        class Helper {
+        public:
+            void helper_method(int x, float y) {}
+        };
+        
+        class MyClass {
+            Helper* helper;
+            void method() {
+                helper->helper_method(42, 3.14f);
+            }
+        };
+        """
+        self.collector.process_code(code)
+        my_class = self.collector.registry.get_type("MyClass")
+        method = next(m for m in my_class.methods if m.name == "method")
+        
+        # Check pointer method call
+        pointer_call = next(c for c in method.calls if "->" in c.object)
+        self.assertEqual(pointer_call.name, "helper_method")
+        self.assertEqual(pointer_call.object, "helper->")
+        self.assertEqual(pointer_call.arguments, ["42", "3.14f"])
+
+    def test_template_method_name_parsing(self):
+        """Test parsing template method name without template arguments"""
+        code = """
+        template<typename T>
+        class Helper {
+        public:
+            T template_method() {}
+        };
+        
+        class MyClass {
+            void method() {
+                Helper<int> h;
+                h.template_method();  // No template args in call
+            }
+        };
+        """
+        self.collector.process_code(code)
+        my_class = self.collector.registry.get_type("MyClass")
+        method = next(m for m in my_class.methods if m.name == "method")
+        
+        method_call = next(c for c in method.calls if not c.is_constructor)
+        self.assertEqual(method_call.name, "template_method")
+        self.assertEqual(method_call.template_args, [])
+
+    def test_template_method_with_args_parsing(self):
+        """Test parsing template method name with template arguments"""
+        code = """
+        template<typename T>
+        class Helper {
+        public:
+            template<typename U>
+            U template_method() {}
+        };
+        
+        class MyClass {
+            void method() {
+                Helper<int> h;
+                h.template_method<float>();
+            }
+        };
+        """
+        self.collector.process_code(code)
+        my_class = self.collector.registry.get_type("MyClass")
+        method = next(m for m in my_class.methods if m.name == "method")
+        
+        method_call = next(c for c in method.calls if not c.is_constructor)
+        self.assertEqual(method_call.name, "template_method")
+        self.assertEqual(method_call.template_args, ["float"])
+
+    def test_static_method_name_parsing(self):
+        """Test parsing static method name without class scope"""
+        code = """
+        class Helper {
+        public:
+            static void static_method() {}
+        };
+        
+        class MyClass {
+            void method() {
+                Helper::static_method();
+            }
+        };
+        """
+        self.collector.process_code(code)
+        my_class = self.collector.registry.get_type("MyClass")
+        method = next(m for m in my_class.methods if m.name == "method")
+        
+        static_call = next(c for c in method.calls if c.is_static)
+        self.assertEqual(static_call.name, "static_method")
+        self.assertEqual(static_call.class_scope, "Helper")
+
+    def test_static_method_with_namespace_parsing(self):
+        """Test parsing static method name with namespace and class scope"""
+        code = """
+        namespace ns {
+            class Helper {
+            public:
+                static void static_method() {}
+            };
+        }
+        
+        class MyClass {
+            void method() {
+                ns::Helper::static_method();
+            }
+        };
+        """
+        self.collector.process_code(code)
+        my_class = self.collector.registry.get_type("MyClass")
+        method = next(m for m in my_class.methods if m.name == "method")
+        
+        static_call = next(c for c in method.calls if c.is_static)
+        self.assertEqual(static_call.name, "static_method")
+        self.assertEqual(static_call.class_scope, "ns::Helper")
+
+    def test_node_text_extraction(self):
+        """Test basic node text extraction"""
+        code = """
+        class MyClass {
+            void method() {}
+        };
+        """
+        # Get the AST root node
+        tree = self.collector.parser.parse(bytes(code, "utf8"))
+        root = tree.root_node
+        
+        print("\nRoot node type:", root.type)
+        for node in root.children:
+            print(f"Child node type: {node.type}")
+            if node.type == "class_specifier":
+                print("\nClass node children:")
+                for child in node.children:
+                    print(f"  Child type: {child.type}")
+                    if hasattr(child, 'text'):
+                        print(f"  Child text: {child.text.decode('utf8')}")
+        
+        # Find the class node
+        class_node = None
+        for node in root.children:
+            if node.type == "class_specifier":
+                class_node = node
+                break
+        
+        self.assertIsNotNone(class_node, "Failed to find class node")
+        
+        # Find the method node in the class body
+        method_node = None
+        class_body = class_node.child_by_field_name("body")
+        if class_body:
+            for node in class_body.children:
+                print(f"Body child type: {node.type}")
+                if node.type == "function_definition":
+                    method_node = node
+                    break
+        
+        self.assertIsNotNone(method_node, "Failed to find method node")
+        
+        # Test node text extraction
+        method_name = self.collector._extract_node_text(
+            method_node.child_by_field_name("declarator"),
+            code
+        )
+        self.assertEqual(method_name, "method")
+        
+        # Test with None node
+        self.assertIsNone(self.collector._extract_node_text(None, code))
+
 if __name__ == '__main__':
     unittest.main()
