@@ -40,22 +40,22 @@ def test_agent_hierarchy(collector):
     
     # Test derived classes
     derived_agents = {
-        "AgentAnthropic.py": "AnthropicAgent",
-        "AgentDeepSeek.py": "AgentDeepSeek",
-        "AgentGoogle.py": "AgentGoogle",
-        "AgentOpenAI.py": "AgentOpenAI"
+        "AgentAnthropic.py": ("AnthropicAgent", "Agent"),
+        "AgentDeepSeek.py": ("AgentDeepSeek", "AgentOpenAI"),
+        "AgentGoogle.py": ("AgentGoogle", "Agent"),
+        "AgentOpenAI.py": ("AgentOpenAI", "Agent")
     }
     
-    for file_name, class_name in derived_agents.items():
+    for file_name, (class_name, parent_class) in derived_agents.items():
         agent_class = collector.registry.get_class(class_name)
         assert agent_class is not None, f"{class_name} class not found in {file_name}"
-        # TODO: Once inheritance tracking is implemented:
-        # assert "Agent" in agent_class.base_classes, f"{class_name} should inherit from Agent"
+        # Now that inheritance tracking is implemented, we can test it:
+        assert parent_class in agent_class.base_classes, f"{class_name} should inherit from {parent_class}"
     
     # Print class information for manual verification
     print("\nAgent Class Hierarchy Analysis:")
     print_class_info(collector, "Agent")
-    for _, class_name in derived_agents.items():
+    for _, class_name in derived_agents.values():
         print_class_info(collector, class_name)
 
 def print_class_info(collector, class_name):

@@ -28,6 +28,29 @@ The Python Dependency Graph Analyzer is a tool for analyzing Python codebases to
 - `Scope`: Manages code scope hierarchy (global, class, function, method)
 - `Location`: Tracks source code locations
 
+## Test Coverage
+
+### Core Functionality Tests
+Located in `tests/test_python_type_analyzer.py`:
+- ✅ Basic function definition detection
+- ✅ Basic class definition detection
+- ✅ Function call tracking
+- ✅ Method call tracking
+- ✅ Cross-file dependencies
+
+### Import Resolution Tests
+Located in `tests/test_python_imports.py`:
+- ✅ Basic imports (`import x`)
+- ✅ From imports (`from x import y`)
+- ✅ Aliased imports (`import x as y`)
+
+### Class Hierarchy Tests
+Located in `tests/test_agent_analysis.py`:
+- ✅ Base class detection
+- ✅ Direct inheritance relationships
+- ✅ Multi-level inheritance (through intermediate classes)
+- ✅ Import resolution in inheritance
+
 ## Current Features
 
 ### Import Analysis (Complete)
