@@ -15,6 +15,9 @@ with open(fname, 'r') as f: content = f.read()
 content   = scpp.COMMENT_PATTERN.sub('', content)
 #functions = scpp.analyze_scopes_and_functions(content, True)
 functions = scpp.analyze_scopes_and_functions(content, False)
+variables = scpp.analyze_scopes_and_variables(content, True)
+inheritances = scpp.analyze_inheritance(content, True)
+includes = scpp.analyze_includes(content, True)
 print(f"\n ============ Functions in {fname} \n ")
 for f in functions:
     #print()
@@ -22,3 +25,18 @@ for f in functions:
     #print(f"{f['return_type']} {f['name']}({f['args']})")
     #print(f"{f['scope']}::{f['return_type']} {f['name']}({f['args']})")
     scpp.print_function_header( f )
+print("\n ============ Variables in {fname} \n ")
+for v in variables:
+    scpp.print_variable_declaration(v)
+print("\n ============ Inheritance =========== \n")
+for inh in inheritances:
+    print(f"Class {inh['class']} inherits from: {', '.join(inh['parents'])}")
+
+print("\n ============ Includes =========== \n")
+for inc in includes:
+    print(f"#include {inc}")
+
+#scpp.generate_markdown_documentation( fname.split("/")[-1], includes, functions, variables, inheritances, saveToFile=fname+".md", desc_str ="" )
+
+scpp.generate_markdown_documentation( fname.split("/")[-1], includes, functions, variables, inheritances, saveToFile=fname+".md", desc_str ="",
+show_args=False, show_return_type=False, show_scope=False,           show_var_type=False, var_type_after_name=False )
