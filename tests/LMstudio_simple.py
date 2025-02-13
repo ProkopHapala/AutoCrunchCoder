@@ -21,6 +21,9 @@ models={
 "codestral"     : "lmstudio-community/Codestral-22B-v0.1-GGUF/Codestral-22B-v0.1-Q4_K_M.gguf",
 "mathstral"     : "lmstudio-community/mathstral-7B-v0.1-GGUF/mathstral-7B-v0.1-Q4_K_M.gguf",
 "Qwen2_500M"    : "Qwen/Qwen2-0.5B-Instruct-GGUF/qwen2-0_5b-instruct-q4_0.gguf",
+"Qwen2.5-7B-1M" : "qwen2.5-7b-instruct-1m",
+"phi-4"         : "phi-4-GGUF/phi-4-Q4_K_M.gguf",
+
 "deepseek2"     : "lmstudio-community/DeepSeek-Coder-V2-Lite-Instruct-GGUF/DeepSeek-Coder-V2-Lite-Instruct-Q4_K_M.gguf",
 "Llama3.1"      : "lmstudio-community/Meta-Llama-3.1-8B-Instruct-GGUF/Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf",
 "Qwen2-Math"    : "lmstudio-community/Qwen2-Math-1.5B-Instruct-GGUF/Qwen2-Math-1.5B-Instruct-Q4_K_M.gguf",

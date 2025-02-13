@@ -179,6 +179,10 @@ api_key_var   = "any"
 provider      = "LMStudio"
 api_lib       = "openai"
 
-
-
-
+[fzu-qwen2_7b_1m]
+model_name    = "lmstudio-community/DeepSeek-Coder-V2-Lite-Instruct-GGUF/DeepSeek-Coder-V2-Lite-Instruct-Q4_K_M.gguf"
+base_url      = "http://10.26.201.142:1234/v1"
+contextLength =  32768
+api_key_var   = "any"
+provider      = "LMStudio"
+api_lib       = "openai"

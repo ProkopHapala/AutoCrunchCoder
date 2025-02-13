@@ -1,0 +1,10 @@
+/home/prokop/git/FireCore/cpp/common/molecular/Atoms.h
+/home/prokop/git/FireCore/cpp/common/molecular/ForceField.h
+/home/prokop/git/FireCore/cpp/common/molecular/NBFF.h
+
+/home/prokop/git/FireCore/cpp/common/molecular/MMFFsp3_loc.h
+/home/prokop/git/FireCore/cpp/common/molecular/UFF.h
+
+/home/prokop/git/FireCore/cpp/common/molecular/GridFF.h
+/home/prokop/git/FireCore/cpp/common/molecular/EwaldGrid.h
+/home/prokop/git/FireCore/cpp/common/molecular/MolWorld_sp3.h

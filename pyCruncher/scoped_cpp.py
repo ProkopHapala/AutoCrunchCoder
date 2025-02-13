@@ -28,6 +28,7 @@ def print_function_header( fh ):
         print(f"{fh['return_type']} {fh['name']}({fh['args']})")
 
 def analyze_scopes_and_functions(content, bPrint=False ):
+    # TODO: we should list all function-calls from each function, to be able to reconstruct the call graph ( dependency graph )
     scope_stack = []
     functions = []
     

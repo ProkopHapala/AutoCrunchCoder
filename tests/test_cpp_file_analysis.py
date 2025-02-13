@@ -25,13 +25,14 @@ for f in functions:
     #print(f"{f['return_type']} {f['name']}({f['args']})")
     #print(f"{f['scope']}::{f['return_type']} {f['name']}({f['args']})")
     scpp.print_function_header( f )
+
+# TODO: we should list all function-calls from each function, to be able to reconstruct the call graph ( dependency graph )
 print("\n ============ Variables in {fname} \n ")
 for v in variables:
     scpp.print_variable_declaration(v)
 print("\n ============ Inheritance =========== \n")
 for inh in inheritances:
     print(f"Class {inh['class']} inherits from: {', '.join(inh['parents'])}")
-
 print("\n ============ Includes =========== \n")
 for inc in includes:
     print(f"#include {inc}")
