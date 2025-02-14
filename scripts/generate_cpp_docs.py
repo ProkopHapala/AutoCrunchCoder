@@ -1,15 +1,24 @@
 #!/usr/bin/python3
 
-import sys
+import sys, os
 sys.path.append("../")
 import pyCruncher.scoped_cpp as scpp
 from pyCruncher.AgentOpenAI import AgentOpenAI
 
 def read_file_list(list_file):
+    base_dir = os.path.dirname(os.path.abspath(list_file))
+    files = []
     with open(list_file, 'r') as f:
-        return [line.strip() for line in f if line.strip() and not line.startswith("#")]
+        for line in f:
+            line = line.strip()
+            if line and not line.startswith("#"):
+                # Handle both absolute and relative paths
+                if not os.path.isabs(line):
+                    line = os.path.join(base_dir, line)
+                files.append(os.path.abspath(line))
+    return files
 
-def process_cpp_file(file_path, llm_agent):
+def process_cpp_file(file_path, output_dir, llm_agent):
     # Read and analyze the C++ file
     with open(file_path, 'r') as f:
         content = f.read()
@@ -23,17 +32,23 @@ def process_cpp_file(file_path, llm_agent):
     inheritances = scpp.analyze_inheritance(content_no_comments, False)
     includes     = scpp.analyze_includes(content_no_comments, False)
     
+    # Preserve directory structure in output
+    rel_path = os.path.relpath(file_path, start=os.path.commonpath([file_path, output_dir]))
+    md_file = os.path.join(output_dir, rel_path + ".md")
+    
+    # Ensure output directory exists
+    os.makedirs(os.path.dirname(md_file), exist_ok=True)
+    
     # Generate markdown template
-    md_file = file_path + ".md"
     scpp.generate_markdown_documentation(
-        file_path.split("/")[-1],
-        includes, functions, variables, inheritances,
-        saveToFile=md_file,
-        show_args=True, show_return_type=True, show_scope=True,
-        show_var_type=True, var_type_after_name=False,
-        desc_str=""
+        os.path.basename(file_path), includes, functions, variables, inheritances, saveToFile=md_file,
+        show_args=False, show_return_type=False, show_scope=False, 
+        show_var_type=True, var_type_after_name=True, desc_str=""
     )
     
+    #print("saved to", md_file)
+    #return
+
     # Read the template
     with open(md_file, 'r') as f:
         template = f.read()
@@ -76,16 +91,24 @@ Adjust detail of description appropriately to importance of each class or functi
     print("#=============== Writing to file:")
     with open(md_file, 'w') as f:
         f.write(response.content)
-    
     print(f"Generated documentation for {file_path}")
 
 
+# ============= Main =============
 
-fname='cpp_file_list.txt'
-if len(sys.argv) >= 2:
-    fname = sys.argv[1]
+# if len(sys.argv) < 3:
+#     print("Usage: generate_cpp_docs.py <file_list> <output_dir> [model_name]")
+#     sys.exit(1)
+# fname = sys.argv[1]
+# output_dir = os.path.abspath(sys.argv[2])
+# model_name = sys.argv[3] if len(sys.argv) > 3 else "fzu-qwen2_7b_1m"
 
-# Initialize LLM agent
+
+fname      = "cpp_file_list.txt"
+output_dir =  "/home/prokop/git/FireCore/doc/Markdown"
+model_name = "fzu-qwen2_7b_1m"
+
+
 system_prompt = """
 You are a technical documentation expert specializing in C++ codebases.
 You excel at:
@@ -96,8 +119,6 @@ You excel at:
 5. Maintaining consistent documentation style
 """
 
-model_name = "fzu-qwen2_7b_1m"  # Using underscore instead of dots and hyphens
-
 agent = AgentOpenAI(model_name)
 agent.set_system_prompt(system_prompt)
 
@@ -106,6 +127,6 @@ file_list = read_file_list(fname)
 for file_path in file_list:
     try:
         print(f"Processing {file_path}")
-        process_cpp_file(file_path, agent)
+        process_cpp_file(file_path, output_dir, agent)
     except Exception as e:
         print(f"Error processing {file_path}: {str(e)}")
