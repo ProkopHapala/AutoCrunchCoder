@@ -220,9 +220,12 @@ def format_variable(var, show_type=True, type_after_name=True):
 
 
 def generate_markdown_documentation(file_name, includes, functions, variables, inheritances, saveToFile=None,
-                                 show_args=True, show_return_type=True, show_scope=True,
-                                 show_var_type=True, var_type_after_name=True,
-                                 desc_str="[short description what is the purpose]", class_desc="[Short description what is the purpose of the class, what its role in the bigger context]"):
+                                show_args=True, show_return_type=True, show_scope=True,
+                                show_var_type=True, var_type_after_name=True,
+                                desc_str="[short description what is the purpose]", 
+                                class_desc="[Replace this with: Description what is the purpose of the class, what its role in the bigger context]",
+                                file_desc="[Replace this with: Description what is the purpose of this file, what its role in the project]",
+                            ):
     """
     Generate markdown documentation from the analysis results.
     Returns a string containing the markdown content.
@@ -244,6 +247,7 @@ def generate_markdown_documentation(file_name, includes, functions, variables, i
     
     # File header
     md.append(f"# {file_name}\n")
+    md.append(f"\n{file_desc}\n")
     
     # Includes section
     if includes:
@@ -312,7 +316,7 @@ def generate_markdown_documentation(file_name, includes, functions, variables, i
         md.append("## Types (classes and structs)\n")
         for class_name, members in class_members.items():
             md.append(f"### class `{class_name}`\n")
-            md.append(f"{class_desc}\n")
+            md.append(f"\n{class_desc}\n")
             
             # Add inheritance information
             if members['parents']:

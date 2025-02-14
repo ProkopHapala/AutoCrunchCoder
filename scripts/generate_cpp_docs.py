@@ -39,23 +39,40 @@ def process_cpp_file(file_path, output_dir, llm_agent):
     # Ensure output directory exists
     os.makedirs(os.path.dirname(md_file), exist_ok=True)
     
-    # Generate markdown template
+    # Create backup if existing documentation exists
+    existing_doc = ""
+    if os.path.exists(md_file):
+        # Read existing documentation
+        with open(md_file, 'r') as f:
+            existing_doc = f.read()
+        
+        # Create backup with incremental number
+        i = 1
+        while os.path.exists(f"{md_file}.bak{i}"):
+            i += 1
+        backup_file = f"{md_file}.bak{i}"
+        os.rename(md_file, backup_file)
+        print(f"Created backup: {backup_file}")
+    
+    # Generate new markdown template
+    temp_template_file = md_file + ".temp"
     scpp.generate_markdown_documentation(
-        os.path.basename(file_path), includes, functions, variables, inheritances, saveToFile=md_file,
+        os.path.basename(file_path), includes, functions, variables, inheritances, saveToFile=temp_template_file,
         show_args=False, show_return_type=False, show_scope=False, 
         show_var_type=True, var_type_after_name=True, desc_str=""
     )
-    
-    #print("saved to", md_file)
+
+    #print(" saved template to: " + temp_template_file) 
     #return
 
     # Read the template
-    with open(md_file, 'r') as f:
+    with open(temp_template_file, 'r') as f:
         template = f.read()
+    os.remove(temp_template_file)
     
     # Create prompt for LLM
     prompt = f"""
-I will provide you with a C++ source file and a markdown documentation template. Please analyze the code and complete the documentation.
+I will provide you with a C++ source file, a markdown documentation template generated from the current source code, and optionally existing documentation. Please analyze all inputs and generate comprehensive documentation.
 
 ==============================
 
@@ -66,23 +83,32 @@ Source code:
 
 ==============================
 
-Documentation template:
+Documentation template (generated from current source code - this reflects the most up-to-date structure):
 ```markdown
 {template}
 ```
+
+{f'''==============================
+
+Existing documentation (may contain valuable information but might be outdated):
+```markdown
+{existing_doc}
+```''' if existing_doc else ''}
 
 ==============================
 
 Please provide the complete markdown documentation with all sections filled in.
 
-1. Adding a clear description of the file's purpose
-2. Explaining each function's purpose, parameters, and return values
-3. Documenting important variables and their roles
-4. Explaining any class inheritance relationships
-5. Adding any important implementation details or usage notes
+Important instructions:
+1. Use the template generated from current source code as the primary structure - it reflects the most up-to-date code
+2. Incorporate valuable information from the existing documentation if available, but verify it against the current source code
+3. Add clear descriptions of the file's purpose, functions, parameters, return values, and variables
+4. Explain class inheritance relationships and important implementation details
+5. Keep it concise. Functions (both Free Functions and method) should be described in a single line (single bulleted item in the list)
+6. Preserve any non-obvious insights or implementation details from the existing documentation if they are still relevant
 
-NOTE: Focus on main ideas and big-picture. Explain the purpose and idea behind classes and function in clear and concise manner. Avoid vague phrases and formalities. 
-Adjust detail of description appropriately to importance of each class or function. For trivial functions, keep the description very short. For complex and important functions, explain in more detail also internall workings, and the ideas behind their implementation.
+NOTE: Focus on main ideas and big-picture. Explain the purpose and idea behind classes and functions in a clear and concise manner. Avoid vague phrases and formalities.
+Adjust detail of description appropriately to importance of each class or function. For trivial functions, keep the description very short. For complex and important functions, explain in more detail also internal workings, and the ideas behind their implementation.
 
 """
     response = llm_agent.query(prompt)
