@@ -4,6 +4,7 @@ import sys, os
 sys.path.append("../")
 import pyCruncher.scoped_cpp as scpp
 from pyCruncher.AgentOpenAI import AgentOpenAI
+from pyCruncher.AgentGoogle import AgentGoogle
 
 def read_file_list(list_file):
     base_dir = os.path.dirname(os.path.abspath(list_file))
@@ -18,10 +19,34 @@ def read_file_list(list_file):
                 files.append(os.path.abspath(line))
     return files
 
-def process_cpp_file(file_path, output_dir, llm_agent):
-    # Read and analyze the C++ file
+def find_implementation_file(header_path):
+    # Get the directory and filename without extension
+    dir_path = os.path.dirname(header_path)
+    base_name = os.path.splitext(os.path.basename(header_path))[0]
+    
+    # Check for .cpp and .c files
+    for ext in ['.cpp', '.c']:
+        impl_path = os.path.join(dir_path, base_name + ext)
+        if os.path.exists(impl_path):
+            return impl_path
+    return None
+
+def process_cpp_file(file_path, output_dir, llm_agent, bSavePrompt=True ):
+    # Read the main file (header)
     with open(file_path, 'r') as f:
-        content = f.read()
+        header_content = f.read()
+    
+    # Try to find and read the implementation file
+    impl_file = find_implementation_file(file_path)
+    impl_content = ""
+    if impl_file:
+        with open(impl_file, 'r') as f:
+            impl_content = f.read()
+    
+    # Combine content for analysis
+    content = header_content
+    if impl_content:
+        content = header_content + "\n" + impl_content
     
     # Remove comments for analysis
     content_no_comments = scpp.COMMENT_PATTERN.sub('', content)
@@ -72,45 +97,77 @@ def process_cpp_file(file_path, output_dir, llm_agent):
     
     # Create prompt for LLM
     prompt = f"""
-I will provide you with a C++ source file, a markdown documentation template generated from the current source code, and optionally existing documentation. Please analyze all inputs and generate comprehensive documentation.
+I will provide you with a C++ header file{' and its implementation file' if impl_content else ''}, a markdown documentation template generated from the current source code, and optionally existing documentation. Please analyze all inputs and generate comprehensive documentation.
 
-==============================
+---
 
 Source code:
+
+Primary file ({os.path.basename(file_path)}):
 ```cpp
-{content}
+{header_content}
 ```
 
-==============================
+{f'''Implementation file ({os.path.basename(impl_file)}):
+```cpp
+{impl_content}
+```''' if impl_content else ''}
 
-Documentation template (generated from current source code - this reflects the most up-to-date structure):
-```markdown
-{template}
-```
-
-{f'''==============================
+{f'''---
 
 Existing documentation (may contain valuable information but might be outdated):
 ```markdown
 {existing_doc}
 ```''' if existing_doc else ''}
 
-==============================
+---
 
-Please provide the complete markdown documentation with all sections filled in.
+Documentation template (generated from current source code - this reflects the most up-to-date structure):
 
-Important instructions:
-1. Use the template generated from current source code as the primary structure - it reflects the most up-to-date code
-2. Incorporate valuable information from the existing documentation if available, but verify it against the current source code
-3. Add clear descriptions of the file's purpose, functions, parameters, return values, and variables
-4. Explain class inheritance relationships and important implementation details
-5. Keep it concise. Functions (both Free Functions and method) should be described in a single line (single bulleted item in the list)
-6. Preserve any non-obvious insights or implementation details from the existing documentation if they are still relevant
+Make sure that:
+1. **You describe all the bullet points ( properties and methods) mentioned in this template, under relevant class section. Do not ommit any.**
+2. **You stick to the format specified in this template when describing properties and methods.**. In particular, each property or method should be described in a separate bullet point.
 
-NOTE: Focus on main ideas and big-picture. Explain the purpose and idea behind classes and functions in a clear and concise manner. Avoid vague phrases and formalities.
-Adjust detail of description appropriately to importance of each class or function. For trivial functions, keep the description very short. For complex and important functions, explain in more detail also internal workings, and the ideas behind their implementation.
+```markdown
+{template}
+```
+
+---
+
+### Instructions for Documentation Generation:
+1. **Follow the provided template** – it reflects the most current code structure and formatting, therefore it should serve as the primary basis for documentation.
+2. **Incorporate valuable information from the existing documentation**, if available. However, verify all details against the current source code and ensure consistency with the template’s format.
+3. **Clearly describe the purpose of the file** as well as the roles of all classes, functions, and variables.
+    * make sure you describe **ALL** properties and methods mentioned in the template, under relevant class section. Do not ommit any.
+4. **Document class inheritance relationships**, including how derived classes extend base class functionality.
+5. **Explain the purpose of all included headers**, especially non-standard or custom ones.
+6. **Keep function descriptions concise**:
+   - Summarize each function’s purpose in **one line** (a single bullet point in the list).
+   - **Omit argument lists and return types** for brevity.
+7. **Highlight non-obvious insights or implementation details**:
+   - Extract meaningful insights from the source code or existing documentation.
+   - Quote relevant equations in LaTeX notation. This is especially important for functions related to physics and mathematics.
+   - Reference external documents, such as scientific articles or webpages, when applicable.
+8. **Focus on the big picture and core principles**:
+   - Explain the rationale behind classes and functions instead of merely describing them.
+   - Adjust the level of detail according to significance:
+     - **Trivial functions** should have very brief descriptions.
+     - **Complex or critical functions** should include details on their internal logic and implementation principles.
+   - Provide **context and interconnections** that are not obvious from function/class names alone—details that would otherwise require reading the implementation.
+
+---
+
+### Objective:
+Produce **concise, clear, and structured documentation** that effectively conveys the design, purpose, and insights of the code while maintaining readability and consistency.
+
+Avoid vague wording and unnecessary formalities—focus on delivering practical and insightful explanations.
 
 """
+    if bSavePrompt:
+        prompt_file = os.path.join(output_dir, rel_path + ".prompt.md")
+        with open(prompt_file, 'w') as f: f.write(prompt)
+        #exit(0)
+
     response = llm_agent.query(prompt)
     print("#=============== Response:")
     print(response.content)
@@ -131,8 +188,10 @@ Adjust detail of description appropriately to importance of each class or functi
 
 
 fname      = "cpp_file_list.txt"
-output_dir =  "/home/prokop/git/FireCore/doc/Markdown"
+#output_dir =  "/home/prokop/git/FireCore/doc/Markdown"
+output_dir =  "/home/prokop/git/SimpleSimulationEngine/doc/Markdown"
 model_name = "fzu-qwen2_7b_1m"
+#model_name = "gemini-flash"
 
 
 system_prompt = """
@@ -146,6 +205,7 @@ You excel at:
 """
 
 agent = AgentOpenAI(model_name)
+#agent = AgentGoogle(model_name)
 agent.set_system_prompt(system_prompt)
 
 # Process each file

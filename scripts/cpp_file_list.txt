@@ -1,10 +1,41 @@
+
+# ============ FireCore
+
 #/home/prokop/git/FireCore/cpp/common/molecular/Atoms.h
 #/home/prokop/git/FireCore/cpp/common/molecular/ForceField.h
 #/home/prokop/git/FireCore/cpp/common/molecular/NBFF.h
 
-/home/prokop/git/FireCore/cpp/common/molecular/MMFFsp3_loc.h
-/home/prokop/git/FireCore/cpp/common/molecular/UFF.h
+#/home/prokop/git/FireCore/cpp/common/molecular/MMFFsp3_loc.h
+#/home/prokop/git/FireCore/cpp/common/molecular/UFF.h
 
 #/home/prokop/git/FireCore/cpp/common/molecular/GridFF.h
 #/home/prokop/git/FireCore/cpp/common/molecular/EwaldGrid.h
 #/home/prokop/git/FireCore/cpp/common/molecular/MolWorld_sp3.h
+
+
+
+# ============= Simple Simulation Engine
+
+# --- SpaceCraft
+#/home/prokop/git/SimpleSimulationEngine/cpp/common/Orbital/SpaceCraftComponents.h
+#/home/prokop/git/SimpleSimulationEngine/cpp/common/Orbital/SpaceCraft.h
+
+# --- Radiosity
+#/home/prokop/git/SimpleSimulationEngine/cpp/common/dynamics/Radiosity.h
+#/home/prokop/git/SimpleSimulationEngine/cpp/common/dynamics/TriangleRayTracer.h
+
+# --- Lingebra
+#/home/prokop/git/SimpleSimulationEngine/cpp/common/geometry/raytrace.h
+#/home/prokop/git/SimpleSimulationEngine/cpp/common/math/Lingebra.h
+
+# --- Dynamics
+#/home/prokop/git/SimpleSimulationEngine/cpp/common/dynamics/TrussDynamics_d.h
+#/home/prokop/git/SimpleSimulationEngine/cpp/common/dynamics/TrussDynamics_d.cpp
+
+#/home/prokop/git/SimpleSimulationEngine/cpp/common/dataStructures/Buckets.h
+#/home/prokop/git/SimpleSimulationEngine/cpp/common/math/SparseMatrix2.h
+#/home/prokop/git/SimpleSimulationEngine/cpp/common/math/SparseMatrix.h
+
+# --- Builder
+/home/prokop/git/SimpleSimulationEngine/cpp/common/geometry/MeshBuilder2.h
+#/home/prokop/git/SimpleSimulationEngine/cpp/common/geometry/MeshBuilder2.cpp

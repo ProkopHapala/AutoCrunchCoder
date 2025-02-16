@@ -3,7 +3,24 @@ import sys
 
 # Pre-compile patterns as before
 COMMENT_PATTERN     = re.compile(r'//.*?$|/\*.*?\*/', re.MULTILINE | re.DOTALL)
-FUNCTION_PATTERN    = re.compile(r'''([a-zA-Z0-9_*]+)\s+([a-zA-Z0-9_]+)\s*\(\s*([^{}()]*?)\)\s*{''', re.VERBOSE | re.MULTILINE | re.DOTALL)
+# Common C++ function modifiers that can appear between ) and { or ;
+FUNCTION_MODIFIERS = r'''(?:\s*(?:const|override|final|noexcept|volatile|mutable|throw\s*\([^)]*\)|\[\[.*?\]\]))*'''  # zero or more modifiers
+
+# Function pattern explained:
+#  1. ([a-zA-Z0-9_*]+)     - Return type (letters, numbers, underscore, pointer)
+#  2. \s+                  - Whitespace between return type and name
+#  3. ([a-zA-Z0-9_]+)      - Function name
+#  4. \s*\(               - Opening parenthesis with optional whitespace
+#  5. ([^{}()]*?)          - Function arguments (anything except braces, non-greedy)
+#  6. \)                   - Closing parenthesis
+#  7. {modifiers}          - Optional function modifiers (const, override, etc)
+#  8. \s*[{{;]             - Opening brace or semicolon
+FUNCTION_PATTERN = re.compile(
+    r'''([a-zA-Z0-9_*]+)\s+([a-zA-Z0-9_]+)\s*\(\s*([^{}()]*?)\)%(modifiers)s\s*[{;]''' % {
+        'modifiers': FUNCTION_MODIFIERS
+    }, 
+    re.VERBOSE | re.MULTILINE | re.DOTALL
+)
 SCOPE_START_PATTERN = re.compile(r'\b(class|struct|namespace)\s+([a-zA-Z0-9_]+)')
 
 CPP_KEYWORDS = {
@@ -208,7 +225,8 @@ def format_function(func, show_args=True, show_return_type=True, show_scope=True
 def format_variable(var, show_type=True, type_after_name=True):
     """Format a variable entry based on the given options."""
     name_part = var['name']
-    if var['scope']:
+    # Don't include scope for class members - it's already shown in the class section
+    if var['scope'] and '::' not in var['scope']:
         name_part = f"{var['scope']}::{name_part}"
     
     if not show_type:
@@ -257,6 +275,8 @@ def generate_markdown_documentation(file_name, includes, functions, variables, i
             #print(inc)
             md.append(f"- {inc}")
         md.append("\n")
+
+    md.append("---\n")
     
     # Create dictionaries for organizing members by class
     class_members = {}
@@ -290,10 +310,15 @@ def generate_markdown_documentation(file_name, includes, functions, variables, i
             class_name = parts[0]
             if class_name not in class_members:
                 class_members[class_name] = {'methods': [], 'properties': [], 'parents': []}
-            # Remove class name from scope for class properties
+            # For nested classes, use the full scope as class name
+            if len(parts) > 1:
+                class_name = '::'.join(parts[:-1])
+                if class_name not in class_members:
+                    class_members[class_name] = {'methods': [], 'properties': [], 'parents': []}
+            # Remove all class/namespace scopes for properties
             var = var.copy()
-            var['scope'] = '::'.join(parts[1:]) if len(parts) > 1 else ''
-            class_members[class_name]['properties'].append(var)
+            var['scope'] = ''
+            class_members[parts[0]]['properties'].append(var)
         else:
             free_variables.append(var)
     
@@ -313,6 +338,7 @@ def generate_markdown_documentation(file_name, includes, functions, variables, i
     
     # Types section
     if class_members:
+        md.append("---\n")
         md.append("## Types (classes and structs)\n")
         for class_name, members in class_members.items():
             md.append(f"### class `{class_name}`\n")
