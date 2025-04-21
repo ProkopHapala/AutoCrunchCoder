@@ -62,7 +62,19 @@ class Agent(ABC):
         config_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'config')
 
         config_path = os.path.join(config_dir, 'LLMs.toml')
-        with open(config_path, 'r') as file:    templates = toml.load(file)
+        print(f"Loading TOML from: {config_path}")
+        try:
+            with open(config_path, 'r') as file:    
+                content = file.read()
+                print("#=============== File content:")
+                print(content)
+                print("#===============")
+                templates = toml.loads(content)  # Use loads instead of load
+                print("#=============== Templates loaded successfully!")
+                print("Available templates:", list(templates.keys()))
+        except Exception as e:
+            print(f"Error loading TOML: {str(e)}")
+            raise
 
         #for t in templates: print(t)
         self.template  = templates.get(self.template_name)
