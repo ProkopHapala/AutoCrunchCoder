@@ -23,13 +23,13 @@ def setup_parser():
     PY_LANGUAGE = Language(BUILD_PATH, 'python')
     parser = Parser()
     parser.set_language(PY_LANGUAGE)
-    return parser
+    return parser, PY_LANGUAGE
 
 class TestTypeCollector:
     @pytest.fixture
     def collector(self):
-        parser = setup_parser()
-        return TypeCollector(parser)
+        parser, language = setup_parser()
+        return TypeCollector(parser, language)
 
     def test_basic_function_definition(self, collector):
         code = '''
@@ -113,8 +113,8 @@ def main():
     print(result)
 ''')
 
-        parser = setup_parser()
-        collector = TypeCollector(parser)
+        parser, language = setup_parser()
+        collector = TypeCollector(parser, language)
         
         # Process both files
         collector.process_file(str(helper_path))

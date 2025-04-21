@@ -1,6 +1,6 @@
 import pytest
 from pathlib import Path
-from tree_sitter import Parser
+from tree_sitter import Parser, Language
 from pyCruncher.python_type_analyzer import TypeCollector
 
 def setup_parser():
@@ -11,6 +11,7 @@ def setup_parser():
     BUILD_PATH = 'tests/build/my-languages.so'
     VENDOR_PYTHON_PATH = '/home/prokophapala/SW/vendor/tree-sitter-python'
 
+    # Build the Python language library if it doesn't exist
     if not os.path.exists(VENDOR_PYTHON_PATH):
         raise FileNotFoundError(f"Missing Tree-sitter grammar at {VENDOR_PYTHON_PATH}. "
                               "Ensure you have cloned it.")
@@ -23,11 +24,12 @@ def setup_parser():
     PY_LANGUAGE = Language(BUILD_PATH, 'python')
     parser = Parser()
     parser.set_language(PY_LANGUAGE)
-    return parser
+    return parser, PY_LANGUAGE
 
 @pytest.fixture
 def collector():
-    return TypeCollector(setup_parser())
+    parser, language = setup_parser()
+    return TypeCollector(parser, language)
 
 def test_basic_import(collector, tmp_path):
     # Create math_utils.py
