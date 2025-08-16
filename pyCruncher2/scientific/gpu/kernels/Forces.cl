@@ -391,6 +391,32 @@ float3 limnitForce( float3 f, float fmax ){
     return f;
 }
 
+// Magnetic dipole field (Biot–Savart form for a point dipole)
+// B(r) = K * ( 3 r (m·r)/r^5 - m/r^3 )
+// Returns: (Bx, By, Bz, 0)
+inline float4 getDipoleB( float3 dp, float3 m, float K ){
+    const float r2    = dot(dp,dp) + 1e-20f; // avoid div-by-zero
+    const float invr  = rsqrt(r2);
+    const float invr2 = 1.f/r2;
+    const float invr3 = invr*invr2;         // 1/r^3
+    const float invr5 = invr3*invr2;        // 1/r^5
+    const float md    = dot(m, dp);
+    const float3 B    = K * ( dp*(3.f*md*invr5) - m*invr3 );
+    return (float4){ B, 0.f };
+}
+
+// Biot–Savart field from a straight current element at the source point
+// dB = K * I * ( dl x r ) / r^3, where r = dp = r_field - r_source
+// Returns: (Bx, By, Bz, 0)
+inline float4 getBiotSavart_dB( float3 dp, float3 dl, float I, float K ){
+    const float r2    = dot(dp,dp) + 1e-20f; // avoid div-by-zero
+    const float invr  = rsqrt(r2);
+    const float invr3 = invr*(1.f/r2);       // 1/r^3
+    const float3 cx   = cross(dl, dp);
+    const float3 B    = (K*I) * (cx * invr3);
+    return (float4){ B, 0.f };
+}
+
 float4 getR4repulsion( float3 d, float R, float Rcut, float A ){
     // we use R4blob(r) = A * (1-r^2)^2
     // such that at distance r=R we have force f = fmax
