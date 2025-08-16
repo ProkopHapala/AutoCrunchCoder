@@ -4,84 +4,86 @@
   "description": "Provide utilities how to interact with code and text especially with help of LLMs (large language models) and especially in context of scientific programing and writing",
   "version": "0.0.1",
   "engines": {
-    "vscode": "^1.94.0"
+    "vscode": "^1.99"
   },
   "categories": [
     "Other"
   ],
-  "activationEvents": [],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
   "main": "./out/extension.js",
   "contributes": {
     "commands": [
-        {
-            "command": "extension.encloseSelection",
-            "title": "Prokop_Bot: [[Selection]]"
-        },
-        {
-            "command": "extension.sendToPython",
-            "title": "Prokop_Bot: python(Selection)"
-        },
-        {
-            "command": "prokopBot.explorerCommand",
-            "title": "Prokop Bot: Run Python Tool"
-        },
-        {
-            "command": "extension.addToMarkdown",
-            "title": "Prokop_Bot: Add Selection to Markdown"
-        },
-        {
-            "command": "extension.cleanMarkdown",
-            "title": "Prokop_Bot: Clean Markdown File"
-        },
-        {
-            "command": "extension.addTabToList",
-            "title": "Prokop_Bot: Add this tab to..."
-        },
-        {
-            "command": "prokopBot.refreshTreeView",
-            "title": "Refresh",
-            "icon": "$(refresh)"
-        }
+      {
+        "command": "extension.encloseSelection",
+        "title": "Prokop_Bot: [[Selection]]"
+      },
+      {
+        "command": "extension.sendToPython",
+        "title": "Prokop_Bot: python(Selection)"
+      },
+      {
+        "command": "prokopBot.explorerCommand",
+        "title": "Prokop Bot: Run Python Tool"
+      },
+      {
+        "command": "extension.addToMarkdown",
+        "title": "Prokop_Bot: Add Selection to Markdown"
+      },
+      {
+        "command": "extension.cleanMarkdown",
+        "title": "Prokop_Bot: Clean Markdown File"
+      },
+      {
+        "command": "extension.addTabToList",
+        "title": "Prokop_Bot: Add this tab to..."
+      },
+      {
+        "command": "prokopBot.refreshTreeView",
+        "title": "Refresh",
+        "icon": "$(refresh)"
+      }
     ],
     "keybindings": [
-        {
-            "command": "extension.encloseSelection",
-            "key": "ctrl+]",
-            "when": "editorTextFocus"
-        },
-        {
-            "command": "extension.sendToPython",
-            "key": "ctrl+k ctrl+p",
-            "when": "editorTextFocus"
-        }
+      {
+        "command": "extension.encloseSelection",
+        "key": "ctrl+]",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "extension.sendToPython",
+        "key": "ctrl+k ctrl+p",
+        "when": "editorTextFocus"
+      }
     ],
     "menus": {
-        "view/title": [
-            {
-                "command": "prokopBot.refreshTreeView",
-                "when": "view == prokopBotContextView",
-                "group": "navigation"
-            }
-        ],
-        "editor/context": [
+      "view/title": [
         {
-            "command": "extension.encloseSelection",
-            "when": "editorHasSelection",
-            "group": "navigation"
+          "command": "prokopBot.refreshTreeView",
+          "when": "view == prokopBotContextView",
+          "group": "navigation"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "extension.encloseSelection",
+          "when": "editorHasSelection",
+          "group": "navigation"
         },
         {
-            "command": "extension.sendToPython",
-            "when": "editorHasSelection",
-            "group": "navigation"
+          "command": "extension.sendToPython",
+          "when": "editorHasSelection",
+          "group": "navigation"
         },
         {
-            "command": "extension.addToMarkdown",
-            "when": "editorHasSelection",
-            "group": "navigation"
+          "command": "extension.addToMarkdown",
+          "when": "editorHasSelection",
+          "group": "navigation"
         },
         {
-            "command": "extension.cleanMarkdown",
-            "group": "navigation"
+          "command": "extension.cleanMarkdown",
+          "group": "navigation"
         }
       ],
       "explorer/context": [
@@ -102,27 +104,27 @@
       ]
     },
     "viewsContainers": {
-        "activitybar": [
-          {
-            "id": "prokopBotViewContainer",
-            "title": "Prokop Bot",
-            "icon": "media/icon.png"
-          }
-        ]
-      },
-      "views": {
-        "prokopBotViewContainer": [
-          {
-            "id": "prokopBotWebview",
-            "name": "Prokop Bot Panel",
-            "type": "webview"
-          },
-          {
-            "id": "prokopBotContextView",
-            "name": "Context Tree"
-          }
-        ]
-      }
+      "activitybar": [
+        {
+          "id": "prokopBotViewContainer",
+          "title": "Prokop Bot",
+          "icon": "media/icon.png"
+        }
+      ]
+    },
+    "views": {
+      "prokopBotViewContainer": [
+        {
+          "id": "prokopBotWebview",
+          "name": "Prokop Bot Panel",
+          "type": "webview"
+        },
+        {
+          "id": "prokopBotContextView",
+          "name": "Context Tree"
+        }
+      ]
+    }
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",
@@ -133,14 +135,14 @@
     "test": "vscode-test"
   },
   "devDependencies": {
-    "@types/vscode": "^1.94.0",
-    "@types/mocha": "^10.0.8",
-    "@types/node": "20.x",
+    "@types/mocha": "^10.0.10",
+    "@types/node": "^20.17.44",
+    "@types/vscode": "^1.99.1",
     "@typescript-eslint/eslint-plugin": "^8.7.0",
     "@typescript-eslint/parser": "^8.7.0",
-    "eslint": "^9.11.1",
-    "typescript": "^5.6.2",
     "@vscode/test-cli": "^0.0.10",
-    "@vscode/test-electron": "^2.4.1"
+    "@vscode/test-electron": "^2.4.1",
+    "eslint": "^9.11.1",
+    "typescript": "^5.6.2"
   }
 }
