@@ -10,10 +10,16 @@ def kill_mcp_servers():
     print("Attempting to forcefully kill existing MCP server processes (SIGKILL)...")
     # Define the names of the server scripts you might be running
     server_script_names = [
+        # legacy/older names
         "lammps_mcp_server.py",
         "mcp_server_http.py",
-        "mcp_server_http2.py", # Include any variants you use
-        # Add other script names if you use them, e.g., "minimal_mcp_server.py"
+        "mcp_server_http2.py",
+        # current servers in this repo
+        "mcp_server_lammps_http.py",
+        "mcp_server_lammps_stdio.py",
+        "mcp_server_maxima.py",
+        "mcp_server_maxima_stdio.py",
+        "mcp_server_chem.py",
     ]
 
     current_pid = os.getpid()
