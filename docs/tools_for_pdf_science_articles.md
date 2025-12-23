@@ -6,7 +6,6 @@ https://www.kimi.com/share/19b2d97b-b7d2-8e3d-8000-0000031c74af
 https://grok.com/share/bGVnYWN5_a550c2b2-46ed-425a-b1c3-716244f3c8c0
 
 
-
 ## USER
 
 what is currently best local LLM or AI tools for extracting info from .pdf of papers. Especially equations. I basically need to take my large database of scientific articles (mostly from computational chemistry and physics, quatum chemistry), rewrite importaint information into Markdown .md and make some map what I have where ro sumarize. Then wen I search specific information I want to use this map to know where the LLM should look. The then I want to use this info fro automatic programing (vibe-coding) scientific simulation software

@@ -1,0 +1,61 @@
+{
+  "name": "probot-context",
+  "displayName": "Probot Context",
+  "description": "Right click to add files or code blocks to a context buffer Markdown file.",
+  "version": "0.0.1",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ProkopHapala/AutoCrunchCoder"
+  },
+  "engines": {
+    "vscode": "^1.75.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "probot.setContextBuffer",
+        "title": "ProBot: set as Output"
+      },
+      {
+        "command": "probot.addToContext",
+        "title": "ProBot: to Context"
+      }
+    ],
+    "menus": {
+      "explorer/context": [
+        {
+          "command": "probot.setContextBuffer",
+          "group": "7_modification",
+          "when": "resourceExtname == .md"
+        },
+        {
+          "command": "probot.addToContext",
+          "group": "7_modification",
+          "when": "resourceScheme == file"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "probot.addToContext",
+          "group": "navigation",
+          "when": "editorTextFocus"
+        }
+      ],
+      "tab/context": [
+        {
+          "command": "probot.addToContext",
+          "group": "navigation",
+          "when": "resourceScheme == file"
+        }
+      ]
+    }
+  }
+}
