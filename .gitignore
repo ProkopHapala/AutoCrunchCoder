@@ -1,0 +1,6 @@
+.shadow/
+__pycache__/
+*.pyc
+*.so
+*.o
+build/
