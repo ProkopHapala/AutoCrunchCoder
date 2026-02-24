@@ -168,6 +168,145 @@ This TSV is intentionally simple so you can feed it into:
 - Gephi
 - your own HTML/JS visualization
 
+### 2.8 Postprocess existing run: shadow tree + DOI/BibTeX + rename plan + SQLite DB
+
+If you already have a completed run folder (i.e. it contains `logs/processed.json` and `markdown/*.md`), you can postprocess it **without re-converting PDFs**.
+
+#### What postprocess does
+
+| Feature | Description | Output |
+|---------|-------------|--------|
+| **Shadow tree** | Copies existing `.md` files into a folder tree mirroring the original PDF directory structure | `shadow_tree/<relpath>.md` |
+| **DOI/BibTeX enrichment** | Tries `pdf2doi` → CrossRef BibTeX fetch → DOI from markdown → CrossRef title search | `shadow_tree/<relpath>.bib` (if found) |
+| **Rename plan** | Proposes new filenames based on BibTeX fields using template | `logs/rename_plan.tsv` |
+| **SQLite DB** | Indexes all metadata + full-text search over markdown content | `papers.db` |
+
+#### CLI flags
+
+| Flag | Description |
+|------|-------------|
+| `--postprocess-only` | Enable postprocess mode (skip conversion) |
+| `--run-dir` | Path to existing run folder (required) |
+| `--pdf-root` | Original PDF root directory (required, for relative paths) |
+| `--mirror-root` | Where to create shadow tree (default: `<run-dir>/shadow_tree`) |
+| `--no-mirror` | Skip shadow tree creation |
+| `--no-bibtex-pass` | Skip DOI/BibTeX enrichment |
+| `--rename-plan` | Generate rename plan (requires BibTeX) |
+| `--apply-rename` | Apply rename by copying into `<run-dir>/renamed/` (non-destructive) |
+| `--rename-template` | Template for rename (default: `{first_author}_{journal}_{year}_{short_title}`) |
+| `--db-path` | Custom SQLite DB path (default: `<run-dir>/papers.db`) |
+| `--limit N` | Process only first N items (0=all) |
+
+#### Example commands
+
+Postprocess 3 items (test run):
+```bash
+python tests/test_paper_pipeline.py \
+  --postprocess-only \
+  --run-dir /home/prokop/git/AutoCrunchCoder/tests/paper_pipeline_out/20260218_191049 \
+  --pdf-root /home/prokop/Desktop/PAPERs \
+  --mirror-root /home/prokop/git/AutoCrunchCoder/tests/paper_pipeline_out/20260218_191049/shadow_tree \
+  --rename-plan \
+  --limit 3
+```
+
+Postprocess all items:
+```bash
+python tests/test_paper_pipeline.py \
+  --postprocess-only \
+  --run-dir /home/prokop/git/AutoCrunchCoder/tests/paper_pipeline_out/20260218_191049 \
+  --pdf-root /home/prokop/Desktop/PAPERs \
+  --rename-plan
+```
+
+#### Database guide
+
+The SQLite database (`papers.db`) is your **local Zotero/Mendeley alternative** optimized for LLM access.
+
+##### Opening the database
+
+```bash
+# Using litecli (recommended, nice UI)
+litecli /home/prokop/git/AutoCrunchCoder/tests/paper_pipeline_out/20260218_191049/papers.db
+
+# Using sqlite3 (basic)
+sqlite3 /home/prokop/git/AutoCrunchCoder/tests/paper_pipeline_out/20260218_191049/papers.db
+
+# Using Python
+python -c "
+import sqlite3
+conn = sqlite3.connect('/home/prokop/git/AutoCrunchCoder/tests/paper_pipeline_out/20260218_191049/papers.db')
+cur = conn.cursor()
+for row in cur.execute('SELECT stem, doi, bibtex_ok FROM papers LIMIT 5'):
+    print(row)
+"
+```
+
+##### Important tables
+
+| Table | Purpose | Key columns |
+|-------|---------|-------------|
+| `papers` | Main paper index | `original_pdf_path`, `stem`, `doi`, `bibtex_ok`, `bibtex_path`, `shadow_md_path`, `shadow_pdf_path`, `rename_target_md`, `rename_target_pdf`, `md_path`, `timestamp` |
+| `processing_log` | Operation log | `stem`, `operation`, `status`, `message`, `timestamp` |
+| `papers_fts` | Full-text search index | `stem`, `doi`, `title`, `authors`, `year`, `journal`, `md_text` |
+
+##### Search examples
+
+```sql
+-- List all papers with DOI found
+SELECT stem, doi, bibtex_ok FROM papers WHERE bibtex_ok = 1 LIMIT 10;
+
+-- Find papers by year
+SELECT stem, year FROM papers WHERE year = '2024' LIMIT 10;
+
+-- Find papers by journal keyword
+SELECT stem, journal FROM papers WHERE journal LIKE '%Physical Review%' LIMIT 10;
+
+-- Full-text search in markdown content (FTS5)
+SELECT stem, snippet(papers_fts, 3, '<<', '>>', '...', 32) AS context
+FROM papers_fts
+WHERE papers_fts MATCH 'density functional'
+LIMIT 10;
+
+-- Search by author
+SELECT stem, authors FROM papers WHERE authors LIKE '%Smith%' LIMIT 10;
+
+-- Get all paths for a paper
+SELECT stem, original_pdf_path, md_path, shadow_md_path, bibtex_path
+FROM papers WHERE stem = 'DFT_c_code';
+```
+
+##### Combining with processed.json
+
+The database complements `logs/processed.json`:
+
+| File | Use case |
+|------|----------|
+| `papers.db` | Fast SQL queries, full-text search, programmatic access |
+| `logs/processed.json` | Full per-item details, human-readable, version control friendly |
+| `logs/postprocess_summary.json` | Run statistics (counts, timing, paths) |
+
+#### File responsibility summary
+
+| File/Directory | Responsibility |
+|----------------|----------------|
+| `markdown/*.md` | Original conversion output (YAML header + content) |
+| `shadow_tree/` | Mirrored markdown matching original PDF directory structure |
+| `shadow_tree/*.bib` | BibTeX files fetched during postprocess |
+| `papers.db` | SQLite index for fast queries + FTS |
+| `logs/processed.json` | Per-item processing record (updated by postprocess) |
+| `logs/processed.json.bak_*` | Automatic backups before postprocess modifications |
+| `logs/postprocess_summary.json` | Postprocess run statistics |
+| `logs/rename_plan.tsv` | Proposed renames (if `--rename-plan` used) |
+| `renamed/` | Copies with new names (if `--apply-rename` used) |
+
+#### Safety notes
+
+- `logs/processed.json` is always backed up before modification
+- `--apply-rename` never modifies originals; it copies to `renamed/`
+- Rename collisions cause loud failure (no silent overwrites)
+- Network timeouts on CrossRef requests (10s default)
+
 ## 3. Repo mapper: repo -> skeletons/graphs/rollups in a shadow directory
 
 ### 3.1 Entry points
@@ -307,9 +446,81 @@ Extension ideas:
 
 ### Paper pipeline
 
-- Start with `--backend docling --skip-summary` to validate conversion quality
-- Then enable summarization (`--text-model phi-4` or another loaded model)
-- Add embeddings only if you plan to cluster/search
+- Start with `--backend docling --skip-summary` to validate conversion quality.
+- Postprocess an existing run to add DOI/BibTeX, DB, rename plan, and summaries:
+
+  ```bash
+  # Activate your ML venv first
+  source ~/venvs/ML/bin/activate
+  cd /home/prokop/git/AutoCrunchCoder/tests
+
+  python test_paper_pipeline.py \
+    --postprocess-only \
+    --run-dir /home/prokop/git/AutoCrunchCoder/tests/paper_pipeline_out/20260218_191049 \
+    --pdf-root /home/prokop/Desktop/PAPERs \
+    --crossref-only \
+    --summarize-md \
+    --lmstudio-url http://10.26.201.142:1234/v1 \
+    --text-model phi-4 \
+    --rename-plan \
+    --limit 0
+  ```
+
+  What it does:
+  - Generates/updates BibTeX per item (`shadow_tree/.../*.bib`) using DOI→CrossRef (CrossRef-only skips pdf2doi search).
+  - Streams progress safely: `logs/processed_live.json`, `processed_live.tsv`, `bibtex_live.json`; keeps `processed.json` with backups.
+  - Populates SQLite `papers.db` with DOI/BibTeX fields, titles/authors/year/journal/keywords, paths, and summary status.
+  - Writes summaries from existing markdown into `summaries/<stem>.md` and mirrors them into `shadow_tree/.../<stem>.summary.md`.
+  - Builds `logs/rename_plan.tsv` (non-destructive suggestions); use `--apply-rename` to copy into `renamed/`.
+
+- Add embeddings only if you plan to cluster/search (flag `--skip-embed` in main pipeline controls that stage).
+
+### Knowledge graph + Vault + MCP
+
+- Build the knowledge graph (LLM-extracted domains/math/solvers/data-structures) and Markdown vault for an existing run:
+
+  ```bash
+  # Activate your ML venv first
+  source ~/venvs/ML/bin/activate
+  cd /home/prokop/git/AutoCrunchCoder/tests
+
+  python test_paper_pipeline.py \
+    --run-dir /home/prokop/git/AutoCrunchCoder/tests/paper_pipeline_out/20260218_191049 \
+    --build-kg \
+    --build-vault
+  ```
+
+  What it does:
+  - Parses existing summaries, uses `instructor` + `pydantic` on your local LLM (`--lmstudio-url`, `--text-model`) to extract: domains, math_classes, solvers, data_structures.
+  - Stores them in SQLite `papers.db` via tables `tags` and `article_tags`; updates `papers.essence` with a short 1–2 sentence summary.
+  - Generates a human-readable Markdown vault under `<run_dir>/vault/` with `Master_Index.md` and per-topic `Topic_<tag>.md` pages linking to summary/PDF/BibTeX.
+
+- Review results (human mode):
+  - Open the DB: `tests/paper_pipeline_out/20260218_191049/papers.db` in DB Browser for SQLite (`sqlitebrowser`).
+  - Open the vault: `tests/paper_pipeline_out/20260218_191049/vault/`. Start with `Master_Index.md`; individual topic pages list essence + links (best viewed in Obsidian/VS Code).
+
+- Use with coding agents via MCP (deterministic SQL, no vector-RAG):
+
+  ```bash
+  source ~/venvs/ML/bin/activate
+  cd /home/prokop/git/AutoCrunchCoder/tests
+
+  # Point the MCP server at your run's DB
+  mcp run mcp_research_server.py /home/prokop/git/AutoCrunchCoder/tests/paper_pipeline_out/20260218_191049/papers.db
+  ```
+
+  In Cursor/Claude Desktop: Settings → Features → MCP → Add New →
+  - Type: command
+  - Name: `ResearchDB`
+  - Command: `/home/prokop/venvs/ML/bin/python /home/prokop/git/AutoCrunchCoder/tests/mcp_research_server.py /home/prokop/git/AutoCrunchCoder/tests/paper_pipeline_out/20260218_191049/papers.db`
+
+  Available tools (from `tests/mcp_research_server.py`):
+  - `search_by_math_solver(solver_name)`
+  - `search_by_topic(topic_name)`
+  - `get_equations(summary_path)`
+  - `get_algorithms(summary_path)`
+
+  Example chat prompt to Cursor: “Find papers using Conjugate Gradient via `search_by_math_solver`, then call `get_algorithms` on the best match and write CUDA code.”
 
 ### Repo mapper
 
