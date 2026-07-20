@@ -9,7 +9,7 @@ if _repo_root not in sys.path:
 
 from paperdb.search.context import assemble_context_pack, ContextPack
 from paperdb.search.fts import SearchUnit
-from conftest import (create_test_db, insert_test_paper, insert_test_search_unit,
+from .conftest import (create_test_db, insert_test_paper, insert_test_search_unit,
                       insert_test_summary, insert_test_method, insert_test_tag,
                       insert_test_paper_tag)
 

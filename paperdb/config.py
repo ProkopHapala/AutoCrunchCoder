@@ -35,17 +35,20 @@ def get_llm_config(key: str | None = None) -> dict:
         raise ValueError(f"Unknown LLM template '{key}'. Available: {available}")
     return templates[key]
 
-def make_agent(key: str | None = None):
-    """Create a pyCruncher Agent instance for the given config key.
-
-    Uses the provider field to determine which Agent subclass to instantiate.
-    """
+def make_agent(key: str | dict | None = None):
+    """Create a pyCruncher Agent from an explicit or resolved-default template key."""
+    if isinstance(key, dict):
+        key = key.get("template_name")
+        if not key: raise ValueError("LLM config dictionaries require 'template_name'")
+    if key is None:
+        templates = load_all_templates()
+        key = os.environ.get("PAPERDB_LLM") or next(iter(templates))
     cfg = get_llm_config(key)
     provider = cfg.get("provider", "openai")
     # Import here to avoid circular deps and keep config.py lightweight
     if provider == "deepseek":
         from pyCruncher.AgentDeepSeek import AgentDeepSeek
-        return AgentDeepSeek(cfg.get("model_name", key))
+        return AgentDeepSeek(key)
     elif provider == "google":
         from pyCruncher.AgentGoogle import AgentGoogle
         return AgentGoogle(key)
@@ -55,3 +58,8 @@ def make_agent(key: str | None = None):
     else:
         from pyCruncher.AgentOpenAI import AgentOpenAI
         return AgentOpenAI(key)
+
+
+def response_text(agent, response) -> str:
+    """Normalize provider-specific response objects through the Agent interface."""
+    return agent.get_response_text(response) if hasattr(agent, "get_response_text") else getattr(response, "content", str(response))

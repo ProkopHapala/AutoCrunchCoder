@@ -47,44 +47,23 @@ def resolve_to_canonical(alias: str, repo, category=None) -> list:
     if not normalized:
         return []
 
-    # First: try exact match on canonical_name in tags table
-    try:
-        if category:
-            tag = repo.get_tag_by_name(normalized, category)
+    # First try the canonical name, then every alias match. Repository errors
+    # are contract failures and must not be converted into "no match".
+    tag = repo.get_tag_by_name(normalized, category) if category else repo.get_tag_by_name_any_category(normalized)
+    if tag:
+        return [tag if isinstance(tag, dict) else {'id': tag.id, 'canonical_name': tag.canonical_name, 'category': tag.category}]
+    results = []
+    for alias_row in repo.get_tag_aliases_by_normalized(normalized):
+        if isinstance(alias_row, dict):
+            value = {'id': alias_row.get('tag_id', alias_row.get('id')), 'canonical_name': alias_row.get('canonical_name'), 'category': alias_row.get('category')}
         else:
-            tag = repo.get_tag_by_name_any_category(normalized)
-        if tag:
-            t = tag if isinstance(tag, dict) else {'id': tag.id, 'canonical_name': tag.canonical_name, 'category': tag.category}
-            return [t]
-    except Exception:
-        pass
-
-    # Second: look up in tag_aliases table
-    try:
-        aliases = repo.get_tag_aliases_by_normalized(normalized)
-        if aliases:
-            results = []
-            for a in aliases:
-                if isinstance(a, dict):
-                    t = {'id': a.get('tag_id', a.get('id')), 'canonical_name': a.get('canonical_name'), 'category': a.get('category')}
-                else:
-                    t = {'id': getattr(a, 'tag_id', getattr(a, 'id', None)), 'canonical_name': getattr(a, 'canonical_name', None), 'category': getattr(a, 'category', None)}
-                if category and t.get('category') != category:
-                    continue
-                # Fetch full tag info if we only have tag_id
-                if t.get('canonical_name') is None:
-                    try:
-                        full = repo.get_tag_by_id(t['id'])
-                        if full:
-                            t = full if isinstance(full, dict) else {'id': full.id, 'canonical_name': full.canonical_name, 'category': full.category}
-                    except Exception:
-                        pass
-                results.append(t)
-            return results
-    except Exception:
-        pass
-
-    return []
+            value = {'id': getattr(alias_row, 'tag_id', getattr(alias_row, 'id', None)), 'canonical_name': getattr(alias_row, 'canonical_name', None), 'category': getattr(alias_row, 'category', None)}
+        if category and value.get('category') != category: continue
+        if value.get('canonical_name') is None:
+            full = repo.get_tag_by_id(value['id'])
+            if full: value = full if isinstance(full, dict) else {'id': full.id, 'canonical_name': full.canonical_name, 'category': full.category}
+        results.append(value)
+    return results
 
 def add_alias(tag_id: int, alias: str, repo):
     """Add a tag alias. Normalizes before storing.
@@ -97,61 +76,20 @@ def add_alias(tag_id: int, alias: str, repo):
     repo.add_tag_alias(tag_id, alias, normalized)
 
 def merge_tags(tag_id: int, alias_tag_id: int, repo):
-    """Merge one tag into another.
-
-    Moves all paper_tags and tag_aliases from alias_tag_id to tag_id.
-    Preserves raw_name in paper_tags — doesn't delete original forms.
-
-    Args:
-        tag_id: The canonical tag to merge INTO.
-        alias_tag_id: The tag to merge FROM (will be removed).
-        repo: Repository object.
-    """
-    if tag_id == alias_tag_id:
-        raise ValueError("Cannot merge a tag into itself")
-
-    # 1. Move paper_tags: reassign alias_tag's paper_tags to canonical tag
-    #    Preserve raw_name — don't delete original forms
-    try:
-        paper_tags = repo.get_paper_tags_by_tag(alias_tag_id)
-    except Exception:
-        paper_tags = []
-
-    for pt in paper_tags:
-        pt = pt if isinstance(pt, dict) else {'paper_id': pt.paper_id, 'source': pt.source, 'run_id': pt.run_id, 'confidence': pt.confidence, 'raw_name': pt.raw_name}
-        try:
-            repo.add_paper_tag(pt['paper_id'], tag_id, source=pt['source'], run_id=pt.get('run_id'), confidence=pt.get('confidence'), raw_name=pt.get('raw_name'))
-        except Exception:
-            pass  # may already exist — that's fine, we preserve both raw_names
-
-    # 2. Move tag_aliases from alias_tag to canonical tag
-    try:
-        aliases = repo.get_tag_aliases_by_tag(alias_tag_id)
-    except Exception:
-        aliases = []
-
-    for a in aliases:
-        a = a if isinstance(a, dict) else {'alias': a.alias, 'normalized_alias': a.normalized_alias}
-        try:
-            repo.add_tag_alias(tag_id, a['alias'], a['normalized_alias'])
-        except Exception:
-            pass  # may already exist
-
-    # 3. Delete old paper_tags and tag_aliases for alias_tag_id
-    try:
+    """Merge a tag transactionally while preserving every raw assertion."""
+    if tag_id == alias_tag_id: raise ValueError("Cannot merge a tag into itself")
+    from paperdb.db.connection import db_transaction
+    with db_transaction(repo.conn):
+        for pt in repo.get_paper_tags_by_tag(alias_tag_id):
+            data = pt if isinstance(pt, dict) else pt.model_dump()
+            repo.add_paper_tag(paper_id=data["paper_id"], tag_id=tag_id, source=data.get("source"), run_id=data.get("run_id"), confidence=data.get("confidence"), raw_name=data.get("raw_name"))
+        for alias in repo.get_tag_aliases_by_tag(alias_tag_id):
+            data = alias if isinstance(alias, dict) else alias.model_dump()
+            repo.add_tag_alias(tag_id=tag_id, alias=data["alias"], normalized_alias=data["normalized_alias"])
+        repo.move_tag_assertions(alias_tag_id, tag_id)
         repo.delete_paper_tags_by_tag(alias_tag_id)
-    except Exception:
-        pass
-    try:
         repo.delete_tag_aliases_by_tag(alias_tag_id)
-    except Exception:
-        pass
-
-    # 4. Delete the old tag itself
-    try:
         repo.delete_tag(alias_tag_id)
-    except Exception as e:
-        print(f"[aliases] Could not delete merged tag {alias_tag_id}: {e}")
 
 def apply_clean_tags_rules(rules_path: str, repo):
     """Apply consolidation rules from a clean_tags.py-style rules file.
@@ -176,10 +114,7 @@ def apply_clean_tags_rules(rules_path: str, repo):
         return
 
     # Get all existing tags
-    try:
-        all_tags = repo.get_all_tags()
-    except Exception:
-        all_tags = []
+    all_tags = repo.get_all_tags()
 
     tag_list = []
     for t in all_tags:
@@ -213,13 +148,9 @@ def apply_clean_tags_rules(rules_path: str, repo):
         if not canonical_tag:
             # Create it — guess category from first match
             cat = matching[0].get('category', 'domain') if matching else 'domain'
-            try:
-                tag_id = repo.add_tag(canonical_name, cat)
-                canonical_tag = {'id': tag_id, 'canonical_name': canonical_name, 'category': cat}
-                tag_list.append(canonical_tag)
-            except Exception as e:
-                print(f"[aliases] Could not create canonical tag '{canonical_name}': {e}")
-                continue
+            tag_id = repo.add_tag(canonical_name, cat)
+            canonical_tag = {'id': tag_id, 'canonical_name': canonical_name, 'category': cat}
+            tag_list.append(canonical_tag)
         else:
             tag_id = canonical_tag['id']
 
@@ -227,10 +158,7 @@ def apply_clean_tags_rules(rules_path: str, repo):
         for old_tag in matching:
             print(f"[aliases] Merging '{old_tag['canonical_name']}' -> '{canonical_name}'")
             # Add alias before merging
-            try:
-                add_alias(tag_id, old_tag['canonical_name'], repo)
-            except Exception:
-                pass
+            add_alias(tag_id, old_tag['canonical_name'], repo)
             merge_tags(tag_id, old_tag['id'], repo)
             changes += 1
 
@@ -260,18 +188,12 @@ def analyze_tag_distribution(repo) -> dict:
         'top_tags': [],
     }
 
-    try:
-        all_tags = repo.get_all_tags()
-    except Exception:
-        all_tags = []
+    all_tags = repo.get_all_tags()
 
     tag_freq = {}
     for t in all_tags:
         t = t if isinstance(t, dict) else {'id': t.id, 'canonical_name': t.canonical_name, 'category': t.category}
-        try:
-            count = repo.get_paper_tag_count(t['id'])
-        except Exception:
-            count = 0
+        count = repo.get_paper_tag_count(t['id'])
         tag_freq[t['canonical_name']] = count
         cat = t.get('category', 'unknown')
         if cat not in result['by_category']:
@@ -284,15 +206,8 @@ def analyze_tag_distribution(repo) -> dict:
 
     result['total_tags'] = len(all_tags)
 
-    try:
-        result['total_aliases'] = repo.count_tag_aliases()
-    except Exception:
-        pass
-
-    try:
-        result['total_paper_tags'] = repo.count_paper_tags()
-    except Exception:
-        pass
+    result['total_aliases'] = repo.count_tag_aliases()
+    result['total_paper_tags'] = repo.count_paper_tags()
 
     # Sort tags within each category by frequency
     for cat in result['by_category']:

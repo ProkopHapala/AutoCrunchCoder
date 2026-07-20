@@ -60,6 +60,16 @@ CREATE TABLE paper_tags(
     PRIMARY KEY(paper_id, tag_id, source, run_id)
 );
 
+CREATE TABLE tag_assertions(
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    paper_id INTEGER NOT NULL REFERENCES papers(id),
+    tag_id INTEGER NOT NULL REFERENCES tags(id),
+    source TEXT,
+    run_id INTEGER,
+    confidence REAL,
+    raw_name TEXT
+);
+
 CREATE TABLE summaries(
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     paper_id INTEGER NOT NULL REFERENCES papers(id),
@@ -219,8 +229,13 @@ class MockRepo:
 
     # --- Paper tags ---
     def add_paper_tag(self, paper_id, tag_id, source='llm', run_id=None, confidence=None, raw_name=None):
-        self.conn.execute("INSERT OR IGNORE INTO paper_tags (paper_id, tag_id, source, run_id, confidence, raw_name) VALUES (?, ?, ?, ?, ?, ?)",
-                          (paper_id, tag_id, source, run_id, confidence, raw_name))
+        values = (paper_id, tag_id, source, run_id, confidence, raw_name)
+        self.conn.execute("INSERT OR IGNORE INTO paper_tags (paper_id, tag_id, source, run_id, confidence, raw_name) VALUES (?, ?, ?, ?, ?, ?)", values)
+        self.conn.execute("INSERT INTO tag_assertions (paper_id, tag_id, source, run_id, confidence, raw_name) VALUES (?, ?, ?, ?, ?, ?)", values)
+        self.conn.commit()
+
+    def move_tag_assertions(self, from_tag_id, to_tag_id):
+        self.conn.execute("UPDATE tag_assertions SET tag_id=? WHERE tag_id=?", (to_tag_id, from_tag_id))
         self.conn.commit()
 
     def get_paper_tags_by_tag(self, tag_id):
@@ -238,6 +253,7 @@ class MockRepo:
 
     # --- Summaries ---
     def add_summary(self, paper_id, run_id=None, model_name='', prompt_version='', content='', is_active=1):
+        self.conn.execute("UPDATE summaries SET is_active=0 WHERE paper_id=? AND is_active=1", (paper_id,))
         cur = self.conn.execute("INSERT INTO summaries (paper_id, run_id, model_name, prompt_version, content, is_active) VALUES (?, ?, ?, ?, ?, ?)",
                                 (paper_id, run_id, model_name, prompt_version, content, is_active))
         self.conn.commit()

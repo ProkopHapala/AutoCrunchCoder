@@ -53,7 +53,7 @@ def test_extract_methods_no_llm():
 2. Recursively sort each half
 3. Merge sorted halves
 """
-    methods = extract_methods(md, [], paper_id=1, run_id=1, repo=repo, llm_config=None)
+    methods = extract_methods(md, [], paper_id=1, run_id=1, repo=repo, llm_config=False)
     assert len(methods) == 1
     assert methods[0]["method_type"] == "source_algorithm"
     # Check card_json is valid JSON
@@ -70,7 +70,7 @@ def test_extract_methods_card_json_structure():
 2. Partition array
 3. Recurse on sub-arrays
 """
-    methods = extract_methods(md, [], paper_id=1, run_id=1, repo=repo, llm_config=None)
+    methods = extract_methods(md, [], paper_id=1, run_id=1, repo=repo, llm_config=False)
     assert len(methods) == 1
     card = json.loads(repo.methods[0].card_json)
     # Verify all expected fields exist
@@ -94,7 +94,7 @@ def test_extract_methods_equation_links():
 1. Compute force using Eq (1)
 2. Update position
 """
-    methods = extract_methods(md, equations, paper_id=1, run_id=1, repo=repo, llm_config=None)
+    methods = extract_methods(md, equations, paper_id=1, run_id=1, repo=repo, llm_config=False)
     # Source algorithms don't have equation_refs by default, so no links
     # This test verifies the linking mechanism doesn't crash
     assert len(methods) == 1

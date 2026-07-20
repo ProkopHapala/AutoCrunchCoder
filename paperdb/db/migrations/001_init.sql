@@ -120,6 +120,18 @@ CREATE TABLE IF NOT EXISTS paper_tags(
     PRIMARY KEY(paper_id, tag_id, source, run_id)
 );
 
+CREATE TABLE IF NOT EXISTS tag_assertions(
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    paper_id INTEGER NOT NULL REFERENCES papers(id),
+    tag_id INTEGER NOT NULL REFERENCES tags(id),
+    source TEXT,
+    run_id INTEGER REFERENCES processing_runs(id),
+    confidence REAL,
+    raw_name TEXT,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+CREATE UNIQUE INDEX IF NOT EXISTS tag_assertions_identity ON tag_assertions(paper_id, tag_id, IFNULL(source,''), IFNULL(run_id,-1), IFNULL(raw_name,''));
+
 CREATE TABLE IF NOT EXISTS equations(
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     paper_id INTEGER NOT NULL REFERENCES papers(id),

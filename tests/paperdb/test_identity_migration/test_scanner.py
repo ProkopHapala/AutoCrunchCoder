@@ -4,7 +4,7 @@ import tempfile
 import pytest
 from paperdb.ingest.scanner import scan_folder, scan_mendeley
 from paperdb.identity.hashing import clear_cache
-from mock_repo import MockRepository
+from .mock_repo import MockRepository
 
 @pytest.fixture(autouse=True)
 def clean_cache(tmp_path, monkeypatch):

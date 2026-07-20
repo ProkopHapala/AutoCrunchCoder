@@ -19,7 +19,7 @@ overviews comparing methods across papers.
 8. [LLM Agent Integration](#8-llm-agent-integration)
 9. [Data Conversion — Legacy Migration](#9-data-conversion--legacy-migration)
 10. [Folder Management](#10-folder-management)
-11. [What Still Needs To Be Done](#11-what-still-needs-to-be-done)
+11. [Verification State and Remaining Limitations](#11-verification-state-and-remaining-limitations)
 
 ---
 
@@ -152,14 +152,16 @@ After setup and usage, the data directory looks like:
 │       └── ...            # Papers with no year metadata
 ├── legacy/                # Copy of migrated legacy data (non-destructive)
 │   └── consolidated.db    # Copied from tests/paper_pipeline_out/
-├── logs/
+└── logs/
 │   ├── migration_report.md  # Generated during migration
 │   └── debug/               # Raw parser output (if --keep-debug)
-└── downloads/               # PDFs fetched from DOI/arXiv/URL
 ```
 
+Remote PDFs are acquired only when the caller supplies an explicit destination outside PaperDB's generated-artifact tree.
+
 **Key rules:**
-- PDFs are **never moved, copied, or renamed** — they stay in their original location.
+- Scanned/local PDFs are **never moved, copied, or renamed** — they stay in their original location.
+- DOI input without `--dest-dir` creates or enriches a metadata-only record. arXiv and direct URL acquisition require `--dest-dir`.
 - The database tracks file paths and SHA-256 hashes.
 - One `.md`, `.json`, `.bib` bundle per paper, named `{paper_key}__p{id:04d}.{ext}`.
 - `paper_key` format: `Author_Year_Keyword` (e.g. `Macklin_2016_XPBD`).
@@ -177,10 +179,16 @@ machine-readable output.
 # Scan a folder for PDFs and index them (PDFs stay in place)
 paperdb scan ~/Downloads/Milan_Articles\ Self-Assembly/
 
-# Add a single paper from local path, DOI, or arXiv ID
+# Add a local paper in place
 paperdb add ~/Downloads/paper.pdf
+
+# DOI without a destination imports metadata/BibTeX only
 paperdb add 10.1021/acs.jctc.4c00001
-paperdb add 2401.02058
+
+# Remote PDF acquisition always names a user-owned destination
+paperdb add 10.1021/acs.jctc.4c00001 --dest-dir ~/Downloads/papers
+paperdb add 2401.02058 --dest-dir ~/Downloads/papers
+paperdb add https://example.org/paper.pdf --dest-dir ~/Downloads/papers
 
 # Ingest (convert + extract equations + methods + summarize + tag)
 paperdb ingest --paper Macklin_2016_XPBD
@@ -297,8 +305,9 @@ paperdb reindex --re-tag --re-extract-equations
 ### Migration
 
 ```bash
-# Import from legacy consolidated.db
+# Import from a legacy database file or its containing run directory
 paperdb migrate --from ~/git/AutoCrunchCoder/tests/paper_pipeline_out/consolidated.db
+paperdb migrate --from ~/git/AutoCrunchCoder/tests/paper_pipeline_out/
 
 # Import from Mendeley BibTeX
 paperdb migrate --from-mendeley ~/Documents/mendeley.bib
@@ -316,8 +325,11 @@ db = PaperDB()  # uses PAPERDB_DATA or ~/paperdb/
 # Scan and index PDFs
 results = db.scan_folder("~/Downloads/papers/")
 
-# Add from DOI/URL/path
+# Local files are indexed in place; DOI can be metadata-only
 paper_id = db.add_paper("10.1021/acs.jctc.4c00001")
+
+# arXiv/direct URL, or a requested DOI PDF, needs an explicit destination
+paper_id = db.add_paper("2401.02058", dest_dir="~/Downloads/papers")
 
 # Ingest (convert + extract + summarize + tag)
 result = db.ingest_paper(paper_id)
@@ -393,7 +405,7 @@ paperdb mcp --transport stdio --allow-mutations
 - `list_tag_aliases(tag_name)`
 
 **Mutating tools (require `--allow-mutations`):**
-- `ingest_pdf(path_or_url, tags)`
+- `ingest_pdf(path_or_url, tags, dest_dir)` — `dest_dir` is required for arXiv/direct URL acquisition
 - `reprocess_document(paper_id, operations)`
 - `merge_tags(canonical, alias)`
 
@@ -546,7 +558,7 @@ print(f"Report: {result['report_path']}")
 
 ### What the migration does
 
-1. **Copies** `consolidated.db` to `~/paperdb/legacy/` (non-destructive)
+1. **Copies** the legacy source tree to `~/paperdb/legacy/` (non-destructive); input may be a DB file or directory
 2. **Reads** all 895 papers, 1279 tags, 2556 article_tags from legacy DB
 3. **Generates** `paper_key` for each paper (`Author_Year_Keyword` format)
 4. **Selects best markdown** by backend priority: `docling+formulas > docling > vlm > pdfminer`
@@ -652,68 +664,29 @@ paperdb ingest --all
 
 ---
 
-## 11. What Still Needs To Be Done
+## 11. Verification State and Remaining Limitations
 
-### Critical: Interface mismatches (Task 7)
+The integration-gap list in `docs/tasks/paperdb/task7_integration_gaps.md` is retained as the historical task specification. The current implementation now exposes the repository/facade contracts named there and has automated verification, but repository policy treats the corrections as **unconfirmed until the user reviews the test evidence**.
 
-The parallel implementation created interface mismatches between submodules and the
-Repository class. See `docs/tasks/paperdb/task7_integration_gaps.md` for the full list.
+Current automated evidence:
 
-**Key issues:**
-- `Repository.upsert_paper()` expects a `Paper` object, but callers in `identity/matching.py`,
-  `ingest/scanner.py`, `ingest/migration.py`, `ingest/fetch.py` pass keyword arguments.
-- Same pattern for `add_paper_file()`, `upsert_tag()`, `add_paper_tag()`, `start_run()`,
-  `add_summary()`.
-- `taxonomy/aliases.py` calls ~14 Repository methods that don't exist yet.
-- `synthesis/method_cards.py` and `topic_reviews.py` use method names that don't match
-  Repository (`add_method` vs `upsert_method`, `add_topic` vs `upsert_topic`, etc.).
+- `python -m pytest tests/paperdb/ --tb=short`: 319 passed.
+- `python -m compileall -q paperdb`: successful.
+- `git diff --check`: clean.
+- Regression coverage includes durable writes after reopening SQLite, active/superseded processing versions, atomic LLM-tag visibility, exact raw equation preservation, metadata-only and typed-tag retrieval, bounded ranking bonuses, structured equation/method indexing, saved context packs, independent reprocessing from changed Markdown, and idempotent file-or-directory legacy migration.
 
-**Fix**: Add convenience wrappers to Repository OR update all callers to construct Pydantic
-model objects. See Task 7 document for details.
+The following features remain outside this correction pass:
 
-### Task 5: Extraction & Ingest (still running)
+- GUI: `paperdb gui` still reports that no GUI is implemented.
+- Vector search: optional enhancement; FTS5 remains the supported default.
+- Citation extraction/graph population: the schema exists, but automated extraction/import is not implemented.
+- Daemon/file watcher: use explicit `paperdb sync --folder ...` or scheduled invocation.
+- Production validation with the full legacy corpus, Docling installation, and live LLM/CrossRef/arXiv services still requires the user's environment and credentials.
 
-Task 5 (`docs/tasks/paperdb/task5_extraction_ingest.md`) was still running at review time.
-The code files exist (`extract/base.py`, `docling_backend.py`, `equations.py`, `methods.py`,
-`ingest/pipeline.py`, `jobs.py`, `fetch.py`) and appear complete, but final verification is
-pending.
+Recommended operational validation:
 
-### Missing features
-
-- **`sync()` method** — `PaperDB.sync()` is referenced by CLI but not implemented. The CLI
-  `sync` command falls back to `scan_folder`.
-- **`ingest_all()` and `ingest_folder()`** — referenced by CLI but not in PaperDB facade.
-- **`reindex()` method** — referenced by CLI but not in PaperDB facade.
-- **`compare_methods()` method** — referenced by MCP but not in PaperDB facade (only
-  `build_topic_review` is wired).
-- **`get_tag_aliases()` method** — referenced by MCP but not in PaperDB facade.
-- **`get_context_pack()` method** — referenced by MCP resource but not in PaperDB facade.
-- **GUI** — `paperdb gui` command prints "not yet implemented".
-- **Vector search** — `pyproject.toml` has `[vector]` extra but no implementation.
-- **Citation graph** — `citations` table exists but no extraction/import logic.
-- **Daemon mode** — no file watcher for automatic scanning.
-
-### Data conversion steps needed
-
-1. **Run legacy migration** (see Section 9):
-   ```bash
-   paperdb migrate --from ~/git/AutoCrunchCoder/tests/paper_pipeline_out/consolidated.db
-   ```
-
-2. **Scan existing PDF folders** to index any PDFs not in the legacy DB:
-   ```bash
-   paperdb scan ~/Downloads/ --recursive
-   ```
-
-3. **Reprocess papers** with low-quality backends or missing summaries:
-   ```bash
-   paperdb status --needs-reprocessing
-   paperdb reindex --re-summarize --re-tag --llm-config gemini-flash
-   ```
-
-### Folder actions needed
-
-1. **No folder moves required** — PDFs stay in place. PaperDB tracks paths in the database.
-2. **Create `~/paperdb/`** — auto-created on first use, or set `PAPERDB_DATA`.
-3. **Legacy data is copied** (not moved) to `~/paperdb/legacy/` during migration.
-4. **Generated bundles** go to `~/paperdb/papers/<year>/` — auto-created during ingest/migration.
+1. Run migration against a copy/source path and inspect `logs/migration_report.md`.
+2. Scan an explicit PDF library folder; PaperDB indexes files in place.
+3. Run ingestion on a small representative paper set before a full-library batch.
+4. Inspect generated Markdown, structured JSON, BibTeX, equations, method evidence, and search/context results.
+5. Confirm the behavior before changing any task/checklist status fields.

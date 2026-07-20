@@ -8,7 +8,7 @@ import os
 import glob
 from paperdb.identity.hashing import compute_sha256
 from paperdb.identity.matching import find_or_create_paper, match_by_hash
-from paperdb.identity.metadata import parse_bibtex, normalize_doi, match_bibtex_to_paper
+from paperdb.identity.metadata import parse_bibtex, normalize_doi, match_bibtex_to_paper, local_pdf_metadata
 
 def scan_folder(folder_path, recursive=True, repo=None) -> list[dict]:
     """Find all PDFs in folder. For each:
@@ -20,6 +20,7 @@ def scan_folder(folder_path, recursive=True, repo=None) -> list[dict]:
     """
     if repo is None:
         raise ValueError("repo is required for scan_folder")
+    folder_path = os.path.abspath(os.path.expanduser(folder_path))
     pattern = os.path.join(folder_path, '**', '*.pdf') if recursive else os.path.join(folder_path, '*.pdf')
     pdfs = sorted(glob.glob(pattern, recursive=recursive))
     results = []
@@ -35,12 +36,11 @@ def _index_pdf(pdf_path: str, repo) -> dict:
     st = os.stat(abspath)
 
     # Check if this exact path is already indexed
-    existing_file = repo.find_file_by_path(abspath) if hasattr(repo, 'find_file_by_path') else None
+    existing_file = repo.find_file_by_path(abspath)
     if existing_file is not None:
         # Already indexed at this path — update last_seen
         file_id = existing_file.get('id') if isinstance(existing_file, dict) else existing_file.id
-        if hasattr(repo, 'touch_file'):
-            repo.touch_file(file_id)
+        repo.touch_file(file_id, sha256=sha, file_size=st.st_size, modified_time=st.st_mtime)
         pid = existing_file.get('paper_id') if isinstance(existing_file, dict) else existing_file.paper_id
         return {'paper_id': pid, 'path': abspath, 'was_new': False, 'matched_by': 'existing_path'}
 
@@ -49,12 +49,16 @@ def _index_pdf(pdf_path: str, repo) -> dict:
     if hash_matches:
         hm = hash_matches[0]
         pid = hm.get('paper_id') if isinstance(hm, dict) else hm.paper_id
-        # Add new path for existing paper
+        old_path = hm.get('path') if isinstance(hm, dict) else hm.path
+        file_id = hm.get('id') if isinstance(hm, dict) else hm.id
+        if old_path and not os.path.exists(old_path):
+            repo.move_file(file_id, abspath, file_size=st.st_size, modified_time=st.st_mtime)
+            return {'paper_id': pid, 'path': abspath, 'was_new': False, 'matched_by': 'hash_moved'}
         repo.add_paper_file(paper_id=pid, path=abspath, sha256=sha, file_size=st.st_size, modified_time=st.st_mtime, file_role='duplicate')
-        return {'paper_id': pid, 'path': abspath, 'was_new': False, 'matched_by': 'hash_moved'}
+        return {'paper_id': pid, 'path': abspath, 'was_new': False, 'matched_by': 'hash_duplicate'}
 
     # Try to match/create paper
-    pid, was_created = find_or_create_paper(abspath, repo)
+    pid, was_created = find_or_create_paper(abspath, repo, metadata=local_pdf_metadata(abspath))
     repo.add_paper_file(paper_id=pid, path=abspath, sha256=sha, file_size=st.st_size, modified_time=st.st_mtime, file_role='publisher')
     return {'paper_id': pid, 'path': abspath, 'was_new': was_created, 'matched_by': 'created' if was_created else 'metadata'}
 
@@ -62,6 +66,8 @@ def scan_mendeley(bibtex_path, pdf_folder, repo=None) -> list[dict]:
     """Scan Mendeley: parse BibTeX, match PDFs by filename/DOI, import metadata."""
     if repo is None:
         raise ValueError("repo is required for scan_mendeley")
+    bibtex_path = os.path.abspath(os.path.expanduser(bibtex_path))
+    pdf_folder = os.path.abspath(os.path.expanduser(pdf_folder))
     with open(bibtex_path, 'r') as f:
         entries = parse_bibtex(f.read())
     results = []
@@ -119,7 +125,9 @@ def _import_mendeley_entry(entry: dict, pdf_folder: str, repo) -> dict | None:
                 repo.add_paper_file(paper_id=pid, path=os.path.abspath(candidate), sha256=sha, file_size=st.st_size, modified_time=st.st_mtime, file_role='mendeley')
 
     # 3. Store BibTeX text if available
-    if entry.get('bibtex_raw') and hasattr(repo, 'set_paper_bibtex'):
-        repo.set_paper_bibtex(pid, entry['bibtex_raw'])
+    if entry.get('bibtex_raw'):
+        paper = repo.get_paper(pid)
+        paper_key = paper.get('paper_key') if isinstance(paper, dict) else paper.paper_key
+        repo.set_paper_bibtex(pid, entry['bibtex_raw'], os.path.join(pdf_folder, f"{paper_key}.bib"))
 
     return {'paper_id': pid, 'entry_id': entry.get('entry_id'), 'was_new': was_new, 'title': entry.get('title')}

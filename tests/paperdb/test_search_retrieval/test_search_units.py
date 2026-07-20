@@ -8,7 +8,7 @@ if _repo_root not in sys.path:
     sys.path.insert(0, _repo_root)
 
 from paperdb.search.fts import _split_markdown_to_units, build_search_units_from_markdown, fts_search, SearchUnit
-from conftest import create_test_db, insert_test_paper
+from .conftest import create_test_db, insert_test_paper
 
 
 def test_search_units_section_types():

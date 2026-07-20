@@ -5,7 +5,7 @@ import asyncio
 import pytest
 
 # conftest.py injects mock paperdb package before this import
-from tests.paperdb.test_cli_mcp.conftest import MockPaperDB
+from .conftest import MockPaperDB
 from paperdb import mcp as mcp_module
 
 # ── Tool existence ────────────────────────────────────────────────────────────

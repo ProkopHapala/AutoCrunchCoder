@@ -276,6 +276,24 @@ class MockRepository:
             bibtex_path=d.get('bibtex_path', '')
         )
 
+    def list_papers(self, limit=100, offset=0):
+        rows = self.conn.execute("SELECT id FROM papers ORDER BY id LIMIT ? OFFSET ?", (limit, offset)).fetchall()
+        return [self.get_paper(row[0]) for row in rows]
+
+    def get_active_summary(self, paper_id):
+        from types import SimpleNamespace
+        row = self.conn.execute("SELECT * FROM summaries WHERE paper_id=? AND is_active=1 ORDER BY id DESC LIMIT 1", (paper_id,)).fetchone()
+        return SimpleNamespace(**dict(row)) if row else None
+
+    def get_equations_for_paper(self, paper_id):
+        return [dict(row) for row in self.conn.execute("SELECT * FROM equations WHERE paper_id=? ORDER BY id", (paper_id,)).fetchall()]
+
+    def get_variables_for_equation(self, equation_id):
+        return []
+
+    def get_methods_for_paper(self, paper_id):
+        return [dict(row) for row in self.conn.execute("SELECT * FROM methods WHERE paper_id=? ORDER BY id", (paper_id,)).fetchall()]
+
     def replace_search_units(self, paper_id, units):
         """Transactional delete+insert of search units for a paper."""
         self.conn.execute("BEGIN")

@@ -12,6 +12,8 @@ Uses pyCruncher.Agent for LLM-based reconstruction.
 import json, re, logging
 from typing import Optional
 
+from paperdb.config import make_agent, response_text
+
 from ..db.models import Method
 
 logger = logging.getLogger(__name__)
@@ -50,7 +52,7 @@ Rules:
 - Be conservative with confidence: 0.9+ for explicit algorithms, 0.5-0.8 for reconstructions.
 - Return ONLY the JSON array, no other text.
 
-Paper markdown (first 12000 chars):
+Paper markdown (bounded by the configured model context):
 ---
 {markdown}
 ---
@@ -79,12 +81,9 @@ def extract_methods(markdown: str, equations: list, paper_id: int, run_id: int,
     # First: try to extract source_algorithm (verbatim) from markdown
     source_methods = _extract_source_algorithms(markdown)
 
-    # Then: use LLM for reconstructed_method if config provided
-    reconstructed_methods = []
-    if llm_config and llm_config.get("template_name"):
-        reconstructed_methods = _llm_reconstruct_methods(markdown, equations, llm_config)
-    else:
-        logger.info("No LLM config provided — skipping reconstructed_method extraction")
+    # Then: reconstruct methods with the configured/default LLM. Passing False is
+    # the explicit opt-out used by deterministic/offline ingestion.
+    reconstructed_methods = [] if llm_config is False else _llm_reconstruct_methods(markdown, equations, llm_config)
 
     all_methods = source_methods + reconstructed_methods
     stored = []
@@ -190,64 +189,34 @@ def _extract_source_algorithms(markdown: str) -> list[dict]:
                     "equation_refs": [],
                     "confidence": 0.9,
                 })
-            i = j
+            # The outer loop increments i. Stop immediately before the next heading
+            # so an adjacent algorithm header is examined instead of skipped.
+            i = j - 1
         i += 1
     return methods
 
 
-def _llm_reconstruct_methods(markdown: str, equations: list, llm_config: dict) -> list[dict]:
-    """Use pyCruncher.Agent to reconstruct method cards from paper text."""
-    try:
-        from pyCruncher.AgentOpenAI import AgentOpenAI
-    except ImportError:
-        try:
-            from pyCruncher.AgentDeepSeek import AgentDeepSeek as AgentOpenAI
-        except ImportError:
-            logger.warning("No Agent implementation available — skipping LLM reconstruction")
-            return []
+def _llm_reconstruct_methods(markdown: str, equations: list, llm_config=None) -> list[dict]:
+    """Use the configured pyCruncher agent; configuration/query/JSON errors fail loud."""
+    agent = make_agent(llm_config)
 
-    template_name = llm_config.get("template_name", "lm-llama-8b")
-    try:
-        agent = AgentOpenAI(template_name)
-    except Exception as e:
-        logger.warning(f"Failed to create LLM agent ({template_name}): {e}")
-        return []
-
-    # Prepare equations text
     eq_lines = []
     for eq in equations:
         num = eq.get("equation_number", "?")
         latex = eq.get("latex_raw", eq.get("latex_normalized", ""))
         section = eq.get("section_path", "")
-        eq_lines.append(f"Eq ({num}) [{section}]: {latex[:200]}")
-    equations_text = "\n".join(eq_lines[:50]) if eq_lines else "(no equations extracted)"
+        eq_lines.append(f"Eq ({num}) [{section}]: {latex[:500]}")
+    equations_text = "\n".join(eq_lines[:100]) if eq_lines else "(no equations extracted)"
 
-    # Truncate markdown for context window
-    md_trunc = markdown[:12000]
-
-    prompt = _RECONSTRUCT_PROMPT.format(markdown=md_trunc, equations_text=equations_text)
-
-    try:
-        response = agent.query(prompt=prompt, bHistory=False)
-        text = agent.get_response_text(response) if hasattr(agent, 'get_response_text') else str(response)
-    except Exception as e:
-        logger.warning(f"LLM query failed: {e}")
-        return []
-
-    # Parse JSON from response — may be wrapped in ```json blocks
+    max_chars = max(12000, agent.max_context_length * 3 - len(equations_text) - 16000) if agent.max_context_length else 12000
+    prompt = _RECONSTRUCT_PROMPT.format(markdown=markdown[:max_chars], equations_text=equations_text)
+    response = agent.query(prompt=prompt, bHistory=False)
+    text = response_text(agent, response)
     text = text.strip()
     if "```json" in text:
-        text = text.split("```json")[1].split("```")[0].strip()
+        text = text.split("```json", 1)[1].split("```", 1)[0].strip()
     elif "```" in text:
-        text = text.split("```")[1].split("```")[0].strip()
+        text = text.split("```", 1)[1].split("```", 1)[0].strip()
 
-    try:
-        methods = json.loads(text)
-    except json.JSONDecodeError as e:
-        logger.warning(f"Failed to parse LLM method JSON: {e}\nRaw: {text[:500]}")
-        return []
-
-    if not isinstance(methods, list):
-        methods = [methods]
-
-    return methods
+    methods = json.loads(text)
+    return methods if isinstance(methods, list) else [methods]

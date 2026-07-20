@@ -226,18 +226,15 @@ class DoclingParser(BaseParser):
 
             # Docling labels equations as "formula" or contains $...$ patterns
             if label == "formula" or (text.strip().startswith("$$") and text.strip().endswith("$$")):
-                latex = text.strip()
-                # Strip $$ delimiters for raw latex
-                latex_raw = latex
-                if latex_raw.startswith("$$") and latex_raw.endswith("$$"):
-                    latex_raw = latex_raw[2:-2].strip()
-
-                # Try to find equation number (e.g. "(1)", "(2.3)")
+                # Preserve the parser payload byte-for-byte (apart from surrounding
+                # JSON string representation); normalization happens downstream.
+                latex_raw = text
                 eq_number = None
-                eq_num_match = re.search(r'\((\d+(?:\.\d+)*)\)\s*$', latex_raw)
-                if eq_num_match:
-                    eq_number = eq_num_match.group(1)
-                    latex_raw = latex_raw[:eq_num_match.start()].strip()
+                number_text = text.strip()
+                if number_text.startswith("$$") and number_text.endswith("$$"): number_text = number_text[2:-2].strip()
+                elif number_text.startswith("$") and number_text.endswith("$"): number_text = number_text[1:-1].strip()
+                eq_num_match = re.search(r'\((\d+(?:\.\d+)*)\)\s*$', number_text)
+                if eq_num_match: eq_number = eq_num_match.group(1)
 
                 # Context: previous and next text items
                 context_before = prev_text[-200:] if prev_text else ""

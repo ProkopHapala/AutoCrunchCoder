@@ -148,6 +148,23 @@ def test_summaries():
     assert len(all_s) == 2
     conn.close()
 
+def test_summary_visibility_changes_only_after_successful_run():
+    from paperdb.ingest.jobs import finish_job
+    conn, repo, pid = _setup()
+    repo.add_summary(paper_id=pid, content="Last successful", model_name="baseline")
+    failed_run = repo.start_run(paper_id=pid, operation="summarize", backend="llm", config_hash="failed")
+    repo.add_summary(paper_id=pid, run_id=failed_run, content="Unverified", model_name="candidate")
+    assert repo.get_active_summary(pid).content == "Last successful"
+    finish_job(failed_run, "failed", repo)
+    assert repo.get_active_summary(pid).content == "Last successful"
+    successful_run = repo.start_run(paper_id=pid, operation="summarize", backend="llm", config_hash="ok")
+    repo.add_summary(paper_id=pid, run_id=successful_run, content="New successful", model_name="candidate")
+    assert repo.get_active_summary(pid).content == "Last successful"
+    finish_job(successful_run, "ok", repo)
+    assert repo.get_active_summary(pid).content == "New successful"
+    conn.close()
+
+
 def test_context_packs():
     conn, repo, pid = _setup()
     cp_id = repo.save_context_pack(ContextPack(query="GPU collision", content="context pack text"))
@@ -183,3 +200,58 @@ def test_status_counts():
     assert counts["files"] == 1
     assert counts["tags"] == 1
     conn.close()
+
+
+def test_active_tag_run_refresh_and_assertion_history():
+    from paperdb.ingest.jobs import finish_job
+    conn, repo, pid = _setup()
+    old_tag = repo.upsert_tag(canonical_name="old method", category="method")
+    new_tag = repo.upsert_tag(canonical_name="new method", category="method")
+    run1 = repo.start_run(paper_id=pid, operation="tag", backend="llm", config_hash="a")
+    repo.add_paper_tag(paper_id=pid, tag_id=old_tag, source="llm", run_id=run1, raw_name="Old Method")
+    assert repo.get_tags_for_paper(pid) == []
+    finish_job(run1, "ok", repo)
+    assert [tag.canonical_name for tag in repo.get_tags_for_paper(pid)] == ["old method"]
+    run2 = repo.start_run(paper_id=pid, operation="tag", backend="llm", config_hash="b")
+    repo.add_paper_tag(paper_id=pid, tag_id=new_tag, source="llm", run_id=run2, raw_name="New Method")
+    assert [tag.canonical_name for tag in repo.get_tags_for_paper(pid)] == ["old method"]
+    finish_job(run2, "ok", repo)
+    assert [tag.canonical_name for tag in repo.get_tags_for_paper(pid)] == ["new method"]
+    assert conn.execute("SELECT COUNT(*) FROM tag_assertions WHERE paper_id=?", (pid,)).fetchone()[0] == 2
+    conn.close()
+
+
+def test_merge_tags_preserves_raw_assertions_real_repository():
+    from paperdb.taxonomy.aliases import merge_tags
+    conn, repo, pid = _setup()
+    canonical = repo.upsert_tag(canonical_name="density functional theory", category="method")
+    alias = repo.upsert_tag(canonical_name="DFT", category="method")
+    repo.add_paper_tag(paper_id=pid, tag_id=alias, source="user", raw_name="DFT", confidence=1.0)
+    merge_tags(canonical, alias, repo)
+    assertion = conn.execute("SELECT tag_id, raw_name FROM tag_assertions WHERE paper_id=?", (pid,)).fetchone()
+    assert assertion["tag_id"] == canonical
+    assert assertion["raw_name"] == "DFT"
+    assert repo.get_tag_by_id(alias) is None
+    conn.close()
+
+
+def test_real_saved_context_and_cli_json(tmp_path):
+    import json
+    from typer.testing import CliRunner
+    from paperdb import PaperDB
+    from paperdb.cli import app
+    data_dir = tmp_path / "paperdb"
+    db = PaperDB(data_dir=str(data_dir))
+    pid = db.upsert_paper(Paper(paper_key="Evidence_2026_Context", title="Scientific evidence"))
+    db.repo.add_search_unit(SearchUnit(paper_id=pid, unit_type="section", source_type="section", section_path="Methods", content="scientific evidence method details"))
+    pack = db.retrieve_context("scientific evidence", save=True)
+    assert pack.id is not None and pack.paper_count == 1
+    db.close()
+    reopened = PaperDB(data_dir=str(data_dir))
+    assert reopened.get_context_pack(pack.id).content == pack.content
+    reopened.close()
+    result = CliRunner().invoke(app, ["--data-dir", str(data_dir), "--json", "context", "scientific evidence", "--save"])
+    assert result.exit_code == 0, result.exception
+    payload = json.loads(result.stdout)
+    assert payload["id"] is not None
+    assert payload["paper_count"] == 1

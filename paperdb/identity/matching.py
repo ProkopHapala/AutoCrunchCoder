@@ -89,7 +89,7 @@ def match_by_metadata(title, authors, year, repo) -> int | None:
     norm_authors = _normalize_authors(authors)
     best_id = None
     best_score = 0.0
-    for p in repo.list_papers():
+    for p in repo.list_papers(limit=100000):
         p_title = _normalize_title(p.get('title') if isinstance(p, dict) else p.title)
         title_sim = SequenceMatcher(None, norm_title, p_title).ratio()
         if title_sim < 0.6:

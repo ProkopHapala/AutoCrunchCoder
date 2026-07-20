@@ -1,21 +1,17 @@
-"""Weighted scoring with explainable breakdown for paper search ranking."""
+'''Explainable two-stage paper ranking.'''
 
 from dataclasses import dataclass, field
-from typing import Optional
-from .fts import fts_search, fts_search_for_papers, SearchUnit
 
+from .fts import fts_search
 
-# --- SearchResult (owned by Task 3; Task 1's models.py can import or align) ---
 
 @dataclass
 class SearchResult:
-    paper: object              # Paper model (duck-typed: id, paper_key, title, year, authors_text, essence, abstract)
+    paper: object
     score: int = 0
     breakdown: dict = field(default_factory=dict)
-    matching_units: list = field(default_factory=list)  # list of FTS result dicts
+    matching_units: list = field(default_factory=list)
 
-
-# --- Scoring constants (from §15 of design doc) ---
 
 SCORE_REQUIRED_TAG = 10
 SCORE_PREFERRED_TAG = 4
@@ -25,241 +21,163 @@ SCORE_ABSTRACT = 2
 SCORE_FTS = 1
 
 
+def _split_query(query: str) -> tuple[str, list[str]]:
+    '''Separate free text from inline ``category:name`` tag constraints.'''
+    text, tags = [], []
+    for token in query.split():
+        if ':' in token and not token.lower().startswith(('http:', 'https:', 'doi:')):
+            category, name = token.split(':', 1)
+            if category and name:
+                tags.append(f"{category}:{name.replace('_', ' ')}")
+                continue
+        text.append(token)
+    return ' '.join(text), tags
+
+
 def rank_papers(query, fts_results, repo, required_tags=None, preferred_tags=None,
                 excluded_tags=None, year_range=None, explain=False):
-    """Two-stage retrieval:
-    Stage A: Select candidate papers from FTS results + tag filters.
-    Stage B: Score and rank papers.
-
-    Returns list[SearchResult] sorted by score descending.
-    """
     required_tags = required_tags or []
     preferred_tags = preferred_tags or []
     excluded_tags = excluded_tags or []
+    text_query, inline_tags = _split_query(query)
+    required_tags = [*required_tags, *inline_tags]
 
-    # --- Stage A: collect candidate paper_ids from FTS results ---
-    fts_by_paper = {}  # paper_id -> list of fts result dicts
-    for r in fts_results:
-        pid = r['paper_id']
-        fts_by_paper.setdefault(pid, []).append(r)
+    fts_by_paper = {}
+    for row in fts_results:
+        fts_by_paper.setdefault(row['paper_id'], []).append(row)
+    candidate_ids = set(fts_by_paper)
+    candidate_ids |= _metadata_candidates(text_query, repo)
+    for tag in [*required_tags, *preferred_tags]:
+        candidate_ids |= _get_paper_ids_with_tags([tag], repo, match_all=False)
+    if not text_query and not required_tags and not preferred_tags:
+        candidate_ids = {p.id for p in repo.list_papers(limit=100000)}
 
-    candidate_ids = set(fts_by_paper.keys())
-
-    # If we have required tags, also include papers that have those tags
-    # (they should be candidates even if FTS didn't match, for tag-only search)
-    if required_tags and not candidate_ids:
-        candidate_ids = _get_paper_ids_with_tags(required_tags, repo, match_all=True)
-
-    if not candidate_ids:
-        return []
-
-    # --- Apply filters ---
-
-    # Excluded tags: remove papers that have ANY excluded tag
     if excluded_tags:
-        excluded_ids = _get_paper_ids_with_tags(excluded_tags, repo, match_all=False)
-        candidate_ids -= excluded_ids
-
-    # Required tags: paper must have ALL required tags
+        candidate_ids -= _get_paper_ids_with_tags(excluded_tags, repo, match_all=False)
     if required_tags:
-        required_ids = _get_paper_ids_with_tags(required_tags, repo, match_all=True)
-        candidate_ids &= required_ids
-
-    # Year range filter
+        candidate_ids &= _get_paper_ids_with_tags(required_tags, repo, match_all=True)
     if year_range:
-        year_from, year_to = year_range
-        candidate_ids = {pid for pid in candidate_ids
-                         if _paper_in_year_range(pid, year_from, year_to, repo)}
+        lo, hi = year_range
+        candidate_ids = {pid for pid in candidate_ids if _paper_in_year_range(pid, lo, hi, repo)}
 
-    if not candidate_ids:
-        return []
+    query_lower = text_query.lower().strip()
+    query_terms = {term for term in query_lower.split() if term}
+    tag_query_names = set()
+    for tag in [*required_tags, *preferred_tags]:
+        resolved = _resolve_tag_name(tag, repo)
+        if resolved:
+            tag_query_names.add(resolved.lower())
 
-    # --- Stage B: score and rank ---
     results = []
-    query_lower = query.lower()
-    query_terms = set(query_lower.split())
-
     for pid in candidate_ids:
-        paper = _get_paper(pid, repo)
+        paper = repo.get_paper(pid)
         if paper is None:
             continue
-
-        breakdown = {}
-        score = 0
-
-        # Title match
+        score, breakdown = 0, {}
         title = (paper.title or '').lower()
-        if title and query_lower in title:
-            breakdown['title'] = SCORE_TITLE
-            score += SCORE_TITLE
-        elif title and any(term in title for term in query_terms):
-            breakdown['title'] = SCORE_TITLE
-            score += SCORE_TITLE
+        if query_lower and (query_lower in title or any(term in title for term in query_terms)):
+            breakdown['title'] = SCORE_TITLE; score += SCORE_TITLE
+        combined = f"{paper.abstract or ''} {paper.essence or ''}".lower()
+        if query_lower and (query_lower in combined or any(term in combined for term in query_terms)):
+            breakdown['abstract'] = SCORE_ABSTRACT; score += SCORE_ABSTRACT
 
-        # Abstract/summary match
-        abstract = (paper.abstract or '').lower()
-        essence = (paper.essence or '').lower()
-        combined = abstract + ' ' + essence
-        if query_lower in combined:
-            breakdown['abstract'] = SCORE_ABSTRACT
-            score += SCORE_ABSTRACT
-        elif any(term in combined for term in query_terms):
-            breakdown['abstract'] = SCORE_ABSTRACT
-            score += SCORE_ABSTRACT
-
-        # Tag scoring
-        paper_tags = _get_paper_tags(pid, repo)  # list of (canonical_name, category, source)
-        paper_tag_names_lower = {t[0].lower() for t in paper_tags}
-
-        # Preferred tags: +4 per matching tag
-        preferred_matches = 0
-        for pt in preferred_tags:
-            resolved = _resolve_tag(pt, repo)
-            if resolved and resolved.lower() in paper_tag_names_lower:
-                preferred_matches += SCORE_PREFERRED_TAG
+        paper_tags = _get_paper_tags(pid, repo)
+        names = {name.lower() for name, _, _ in paper_tags}
+        preferred_matches = sum(SCORE_PREFERRED_TAG for tag in preferred_tags if (_resolve_tag_name(tag, repo) or '').lower() in names)
         if preferred_matches:
-            breakdown['preferred_tags'] = preferred_matches
-            score += preferred_matches
+            breakdown['preferred_tags'] = preferred_matches; score += preferred_matches
 
-        # User-assigned tags: +6 per user tag
-        user_tag_matches = sum(1 for t in paper_tags if t[2] == 'user')
-        if user_tag_matches:
-            breakdown['user_tags'] = user_tag_matches * SCORE_USER_TAG
-            score += user_tag_matches * SCORE_USER_TAG
+        matching_user = 0
+        for name, _, source in paper_tags:
+            name_lower = name.lower()
+            mentioned = name_lower in tag_query_names or bool(query_terms & set(name_lower.split()))
+            if source == 'user' and mentioned:
+                matching_user += 1
+        if matching_user:
+            breakdown['user_tags'] = matching_user * SCORE_USER_TAG; score += matching_user * SCORE_USER_TAG
 
-        # FTS match: +1 per matching unit
-        fts_units = fts_by_paper.get(pid, [])
-        fts_score = len(fts_units) * SCORE_FTS
+        fts_units = sorted(fts_by_paper.get(pid, []), key=lambda row: row.get('rank', 0))
+        fts_score = min(len(fts_units), 3) * SCORE_FTS
         if fts_score:
-            breakdown['fts'] = fts_score
-            score += fts_score
-
-        # Required tag match: +10 (paper already filtered to have all)
+            breakdown['fts'] = fts_score; score += fts_score
         if required_tags:
-            breakdown['required_tags'] = SCORE_REQUIRED_TAG
-            score += SCORE_REQUIRED_TAG
+            breakdown['required_tags'] = len(required_tags) * SCORE_REQUIRED_TAG; score += breakdown['required_tags']
+        results.append(SearchResult(paper=paper, score=score, breakdown=breakdown, matching_units=fts_units if explain else []))
 
-        matching_units = fts_units if explain else []
-
-        results.append(SearchResult(
-            paper=paper, score=score, breakdown=breakdown,
-            matching_units=matching_units
-        ))
-
-    # Sort by score descending, then by paper_key for stability
-    results.sort(key=lambda r: (-r.score, getattr(r.paper, 'paper_key', '') or ''))
+    results.sort(key=lambda result: (-result.score, result.matching_units[0].get('rank', 0) if result.matching_units else float('inf'), result.paper.paper_key or ''))
     return results
 
 
 def search(query, repo, required_tags=None, preferred_tags=None, excluded_tags=None,
            year_range=None, limit=20, explain=False):
-    """Full search pipeline: FTS5 → rank_papers. Convenience function for PaperDB.search()."""
-    fts_results = fts_search(query, repo, limit=limit * 5)  # over-fetch for ranking
-    results = rank_papers(query, fts_results, repo,
-                          required_tags=required_tags, preferred_tags=preferred_tags,
-                          excluded_tags=excluded_tags, year_range=year_range,
-                          explain=explain)
+    text_query, _ = _split_query(query)
+    fts_results = fts_search(text_query, repo, limit=max(limit * 10, 100)) if text_query else []
+    results = rank_papers(query, fts_results, repo, required_tags=required_tags,
+                          preferred_tags=preferred_tags, excluded_tags=excluded_tags,
+                          year_range=year_range, explain=explain)
     return results[:limit]
 
 
-# --- Helper functions (use repo for DB access) ---
-
-def _get_paper(paper_id, repo):
-    """Get paper by id. Returns duck-typed Paper object."""
-    return repo.get_paper(paper_id)
-
-
-def _get_paper_ids_with_tags(tag_names, repo, match_all=True):
-    """Get set of paper_ids that have the given tags.
-    Resolves tag aliases. If match_all=True, paper must have ALL tags (AND).
-    If match_all=False, paper must have ANY tag (OR).
-    """
-    paper_tag_sets = []
-    for tn in tag_names:
-        resolved = _resolve_tag(tn, repo)
-        if resolved is None:
-            # Try direct match on canonical_name
-            tag_ids = _find_tag_ids(tn, repo)
-        else:
-            tag_ids = _find_tag_ids(resolved, repo)
-        if not tag_ids:
-            if match_all:
-                return set()  # can't match all if one tag doesn't exist
-            continue
-        placeholders = ",".join("?" * len(tag_ids))
-        sql = f"""
-            SELECT DISTINCT paper_id FROM paper_tags
-            WHERE tag_id IN ({placeholders})
-        """
-        rows = repo.conn.execute(sql, tag_ids).fetchall()
-        ids = {r[0] for r in rows}
-        paper_tag_sets.append(ids)
-
-    if not paper_tag_sets:
+def _metadata_candidates(query, repo):
+    terms = [term.lower() for term in query.split() if term]
+    if not terms:
         return set()
-
-    if match_all:
-        result = paper_tag_sets[0]
-        for s in paper_tag_sets[1:]:
-            result &= s
-        return result
-    else:
-        result = set()
-        for s in paper_tag_sets:
-            result |= s
-        return result
+    clause = "lower(COALESCE(title,'') || ' ' || COALESCE(abstract,'') || ' ' || COALESCE(essence,'')) LIKE ?"
+    rows = repo.conn.execute(f"SELECT id FROM papers WHERE {' OR '.join(clause for _ in terms)}", tuple(f"%{term}%" for term in terms)).fetchall()
+    return {row[0] for row in rows}
 
 
-def _resolve_tag(tag_name, repo):
-    """Resolve a tag name through tag_aliases to canonical name. Returns canonical_name or None."""
-    normalized = tag_name.lower().strip()
-    sql = """
-        SELECT t.canonical_name FROM tag_aliases ta
-        JOIN tags t ON t.id = ta.tag_id
-        WHERE ta.normalized_alias = ?
-    """
-    row = repo.conn.execute(sql, (normalized,)).fetchone()
-    if row:
-        return row[0]
-    # Also check direct canonical_name match
-    sql2 = "SELECT canonical_name FROM tags WHERE lower(canonical_name) = ?"
-    row = repo.conn.execute(sql2, (normalized,)).fetchone()
-    if row:
-        return row[0]
-    return None
+def _parse_tag_ref(tag):
+    if isinstance(tag, (list, tuple)) and len(tag) == 2:
+        return str(tag[0]).strip(), str(tag[1]).strip()
+    text = str(tag).strip()
+    if ':' in text:
+        category, name = text.split(':', 1)
+        return category.strip(), name.strip().replace('_', ' ')
+    return None, text
 
 
-def _find_tag_ids(tag_name, repo):
-    """Find tag_ids for a tag name (canonical or alias)."""
-    normalized = tag_name.lower().strip()
-    # Check aliases
-    sql = "SELECT tag_id FROM tag_aliases WHERE normalized_alias = ?"
-    rows = repo.conn.execute(sql, (normalized,)).fetchall()
-    ids = [r[0] for r in rows]
-    if ids:
-        return ids
-    # Check canonical name directly
-    sql2 = "SELECT id FROM tags WHERE lower(canonical_name) = ?"
-    rows = repo.conn.execute(sql2, (normalized,)).fetchall()
-    return [r[0] for r in rows]
+def _tag_ids(tag, repo):
+    category, name = _parse_tag_ref(tag)
+    normalized = name.lower()
+    sql = "SELECT DISTINCT t.id FROM tags t LEFT JOIN tag_aliases a ON a.tag_id=t.id WHERE (lower(t.canonical_name)=? OR a.normalized_alias=?)"
+    params = [normalized, normalized]
+    if category:
+        sql += ' AND lower(t.category)=?'
+        params.append(category.lower())
+    return [row[0] for row in repo.conn.execute(sql, tuple(params)).fetchall()]
+
+
+def _resolve_tag_name(tag, repo):
+    ids = _tag_ids(tag, repo)
+    if not ids:
+        return None
+    row = repo.conn.execute('SELECT canonical_name FROM tags WHERE id=?', (ids[0],)).fetchone()
+    return row[0] if row else None
+
+
+def _get_paper_ids_with_tags(tags, repo, match_all=True):
+    sets = []
+    for tag in tags:
+        ids = _tag_ids(tag, repo)
+        if not ids:
+            if match_all:
+                return set()
+            continue
+        placeholders = ','.join('?' for _ in ids)
+        rows = repo.conn.execute(f'SELECT DISTINCT paper_id FROM paper_tags WHERE tag_id IN ({placeholders})', ids).fetchall()
+        sets.append({row[0] for row in rows})
+    if not sets:
+        return set()
+    return set.intersection(*sets) if match_all else set.union(*sets)
 
 
 def _get_paper_tags(paper_id, repo):
-    """Get tags for a paper. Returns list of (canonical_name, category, source)."""
-    sql = """
-        SELECT t.canonical_name, t.category, pt.source
-        FROM paper_tags pt
-        JOIN tags t ON t.id = pt.tag_id
-        WHERE pt.paper_id = ?
-    """
+    sql = 'SELECT DISTINCT t.canonical_name, t.category, pt.source FROM paper_tags pt JOIN tags t ON t.id=pt.tag_id WHERE pt.paper_id=?'
     rows = repo.conn.execute(sql, (paper_id,)).fetchall()
-    return [(r[0], r[1], r[2]) for r in rows]
+    return [(row[0], row[1], row[2]) for row in rows]
 
 
 def _paper_in_year_range(paper_id, year_from, year_to, repo):
-    """Check if paper's year is within [year_from, year_to]."""
-    sql = "SELECT year FROM papers WHERE id = ?"
-    row = repo.conn.execute(sql, (paper_id,)).fetchone()
-    if row is None or row[0] is None:
-        return False
-    return year_from <= row[0] <= year_to
+    row = repo.conn.execute('SELECT year FROM papers WHERE id=?', (paper_id,)).fetchone()
+    return bool(row and row[0] is not None and year_from <= row[0] <= year_to)

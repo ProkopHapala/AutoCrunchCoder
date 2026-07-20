@@ -1,5 +1,6 @@
 """Test ingest pipeline — skip-if-equivalent logic, atomic file writes, orchestration."""
 import sys, os, json, tempfile, shutil
+from pathlib import Path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))))
 
 from paperdb.ingest.pipeline import _atomic_write, _atomic_write_json, _config_hash, _generate_bib_file, _generate_json_file
@@ -38,8 +39,9 @@ class MockRepo:
             self.runs[run_id].output_path = output_path
     def get_runs_for_paper(self, paper_id):
         return [r for r in self.runs.values() if r.paper_id == paper_id]
-    def find_equivalent_run(self, paper_id, operation, config_hash, input_sha256=None):
-        return None  # No equivalent runs in mock
+    def find_equivalent_run(self, paper_id, operation, config_hash, input_sha256=None, backend=None, model_name=None, prompt_version=None):
+        return None
+    def get_run_by_id(self, run_id): return self.runs.get(run_id)
     def supersede_run(self, run_id, new_run_id):
         if run_id in self.runs:
             self.runs[run_id].status = "superseded"
@@ -51,6 +53,9 @@ class MockRepo:
     def get_equations_for_paper(self, pid): return self.equations
     def get_methods_for_paper(self, pid): return self.methods
     def get_tags_for_paper(self, pid): return []
+    def get_active_summary(self, pid): return None
+    def refresh_paper_tags(self, pid): pass
+    def refresh_active_summary(self, pid): pass
 
 
 def test_atomic_write():
@@ -131,13 +136,23 @@ def test_generate_json_file():
         assert data["equations"][0]["latex_raw"] == "E=mc^2"
 
 
+def test_generate_json_file_fails_on_corrupt_existing_artifact(tmp_path):
+    import pytest
+    repo = MockRepo()
+    path = tmp_path / "corrupt.json"
+    path.write_text("{not valid json")
+    with pytest.raises(json.JSONDecodeError):
+        _generate_json_file(repo.get_paper(1), [], repo, str(path))
+
+
 def test_find_equivalent_run_no_method():
-    """If repo doesn't have find_equivalent_run, return None."""
+    """A repository missing the required contract fails loud."""
     class NoMethodRepo:
         pass
     repo = NoMethodRepo()
-    result = find_equivalent_run(1, "convert", "abc", "docling", "hash", None, None, repo)
-    assert result is None
+    import pytest
+    with pytest.raises(AttributeError):
+        find_equivalent_run(1, "convert", "abc", "docling", "hash", None, None, repo)
 
 
 def test_run_job_creates_run():
@@ -161,6 +176,59 @@ def test_finish_job_failed():
     finish_job(run_id, "failed", repo, message="test error")
     assert repo.runs[run_id].status == "failed"
     assert repo.runs[run_id].message == "test error"
+
+
+def test_independent_reprocess_uses_actual_markdown_inputs(tmp_path):
+    from paperdb.db.connection import get_connection, init_schema
+    from paperdb.db.repository import Repository
+    conn = get_connection(tmp_path / "pipeline.db")
+    init_schema(conn)
+    repo = Repository(conn)
+    markdown_path = tmp_path / "source.md"
+    markdown_path.write_text("# Paper\n\n## Algorithm 1: Relax\n\n1. Initialize x\n2. Update x\n\n$$F = ma (1)$$\n")
+    pdf_path = tmp_path / "source.pdf"
+    pdf_path.write_bytes(b"%PDF-1.4\nminimal fixture\n%%EOF\n")
+    pid = repo.upsert_paper(Paper(paper_key="Actual_2026_Input", title="Actual inputs", markdown_path=str(markdown_path)))
+    repo.add_paper_file(PaperFile(paper_id=pid, path=str(pdf_path), sha256="fixture-hash", is_preferred=1))
+    from paperdb.ingest.pipeline import ingest_paper
+    first = ingest_paper(pid, repo, operations=["equations", "methods"], llm_config=False, data_dir=str(tmp_path / "papers"))
+    assert first["errors"] == []
+    assert {"equations", "methods", "search_units"}.issubset(first["operations_run"])
+    paper = repo.get_paper(pid)
+    assert Path(paper.json_path).exists()
+    assert any(unit.source_type == "method" and unit.source_id for unit in repo.get_search_units_for_paper(pid))
+    markdown_path.write_text(markdown_path.read_text() + "\n## Algorithm 2: Project\n\n1. Project y\n2. Commit y\n")
+    second = ingest_paper(pid, repo, operations=["methods"], llm_config=False, data_dir=str(tmp_path / "papers"))
+    assert second["errors"] == [] and "methods" in second["operations_run"]
+    method_runs = [run for run in repo.get_runs_for_paper(pid) if run.operation == "methods"]
+    assert sorted(run.status for run in method_runs) == ["ok", "superseded"]
+    assert len(repo.get_methods_for_paper(pid)) == 2
+    companion = json.loads(Path(repo.get_paper(pid).json_path).read_text())
+    assert "Algorithm 2" in companion["extraction"]["structured_json"]["markdown"]
+    conn.close()
+
+
+def test_markdown_reprocessing_does_not_require_original_pdf(tmp_path):
+    from paperdb.db.connection import get_connection, init_schema
+    from paperdb.db.repository import Repository
+    from paperdb.ingest.pipeline import ingest_paper
+    conn = get_connection(tmp_path / "resume.db")
+    init_schema(conn)
+    repo = Repository(conn)
+    markdown_path = tmp_path / "persisted.md"
+    markdown_path.write_text("""# Paper
+
+## Algorithm 1: Resume
+
+1. Load state
+2. Continue work
+""")
+    pid = repo.upsert_paper(Paper(paper_key="Resume_2026_Markdown", title="Durable resume", markdown_path=str(markdown_path)))
+    result = ingest_paper(pid, repo, operations=["methods"], llm_config=False, data_dir=str(tmp_path / "papers"))
+    assert result["errors"] == []
+    assert "methods" in result["operations_run"]
+    assert [method.name for method in repo.get_methods_for_paper(pid)] == ["Algorithm 1: Resume"]
+    conn.close()
 
 
 if __name__ == "__main__":

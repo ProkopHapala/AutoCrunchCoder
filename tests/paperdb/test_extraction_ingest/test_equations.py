@@ -76,7 +76,8 @@ Next paragraph.
     eqs = _extract_from_markdown(md, [])
     assert len(eqs) == 1
     assert eqs[0]["equation_number"] == "1"
-    assert "F = ma" in eqs[0]["latex_raw"]
+    assert eqs[0]["latex_raw"] == "$$F = ma (1)$$"
+    assert eqs[0]["latex_normalized"] == "F = ma"
 
 
 def test_extract_from_markdown_multiline():
@@ -124,6 +125,14 @@ def test_extract_equations_empty():
     structured = {"equations": [], "markdown": "", "sections": []}
     eqs = extract_equations(structured, paper_id=1, run_id=1, repo=repo)
     assert eqs == []
+
+
+def test_docling_preserves_raw_wrapped_equation_and_extracts_number():
+    from paperdb.extract.docling_backend import DoclingParser
+    raw = {"texts": [{"label": "formula", "text": "$$F = ma (2.3)$$", "page": 7}]}
+    equations = DoclingParser()._extract_equation_items(raw, {})
+    assert equations[0]["latex_raw"] == "$$F = ma (2.3)$$"
+    assert equations[0]["equation_number"] == "2.3"
 
 
 if __name__ == "__main__":

@@ -5,7 +5,7 @@ import tempfile
 import pytest
 from paperdb.ingest.migration import migrate_legacy, _apply_tag_consolidation, _normalize_tag_name
 from paperdb.identity.hashing import clear_cache
-from mock_repo import MockRepository
+from .mock_repo import MockRepository
 
 @pytest.fixture(autouse=True)
 def clean_cache(tmp_path, monkeypatch):
@@ -192,6 +192,30 @@ def test_migrate_legacy_needs_reprocessing(legacy_setup):
     # Our test markdown is from docling (inferred from run dir), so should not need reprocessing
     # unless summaries are missing
     assert isinstance(result['needs_reprocessing'], list)
+
+def test_real_migration_accepts_db_file_and_is_idempotent(legacy_setup):
+    from paperdb.db.connection import get_connection, init_schema
+    from paperdb.db.repository import Repository
+    legacy_dir, data_dir = legacy_setup
+    conn = get_connection(os.path.join(data_dir, "new.db"))
+    init_schema(conn)
+    repo = Repository(conn)
+    db_file = os.path.join(legacy_dir, "consolidated.db")
+    first = migrate_legacy(db_file, repo, data_dir)
+    assert first["papers_failed"] == 0
+    counts1 = {table: conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0] for table in ("papers", "processing_runs", "paper_tags", "tag_assertions", "search_units")}
+    second = migrate_legacy(db_file, repo, data_dir)
+    counts2 = {table: conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0] for table in counts1}
+    assert second["papers_failed"] == 0
+    assert counts2 == counts1
+    owned_root = os.path.abspath(os.path.join(data_dir, "legacy"))
+    output_paths = [row[0] for row in conn.execute("SELECT output_path FROM processing_runs WHERE operation LIKE 'migrate_%'").fetchall()]
+    assert output_paths and all(os.path.commonpath([os.path.abspath(path), owned_root]) == owned_root for path in output_paths)
+    for paper in repo.list_papers(limit=100):
+        assert paper.bibtex_path and os.path.isfile(paper.bibtex_path)
+        assert "@article" in open(paper.bibtex_path).read()
+    conn.close()
+
 
 def test_tag_consolidation():
     """Test tag consolidation rules."""

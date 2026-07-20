@@ -5,6 +5,7 @@ Architecture rule (D18): CLI/MCP/GUI → PaperDB API → repository/services.
 """
 from __future__ import annotations
 from typing import Optional
+from pathlib import Path
 from paperdb.db.connection import get_connection, init_schema, close_connection, db_transaction
 from paperdb.db.repository import Repository
 from paperdb.db.models import *
@@ -12,12 +13,13 @@ from paperdb.paths import get_data_dir, get_db_path
 
 class PaperDB:
     def __init__(self, data_dir: str | None = None, db_path: str | None = None):
-        if db_path:
-            self.conn = get_connection(db_path)
-        else:
-            self.conn = get_connection()
+        self.data_dir = Path(data_dir).expanduser() if data_dir else get_data_dir()
+        self.data_dir.mkdir(parents=True, exist_ok=True)
+        self.db_path = Path(db_path).expanduser() if db_path else self.data_dir / "papers.db"
+        self.papers_dir = self.data_dir / "papers"
+        self.papers_dir.mkdir(parents=True, exist_ok=True)
+        self.conn = get_connection(self.db_path)
         self.repo = Repository(self.conn)
-        # ensure schema exists
         init_schema(self.conn)
 
     # ── Papers ──────────────────────────────────────────────────────────
@@ -25,12 +27,22 @@ class PaperDB:
     def get_paper(self, id_or_key_or_doi: str | int) -> Paper | None:
         if isinstance(id_or_key_or_doi, int):
             return self.repo.get_paper(id_or_key_or_doi)
-        # try paper_key first
         p = self.repo.get_paper_by_key(id_or_key_or_doi)
         if p: return p
-        # try DOI
         p = self.repo.get_paper_by_doi(id_or_key_or_doi)
-        return p
+        if p: return p
+        try: return self.repo.get_paper(int(id_or_key_or_doi))
+        except ValueError: return None
+
+    def describe_paper(self, id_or_key_or_doi: str | int) -> dict:
+        """Return metadata plus derived knowledge and processing provenance."""
+        paper = self.get_paper(id_or_key_or_doi)
+        if paper is None: return {}
+        result = to_serializable(paper)
+        result.update({"files": to_serializable(self.repo.get_files_for_paper(paper.id)),
+                       "tags": to_serializable(self.repo.get_tags_for_paper(paper.id)), "summary": self.get_summary(paper.id),
+                       "processing_runs": to_serializable(self.repo.get_runs_for_paper(paper.id))})
+        return result
 
     def list_papers(self, limit: int = 100, offset: int = 0) -> list[Paper]:
         return self.repo.list_papers(limit, offset)
@@ -87,9 +99,11 @@ class PaperDB:
         return out
 
     def retrieve_context(self, query: str, token_budget: int = 24000, include: list | None = None,
-                         filters: dict | None = None):
+                         filters: dict | None = None, save: bool = False):
         from paperdb.search.context import assemble_context_pack
-        return assemble_context_pack(query, self.repo, token_budget=token_budget, include=include, filters=filters)
+        pack = assemble_context_pack(query, self.repo, token_budget=token_budget, include=include, filters=filters)
+        if save: pack.id = self.repo.save_context_pack(query=pack.query, filters_json=pack.filters_json, selected_units_json=pack.selected_units_json, content=pack.content, output_path=pack.output_path)
+        return pack
 
     # ── Processing (delegates to ingest/ module) ──────────────────────
 
@@ -104,7 +118,7 @@ class PaperDB:
             paper_id = self._resolve_paper_id(paper_id)
             if paper_id is None:
                 return {"errors": [f"Paper not found"]}
-        return _ingest(paper_id, self.repo, operations=operations, llm_config=llm_config, force=force)
+        return _ingest(paper_id, self.repo, operations=operations, llm_config=llm_config, force=force, data_dir=str(self.papers_dir))
 
     def ingest_folder(self, folder: str, operations: list | None = None, llm_config=None, force=False):
         """Scan a folder for PDFs, index them, then ingest all newly indexed papers."""
@@ -114,34 +128,30 @@ class PaperDB:
         # Find all papers that have files but no successful runs
         all_papers = self.repo.list_papers(limit=100000)
         paper_ids = [p.id for p in all_papers]
-        return _batch(paper_ids, self.repo, operations=operations, llm_config=llm_config, force=force)
+        return _batch(paper_ids, self.repo, operations=operations, llm_config=llm_config, force=force, data_dir=str(self.papers_dir))
 
     def ingest_all(self, operations: list | None = None, llm_config=None, force=False):
         """Ingest all papers in the database that haven't been processed yet."""
         from paperdb.ingest.jobs import ingest_batch as _batch
         all_papers = self.repo.list_papers(limit=100000)
         paper_ids = [p.id for p in all_papers]
-        return _batch(paper_ids, self.repo, operations=operations, llm_config=llm_config, force=force)
+        return _batch(paper_ids, self.repo, operations=operations, llm_config=llm_config, force=force, data_dir=str(self.papers_dir))
 
-    def sync(self):
-        """Sync: scan watched folders and process new/changed papers.
-        Currently scans the default papers directory."""
-        from paperdb.paths import get_papers_dir
-        from paperdb.ingest.scanner import scan_folder as _scan
-        from paperdb.ingest.jobs import ingest_batch as _batch
-        papers_dir = str(get_papers_dir())
-        _scan(papers_dir, recursive=True, repo=self.repo)
-        all_papers = self.repo.list_papers(limit=100000)
-        paper_ids = [p.id for p in all_papers]
-        return _batch(paper_ids, self.repo)
+    def sync(self, folder: str | None = None, llm_config=None):
+        """Scan one explicit source folder and process new or changed papers."""
+        if folder is None: raise ValueError("sync requires a source PDF folder; generated PaperDB artifacts are not source PDFs")
+        self.scan_folder(folder, recursive=True)
+        return self.ingest_all(llm_config=llm_config)
 
-    def add_paper(self, path_or_url_or_doi: str):
+    def add_paper(self, path_or_url_or_doi: str, dest_dir: str | None = None):
         from paperdb.ingest.fetch import add_paper_from_source
-        return add_paper_from_source(path_or_url_or_doi, self.repo)
+        return add_paper_from_source(path_or_url_or_doi, self.repo, dest_dir=dest_dir, artifact_dir=str(self.papers_dir))
 
     def get_processing_status(self, paper_id: int) -> dict:
-        runs = self.repo.get_runs_for_paper(paper_id)
-        return {r.operation: r.status for r in runs}
+        """Return the newest recorded status for each operation."""
+        status = {}
+        for run in self.repo.get_runs_for_paper(paper_id): status.setdefault(run.operation, run.status)
+        return status
 
     # ── Content access ──────────────────────────────────────────────────
 
@@ -171,10 +181,26 @@ class PaperDB:
             return ""
         return mp.read_text(encoding="utf-8")
 
+    def get_json(self, id_or_key_or_doi: str | int) -> dict:
+        pid = self._resolve_paper_id(id_or_key_or_doi)
+        p = self.repo.get_paper(pid) if pid is not None else None
+        if not p or not p.json_path or not Path(p.json_path).exists(): return {}
+        import json
+        return json.loads(Path(p.json_path).read_text(encoding="utf-8"))
+
+    def get_bibtex(self, id_or_key_or_doi: str | int) -> str:
+        pid = self._resolve_paper_id(id_or_key_or_doi)
+        p = self.repo.get_paper(pid) if pid is not None else None
+        if not p or not p.bibtex_path or not Path(p.bibtex_path).exists(): return ""
+        return Path(p.bibtex_path).read_text(encoding="utf-8")
+
     def get_equations(self, id_or_key_or_doi: str | int) -> list[Equation]:
         pid = self._resolve_paper_id(id_or_key_or_doi)
         if pid is None: return []
         return self.repo.get_equations_for_paper(pid)
+
+    def get_equation_variables(self, equation_id: int) -> list[EquationVariable]:
+        return self.repo.get_variables_for_equation(equation_id)
 
     def get_methods(self, id_or_key_or_doi: str | int) -> list[Method]:
         pid = self._resolve_paper_id(id_or_key_or_doi)
@@ -190,14 +216,24 @@ class PaperDB:
 
     # ── Taxonomy (delegates to taxonomy/ module) ──────────────────────
 
+    def add_user_tags(self, paper_id: int, tags: list[str]) -> None:
+        """Attach explicit user assertions, accepting ``category:name`` syntax."""
+        if self.repo.get_paper(paper_id) is None: raise ValueError(f"Paper {paper_id} not found")
+        for value in tags:
+            category, name = value.split(':', 1) if ':' in value else ('user', value)
+            canonical = name.strip().replace('_', ' ')
+            tag_id = self.repo.upsert_tag(canonical_name=canonical, category=category.strip())
+            self.repo.add_alias(tag_id=tag_id, alias=name, normalized_alias=name.lower().strip())
+            self.repo.add_paper_tag(paper_id=paper_id, tag_id=tag_id, source='user', raw_name=value, confidence=1.0)
+
     def list_tags(self, category: str | None = None) -> list[Tag]:
         return self.repo.list_all_tags(category)
 
     def merge_tags(self, canonical: str, alias: str):
         from paperdb.taxonomy.aliases import merge_tags as _merge
         # Resolve canonical and alias to tag_ids
-        canon_tag = self.repo.resolve_alias(canonical.lower().strip())
-        alias_tag = self.repo.resolve_alias(alias.lower().strip())
+        canon_tag = self.repo.get_tag_by_name(canonical) or self.repo.resolve_alias(canonical.lower().strip())
+        alias_tag = self.repo.get_tag_by_name(alias) or self.repo.resolve_alias(alias.lower().strip())
         if canon_tag is None or alias_tag is None:
             raise ValueError(f"Could not resolve tags: canonical='{canonical}', alias='{alias}'")
         _merge(canon_tag.id, alias_tag.id, self.repo)
@@ -205,11 +241,22 @@ class PaperDB:
 
     # ── Synthesis (delegates to synthesis/ module) ────────────────────
 
+    def get_tag_aliases(self, tag_name: str) -> list[TagAlias]:
+        tag = self.repo.get_tag_by_name(tag_name) or self.repo.resolve_alias(tag_name.lower().strip())
+        return self.repo.get_tag_aliases(tag.id) if tag else []
+
+    def get_context_pack(self, context_id: int) -> ContextPack | None:
+        return self.repo.get_context_pack(context_id)
+
     def build_topic_review(self, topic: str, focus: str | None = None, constraints: dict | None = None,
                            max_papers: int = 30, llm_config=None):
         from paperdb.synthesis.topic_reviews import build_topic_review as _build
         return _build(topic, self.repo, db=self, focus=focus, constraints=constraints,
                       max_papers=max_papers, llm_config=llm_config)
+
+    def compare_methods(self, topic: str, axes: list[str], constraints: dict | None = None, max_papers: int = 20, llm_config=None):
+        from paperdb.synthesis.topic_reviews import build_topic_review
+        return build_topic_review(topic, self.repo, db=self, constraints=constraints, max_papers=max_papers, llm_config=llm_config, comparison_axes=axes)
 
     def get_related(self, id_or_key_or_doi: str | int, limit: int = 5) -> list[dict]:
         pid = self._resolve_paper_id(id_or_key_or_doi)
@@ -217,8 +264,8 @@ class PaperDB:
         tags = self.repo.get_tags_for_paper(pid)
         if not tags:
             return []
-        tag_names = [t.canonical_name for t in tags]
-        results = self.search(" ".join(tag_names), limit=limit + 1)
+        tag_names = [f"{t.category}:{t.canonical_name}" for t in tags]
+        results = self.search("", preferred_tags=tag_names, limit=limit + 1)
         return [r for r in results if r.get('id') != pid][:limit]
 
     def export_bibtex(self) -> str:
@@ -237,26 +284,27 @@ class PaperDB:
         from paperdb.ingest.jobs import ingest_batch as _batch
         all_papers = self.repo.list_papers(limit=100000)
         paper_ids = [p.id for p in all_papers]
-        return _batch(paper_ids, self.repo, operations=operations, llm_config=llm_config, force=force)
+        return _batch(paper_ids, self.repo, operations=operations, llm_config=llm_config, force=force, data_dir=str(self.papers_dir))
 
     # ── Status ──────────────────────────────────────────────────────────
 
-    def status(self) -> dict:
-        return self.repo.get_status_counts()
+    def status(self, missing: str | None = None, needs_reprocessing: bool = False) -> dict:
+        result = self.repo.get_status_counts()
+        if missing: result["missing"] = to_serializable(self.repo.find_papers_missing(missing))
+        if needs_reprocessing: result["needs_reprocessing"] = to_serializable(self.repo.find_papers_needing_reprocessing())
+        return result
 
     # ── Migration ───────────────────────────────────────────────────────
 
     def migrate_from_db(self, legacy_db_path: str):
         from paperdb.ingest.migration import migrate_legacy
-        from paperdb.paths import get_data_dir
-        return migrate_legacy(legacy_db_path, self.repo, str(get_data_dir()))
+        return migrate_legacy(legacy_db_path, self.repo, str(self.data_dir))
 
     def migrate_from_mendeley(self, bibtex_path: str):
         from paperdb.ingest.scanner import scan_mendeley
-        from paperdb.paths import get_papers_dir
-        return scan_mendeley(bibtex_path, str(get_papers_dir()), repo=self.repo)
+        return scan_mendeley(bibtex_path, str(self.papers_dir), repo=self.repo)
 
     # ── Cleanup ─────────────────────────────────────────────────────────
 
     def close(self):
-        close_connection()
+        close_connection(self.conn)

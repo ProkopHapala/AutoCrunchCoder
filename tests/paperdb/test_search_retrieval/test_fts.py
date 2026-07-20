@@ -9,7 +9,7 @@ if _repo_root not in sys.path:
     sys.path.insert(0, _repo_root)
 
 from paperdb.search.fts import fts_search, fts_search_for_papers, build_search_units_from_markdown, SearchUnit, _split_markdown_to_units
-from conftest import create_test_db, insert_test_paper, insert_test_search_unit
+from .conftest import create_test_db, insert_test_paper, insert_test_search_unit
 
 
 def test_fts_basic_search():
@@ -198,6 +198,19 @@ def test_replace_search_units_transactional():
     assert len(fts_search("alpha", repo)) == 0
     assert len(fts_search("gamma", repo)) == 1
     print("✓ test_replace_search_units_transactional passed")
+
+
+def test_structured_equation_and_method_units_are_indexed():
+    conn, repo = create_test_db()
+    pid = insert_test_paper(repo, "Structured_2026", title="Structured")
+    units = build_search_units_from_markdown(pid, "# Source\n\nplain text", 4, repo,
+        equations=[{"id": 7, "latex_raw": "E = mc^2", "section_path": "Theory", "page_number": 3}],
+        methods=[{"id": 9, "name": "relaxation solver", "purpose": "solve constraints", "card_json": "{}", "source_passages_json": "[]"}])
+    equation = next(unit for unit in units if unit.source_type == "equation")
+    method = next(unit for unit in units if unit.source_type == "method")
+    assert (equation.source_id, equation.page_from, equation.page_to) == (7, 3, 3)
+    assert method.source_id == 9
+    assert fts_search("relaxation", repo)[0]["source_id"] == 9
 
 
 if __name__ == "__main__":

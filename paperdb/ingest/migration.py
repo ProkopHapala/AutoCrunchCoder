@@ -17,6 +17,8 @@ import shutil
 from pathlib import Path
 from paperdb.identity.matching import generate_paper_key, resolve_collisions, normalize_doi
 from paperdb.identity.hashing import compute_sha256
+from paperdb.db.connection import db_transaction
+from paperdb.search.fts import build_search_units_from_markdown
 
 # Markdown backend priority (higher = better)
 BACKEND_PRIORITY = {'docling': 4, 'docling+formulas': 5, 'vlm': 3, 'pdfminer': 1, 'legacy_docling': 4, 'legacy_pdfminer': 1}
@@ -156,7 +158,7 @@ def _read_legacy_db(db_path: str) -> tuple[list[dict], list[dict], list[dict]]:
 
 def _generate_md_bundle(paper_id: int, paper_key: str, md_content: str, summary_content: str, metadata: dict, out_dir: str) -> dict:
     """Generate .md/.json/.bib bundle for a paper. Returns paths."""
-    year = metadata.get('year', 'unknown')
+    year = metadata.get('year') or 'unknown'
     year_dir = os.path.join(out_dir, 'papers', str(year))
     os.makedirs(year_dir, exist_ok=True)
     base = f"{paper_key}__p{paper_id:04d}"
@@ -167,16 +169,10 @@ def _generate_md_bundle(paper_id: int, paper_key: str, md_content: str, summary_
 
     # Write markdown: YAML frontmatter + summary + source text
     frontmatter = "---\n"
-    frontmatter += f"paper_id: {paper_id}\npaper_key: {paper_key}\n"
-    if metadata.get('doi'):
-        frontmatter += f"doi: {metadata['doi']}\n"
-    if metadata.get('title'):
-        frontmatter += f"title: {metadata['title']}\n"
-    if metadata.get('authors'):
-        frontmatter += f"authors: {metadata['authors']}\n"
-    if metadata.get('year'):
-        frontmatter += f"year: {metadata['year']}\n"
-    frontmatter += f"conversion_backend: {metadata.get('backend', 'unknown')}\n"
+    for key, value in (("paper_id", paper_id), ("paper_key", paper_key), ("doi", metadata.get("doi")),
+                       ("title", metadata.get("title")), ("authors", metadata.get("authors")),
+                       ("year", metadata.get("year")), ("conversion_backend", metadata.get("backend", "unknown"))):
+        if value is not None and value != "": frontmatter += f"{key}: {json.dumps(value, ensure_ascii=False)}\n"
     frontmatter += "---\n\n"
 
     full_md = frontmatter
@@ -202,7 +198,7 @@ def _generate_md_bundle(paper_id: int, paper_key: str, md_content: str, summary_
     if bibtex:
         _atomic_write(bib_path, bibtex)
 
-    return {'md_path': md_path, 'json_path': json_path, 'bib_path': bib_path}
+    return {'md_path': md_path, 'json_path': json_path, 'bib_path': bib_path if bibtex else None}
 
 def _atomic_write(path: str, content: str):
     """Write file atomically: temp file → rename."""
@@ -212,73 +208,63 @@ def _atomic_write(path: str, content: str):
     os.replace(tmp, path)
 
 def _build_search_units(paper_id: int, md_content: str, run_id: int, repo) -> int:
-    """Build search_units from markdown by splitting on headings. Returns count."""
-    units = []
-    current_section = ''
-    current_content = []
-    for line in md_content.split('\n'):
-        if line.startswith('#'):
-            if current_content:
-                units.append({
-                    'paper_id': paper_id,
-                    'run_id': run_id,
-                    'unit_type': 'section',
-                    'source_type': 'section',
-                    'section_path': current_section,
-                    'content': '\n'.join(current_content).strip(),
-                })
-            current_section = line.lstrip('#').strip()
-            current_content = [line]
-        else:
-            current_content.append(line)
-    if current_content:
-        units.append({
-            'paper_id': paper_id,
-            'run_id': run_id,
-            'unit_type': 'section',
-            'source_type': 'section',
-            'section_path': current_section,
-            'content': '\n'.join(current_content).strip(),
-        })
-    if hasattr(repo, 'replace_search_units'):
-        repo.replace_search_units(paper_id, units)
-    return len(units)
+    """Build migration search units through the shared Markdown splitter."""
+    return len(build_search_units_from_markdown(paper_id, md_content, run_id, repo))
+
+
+def _owned_artifact(path: str, source_root: str, copy_root: str) -> str:
+    """Return an owned legacy copy for an artifact, copying external candidates."""
+    path = os.path.abspath(path)
+    try: inside = os.path.commonpath([path, source_root]) == source_root
+    except ValueError: inside = False
+    if inside:
+        owned = os.path.join(copy_root, os.path.relpath(path, source_root))
+    else:
+        digest = compute_sha256(path)[:16]
+        owned = os.path.join(copy_root, 'external_artifacts', f"{digest}_{os.path.basename(path)}")
+        os.makedirs(os.path.dirname(owned), exist_ok=True)
+        if not os.path.exists(owned): shutil.copy2(path, owned)
+    if not os.path.isfile(owned): raise FileNotFoundError(f"Owned legacy artifact missing: {owned}")
+    return owned
+
+
+def _record_artifact_run(repo, paper_id: int, operation: str, backend: str, path: str,
+                         model_name: str | None = None, prompt_version: str | None = None) -> tuple[int, bool]:
+    input_sha = compute_sha256(path)
+    existing = repo.find_equivalent_run(paper_id=paper_id, operation=operation, config_hash='legacy-v1', input_sha256=input_sha,
+                                        backend=backend, model_name=model_name, prompt_version=prompt_version)
+    if existing:
+        return existing.id, False
+    run_id = repo.start_run(paper_id=paper_id, operation=operation, backend=backend, model_name=model_name,
+                            prompt_version=prompt_version, config_hash='legacy-v1', input_sha256=input_sha, output_path=path)
+    repo.finish_run(run_id, status='ok', output_path=path)
+    return run_id, True
+
 
 def migrate_legacy(legacy_dir, repo, data_dir) -> dict:
-    """Phase A migration:
-    1. Inventory legacy artifacts (consolidated.db, markdown dirs, summaries)
-    2. Import papers from consolidated.db (895 papers, tags, article_tags)
-    3. Generate paper_key for each
-    4. Select best existing markdown (docling > pdfminer)
-    5. Record as processing_runs with operation='migrate_markdown', backend='legacy_docling'
-    6. Import existing summaries as processing_runs with operation='migrate_summary'
-    7. Run tag cleanup (apply clean_tags.py rules, build tag_aliases)
-    8. Scan PDF folders, match to papers
-    9. Generate .md/.json/.bib bundles
-    10. Build search_units from migrated markdown
-    11. Produce migration report
-    Returns {papers_migrated, papers_failed, conflicts, report_path}
-    """
-    legacy_dir = os.path.abspath(legacy_dir)
-    data_dir = os.path.abspath(data_dir)
-
-    # 1. Copy legacy data to ~/paperdb/legacy/ (non-destructive)
-    legacy_copy_dir = os.path.join(data_dir, 'legacy')
-    os.makedirs(legacy_copy_dir, exist_ok=True)
-    consolidated_db = os.path.join(legacy_dir, 'consolidated.db')
-    if not os.path.exists(consolidated_db):
+    """Non-destructively and idempotently import a legacy database and its artifacts."""
+    source = os.path.abspath(os.path.expanduser(legacy_dir))
+    data_dir = os.path.abspath(os.path.expanduser(data_dir))
+    if os.path.isfile(source):
+        consolidated_db = source
+        legacy_dir = os.path.dirname(source)
+    else:
+        legacy_dir = source
+        consolidated_db = os.path.join(legacy_dir, 'consolidated.db')
+    if not os.path.isfile(consolidated_db):
         raise FileNotFoundError(f"consolidated.db not found at {consolidated_db}")
 
-    # Copy consolidated.db if not already copied
-    copied_db = os.path.join(legacy_copy_dir, 'consolidated.db')
-    if not os.path.exists(copied_db):
+    legacy_copy_dir = os.path.join(data_dir, 'legacy')
+    if os.path.commonpath([legacy_copy_dir, legacy_dir]) == legacy_dir:
+        raise ValueError('PaperDB data directory must not be inside the legacy source tree')
+    os.makedirs(legacy_copy_dir, exist_ok=True)
+    shutil.copytree(legacy_dir, legacy_copy_dir, dirs_exist_ok=True)
+    copied_db = os.path.join(legacy_copy_dir, os.path.basename(consolidated_db))
+    if not os.path.isfile(copied_db):
         shutil.copy2(consolidated_db, copied_db)
 
-    # 2. Read legacy data
     papers, tags, article_tags = _read_legacy_db(copied_db)
     print(f"Legacy: {len(papers)} papers, {len(tags)} tags, {len(article_tags)} article_tags")
-
-    # 3. Tag consolidation
     consolidated_tags, tag_aliases_list = _apply_tag_consolidation(tags)
     tag_name_to_id = {}
     for tag in consolidated_tags:
@@ -287,167 +273,100 @@ def migrate_legacy(legacy_dir, repo, data_dir) -> dict:
     for raw_name, canonical in tag_aliases_list:
         canonical_id = tag_name_to_id.get(canonical.lower())
         if canonical_id:
-            normalized = _normalize_tag_name(raw_name)
-            repo.add_alias(tag_id=canonical_id, alias=raw_name, normalized_alias=normalized)
+            repo.add_alias(tag_id=canonical_id, alias=raw_name, normalized_alias=_normalize_tag_name(raw_name))
 
-    # Build article_tags lookup: stem -> [(tag_name, tag_id)]
     stem_tags = {}
-    tag_id_to_name = {t['id']: t['name'] for t in tags}
-    for at in article_tags:
-        stem = at['article_id']
-        tag_name = tag_id_to_name.get(at['tag_id'])
+    tag_id_to_name = {tag['id']: tag['name'] for tag in tags}
+    for assertion in article_tags:
+        tag_name = tag_id_to_name.get(assertion['tag_id'])
         if tag_name:
-            stem_tags.setdefault(stem, []).append(tag_name)
+            stem_tags.setdefault(assertion['article_id'], []).append(tag_name)
 
-    # 4. Import papers
-    papers_migrated = 0
-    papers_failed = 0
-    conflicts = []
-    needs_reprocessing = []
-
-    for p in papers:
-        stem = p.get('stem', '')
+    papers_migrated = papers_failed = 0
+    conflicts, needs_reprocessing = [], []
+    for legacy_paper in papers:
+        stem = legacy_paper.get('stem', '')
         try:
-            # Generate paper_key
-            authors = p.get('authors', '')
-            year = p.get('year')
-            try:
-                year = int(year) if year else None
-            except (ValueError, TypeError):
-                year = None
-            title = p.get('title', '')
-            doi = normalize_doi(p.get('doi'))
+            with db_transaction(repo.conn):
+                authors = legacy_paper.get('authors', '')
+                try:
+                    year = int(legacy_paper.get('year')) if legacy_paper.get('year') else None
+                except (ValueError, TypeError):
+                    year = None
+                title = legacy_paper.get('title', '')
+                doi = normalize_doi(legacy_paper.get('doi'))
+                proposed_key = generate_paper_key(authors, year, title, existing_stem=stem)
+                existing = repo.get_paper_by_doi(doi) if doi else repo.get_paper_by_key(proposed_key)
+                paper_key = (existing.get('paper_key') if isinstance(existing, dict) else existing.paper_key) if existing else resolve_collisions(proposed_key, repo)
+                paper_id = repo.upsert_paper(paper_key=paper_key, doi=doi, title=title, authors_text=authors, year=year,
+                                             journal=legacy_paper.get('journal'), keywords=legacy_paper.get('keywords'), essence=legacy_paper.get('essence'))
 
-            paper_key = generate_paper_key(authors, year, title, existing_stem=stem)
-            paper_key = resolve_collisions(paper_key, repo)
+                candidates = _find_md_candidates(stem, legacy_dir)
+                for field in ('md_path', 'shadow_md_path'):
+                    candidate_path = legacy_paper.get(field)
+                    if candidate_path and os.path.isfile(candidate_path):
+                        candidates.append({'path': candidate_path, 'backend': _infer_backend(candidate_path, legacy_paper.get('run_name', '')), 'run': legacy_paper.get('run_name', '')})
+                candidates = list({os.path.abspath(candidate['path']): candidate for candidate in candidates}.values())
+                candidates = [{**candidate, 'path': _owned_artifact(candidate['path'], legacy_dir, legacy_copy_dir)} for candidate in candidates]
+                for candidate in candidates:
+                    _record_artifact_run(repo, paper_id, 'migrate_markdown', candidate['backend'], candidate['path'])
+                best_md = _select_best_md(candidates)
+                md_content = Path(best_md['path']).read_text(encoding='utf-8') if best_md else ''
+                md_backend = best_md['backend'] if best_md else 'unknown'
 
-            # Create paper record
-            paper_id = repo.upsert_paper(
-                paper_key=paper_key,
-                doi=doi,
-                title=title,
-                authors_text=authors,
-                year=year,
-                journal=p.get('journal'),
-                keywords=p.get('keywords'),
-                essence=p.get('essence'),
-            )
+                summary_content = ''
+                summary_info = _find_summary(stem, legacy_dir)
+                if summary_info and os.path.isfile(summary_info['path']):
+                    summary_path = _owned_artifact(summary_info['path'], legacy_dir, legacy_copy_dir)
+                    summary_content = Path(summary_path).read_text(encoding='utf-8')
+                    summary_run_id, is_new = _record_artifact_run(repo, paper_id, 'migrate_summary', 'legacy_llama8b', summary_path, 'llama-8b', 'legacy')
+                    if is_new:
+                        repo.add_summary(paper_id=paper_id, run_id=summary_run_id, model_name='llama-8b', prompt_version='legacy', content=summary_content)
 
-            # 5. Find and select best markdown
-            md_candidates = _find_md_candidates(stem, legacy_dir)
-            best_md = _select_best_md(md_candidates)
-            md_content = ''
-            md_backend = 'unknown'
-            md_path = None
-            if best_md and os.path.exists(best_md['path']):
-                with open(best_md['path'], 'r') as f:
-                    md_content = f.read()
-                md_backend = best_md['backend']
-                md_path = best_md['path']
-                # Record processing run for markdown migration
-                input_sha = compute_sha256(best_md['path']) if os.path.exists(best_md['path']) else None
-                run_id = repo.start_run(paper_id=paper_id, operation='migrate_markdown', backend=md_backend, input_sha256=input_sha, output_path=md_path, status='ok')
-                repo.finish_run(run_id, status='ok')
-            elif p.get('md_path') and os.path.exists(p['md_path']):
-                with open(p['md_path'], 'r') as f:
-                    md_content = f.read()
-                md_backend = _infer_backend(p['md_path'], p.get('run_name', ''))
-                md_path = p['md_path']
-                input_sha = compute_sha256(p['md_path'])
-                run_id = repo.start_run(paper_id=paper_id, operation='migrate_markdown', backend=md_backend, input_sha256=input_sha, output_path=md_path, status='ok')
-                repo.finish_run(run_id, status='ok')
-            elif p.get('shadow_md_path') and os.path.exists(p['shadow_md_path']):
-                with open(p['shadow_md_path'], 'r') as f:
-                    md_content = f.read()
-                md_backend = _infer_backend(p['shadow_md_path'], p.get('run_name', ''))
-                md_path = p['shadow_md_path']
-                input_sha = compute_sha256(p['shadow_md_path'])
-                run_id = repo.start_run(paper_id=paper_id, operation='migrate_markdown', backend=md_backend, input_sha256=input_sha, output_path=md_path, status='ok')
-                repo.finish_run(run_id, status='ok')
+                paper_tag_names = stem_tags.get(stem, [])
+                for raw_name in paper_tag_names:
+                    canonical = next((canon for raw, canon in tag_aliases_list if raw.lower() == raw_name.lower()), raw_name)
+                    tag_id = tag_name_to_id.get(canonical.lower())
+                    if tag_id is None:
+                        tag_id = repo.upsert_tag(canonical_name=canonical, category='domain')
+                        tag_name_to_id[canonical.lower()] = tag_id
+                    repo.add_paper_tag(paper_id=paper_id, tag_id=tag_id, source='imported', raw_name=raw_name)
 
-            # 6. Find and import summary
-            summary_content = ''
-            summary_info = _find_summary(stem, legacy_dir)
-            if summary_info and os.path.exists(summary_info['path']):
-                with open(summary_info['path'], 'r') as f:
-                    summary_content = f.read()
-                sum_sha = compute_sha256(summary_info['path'])
-                sum_run_id = repo.start_run(paper_id=paper_id, operation='migrate_summary', backend='legacy_llama8b', input_sha256=sum_sha, output_path=summary_info['path'], status='ok')
-                repo.finish_run(sum_run_id, status='ok')
-                if hasattr(repo, 'add_summary'):
-                    repo.add_summary(paper_id=paper_id, run_id=sum_run_id, model_name='llama-8b', prompt_version='legacy', content=summary_content)
+                pdf_path = legacy_paper.get('original_pdf_path') or legacy_paper.get('shadow_pdf_path')
+                if pdf_path and os.path.isfile(pdf_path):
+                    sha = compute_sha256(pdf_path, lazy=True)
+                    stat = os.stat(pdf_path)
+                    if not repo.find_file_by_hash(sha):
+                        repo.add_paper_file(paper_id=paper_id, path=os.path.abspath(pdf_path), sha256=sha, file_size=stat.st_size, modified_time=stat.st_mtime, file_role='publisher')
 
-            # 7. Import tags
-            paper_tag_names = stem_tags.get(stem, [])
-            for tag_name in paper_tag_names:
-                # Find canonical tag (after consolidation)
-                canonical = tag_name
-                for raw, canon in tag_aliases_list:
-                    if raw.lower() == tag_name.lower():
-                        canonical = canon
-                        break
-                tag_id = tag_name_to_id.get(canonical.lower())
-                if tag_id is None:
-                    # Create new tag if not in consolidation
-                    tag_id = repo.upsert_tag(canonical_name=canonical, category='domain')
-                    tag_name_to_id[canonical.lower()] = tag_id
-                repo.add_paper_tag(paper_id=paper_id, tag_id=tag_id, source='imported', raw_name=tag_name)
+                tag_dict = {}
+                for raw_name in paper_tag_names:
+                    category = next((tag.get('category') for tag in tags if tag['name'].lower() == raw_name.lower() and tag.get('category')), 'domain')
+                    tag_dict.setdefault(category, []).append(raw_name)
+                bundle = _generate_md_bundle(paper_id, paper_key, md_content, summary_content,
+                    {'doi': doi, 'title': title, 'authors': authors, 'year': year, 'backend': md_backend, 'tags': tag_dict, 'bibtex_text': legacy_paper.get('bibtex_text')}, data_dir)
+                repo.update_paper_paths(paper_id=paper_id, markdown_path=bundle['md_path'], json_path=bundle['json_path'], bibtex_path=bundle['bib_path'])
 
-            # 8. Index PDF path if it exists
-            pdf_path = p.get('original_pdf_path') or p.get('shadow_pdf_path')
-            if pdf_path and os.path.exists(pdf_path):
-                sha = compute_sha256(pdf_path, lazy=True)
-                st = os.stat(pdf_path)
-                existing = repo.find_file_by_hash(sha)
-                if not existing:
-                    repo.add_paper_file(paper_id=paper_id, path=os.path.abspath(pdf_path), sha256=sha, file_size=st.st_size, modified_time=st.st_mtime, file_role='publisher')
+                compiled_markdown = Path(bundle['md_path']).read_text(encoding='utf-8')
+                search_hash_path = bundle['md_path']
+                search_run_id, is_new = _record_artifact_run(repo, paper_id, 'build_search_units', 'migration', search_hash_path)
+                if is_new or not repo.get_search_units_for_paper(paper_id):
+                    _build_search_units(paper_id, compiled_markdown, search_run_id, repo)
 
-            # 9. Generate .md/.json/.bib bundle
-            tag_dict = {}
-            for tag_name in paper_tag_names:
-                cat = 'domain'  # default
-                for t in tags:
-                    if t['name'].lower() == tag_name.lower() and t.get('category'):
-                        cat = t['category']
-                        break
-                tag_dict.setdefault(cat, []).append(tag_name)
-
-            bundle = _generate_md_bundle(
-                paper_id, paper_key, md_content, summary_content,
-                {'doi': doi, 'title': title, 'authors': authors, 'year': year, 'backend': md_backend, 'tags': tag_dict, 'bibtex_text': p.get('bibtex_text')},
-                data_dir
-            )
-            repo.update_paper_paths(paper_id=paper_id, markdown_path=bundle['md_path'], json_path=bundle['json_path'], bibtex_path=bundle.get('bib_path'))
-
-            # 10. Build search units from migrated markdown
-            if md_content:
-                run_id = repo.start_run(paper_id=paper_id, operation='build_search_units', backend='migration', status='ok')
-                _build_search_units(paper_id, md_content, run_id, repo)
-                repo.finish_run(run_id, status='ok')
-
-            # Mark needs-reprocessing
-            if md_backend in ('legacy_pdfminer', 'pdfminer') or not summary_content:
-                needs_reprocessing.append({'paper_key': paper_key, 'reason': f"backend={md_backend}, has_summary={bool(summary_content)}"})
-
-            papers_migrated += 1
-        except Exception as e:
+                if md_backend in ('legacy_pdfminer', 'pdfminer') or not summary_content:
+                    needs_reprocessing.append({'paper_key': paper_key, 'reason': f"backend={md_backend}, has_summary={bool(summary_content)}"})
+                papers_migrated += 1
+        except Exception as error:
             papers_failed += 1
-            conflicts.append({'stem': stem, 'error': str(e), 'title': p.get('title', '')})
-            print(f"FAILED: stem={stem}, error={e}")
+            conflicts.append({'stem': stem, 'error': str(error), 'title': legacy_paper.get('title', '')})
+            print(f"FAILED: stem={stem}, error={error}")
 
-    # 11. Produce migration report
     logs_dir = os.path.join(data_dir, 'logs')
     os.makedirs(logs_dir, exist_ok=True)
     report_path = os.path.join(logs_dir, 'migration_report.md')
     _write_report(report_path, papers_migrated, papers_failed, conflicts, needs_reprocessing, len(tags), len(consolidated_tags), len(tag_aliases_list))
-
-    return {
-        'papers_migrated': papers_migrated,
-        'papers_failed': papers_failed,
-        'conflicts': conflicts,
-        'needs_reprocessing': needs_reprocessing,
-        'report_path': report_path,
-    }
+    return {'papers_migrated': papers_migrated, 'papers_failed': papers_failed, 'conflicts': conflicts,
+            'needs_reprocessing': needs_reprocessing, 'report_path': report_path}
 
 def _write_report(path: str, migrated: int, failed: int, conflicts: list, needs_reproc: list, old_tags: int, new_tags: int, aliases: int):
     """Write migration report to markdown."""

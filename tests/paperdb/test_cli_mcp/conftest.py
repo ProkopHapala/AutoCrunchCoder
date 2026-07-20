@@ -5,6 +5,7 @@ It is used by injecting it into sys.modules before importing paperdb.cli / paper
 """
 import sys
 import types
+import pytest
 import json
 from pathlib import Path
 from unittest.mock import MagicMock
@@ -15,9 +16,8 @@ from unittest.mock import MagicMock
 # imports (paperdb.cli, paperdb.mcp) work correctly.
 _PAPERDB_DIR = str(Path(__file__).resolve().parents[3] / "paperdb")
 
-_mock_paperdb = types.ModuleType("paperdb")
-_mock_paperdb.__path__ = [_PAPERDB_DIR]
-sys.modules["paperdb"] = _mock_paperdb
+# Legacy tests replaced sys.modules["paperdb"] globally, which poisoned unrelated
+# integration tests. The autouse fixture below patches only CLI/MCP boundaries.
 
 # Test data
 MOCK_PAPERS = [
@@ -61,21 +61,21 @@ class MockPaperDB:
         self._papers_by_doi = {p["doi"]: p for p in MOCK_PAPERS}
 
     def scan_folder(self, path, recursive=True):
-        return 42
+        return [{"path": f"{path}/{i}.pdf"} for i in range(42)]
 
-    def sync(self):
-        return {"scanned": 42, "new": 5}
+    def sync(self, folder, llm_config=None):
+        return {"scanned": 42, "new": 5, "folder": folder}
 
-    def add_paper(self, path_or_url_or_doi):
+    def add_paper(self, path_or_url_or_doi, dest_dir=None):
         return {"paper_key": "New_2024_Test", "status": "added"}
 
-    def ingest_paper(self, paper_id, operations=None):
+    def ingest_paper(self, paper_id, operations=None, llm_config=None):
         return {"paper_key": paper_id, "status": "ingested", "operations": operations or ["convert", "summarize", "tag"]}
 
-    def ingest_folder(self, folder):
+    def ingest_folder(self, folder, llm_config=None):
         return {"folder": folder, "ingested": 10}
 
-    def ingest_all(self):
+    def ingest_all(self, llm_config=None):
         return {"ingested": 42}
 
     def search(self, query, required_tags=None, preferred_tags=None, excluded_tags=None, year_range=None, limit=20, explain=False):
@@ -86,8 +86,10 @@ class MockPaperDB:
                 r.pop("match_reason", None)
         return results
 
-    def retrieve_context(self, query, token_budget=24000, include=None, filters=None):
-        return dict(MOCK_CONTEXT)
+    def retrieve_context(self, query, token_budget=24000, include=None, filters=None, save=False):
+        result = dict(MOCK_CONTEXT)
+        if save: result["id"] = 1
+        return result
 
     def get_paper(self, id_or_key_or_doi):
         if id_or_key_or_doi in self._papers: return dict(self._papers[id_or_key_or_doi])
@@ -95,6 +97,17 @@ class MockPaperDB:
         except (ValueError, KeyError): pass
         if id_or_key_or_doi in self._papers_by_doi: return dict(self._papers_by_doi[id_or_key_or_doi])
         return {"error": f"Paper '{id_or_key_or_doi}' not found"}
+
+    def describe_paper(self, paper_id):
+        result = self.get_paper(paper_id)
+        result.update({"files": [], "tags": self.get_tags(paper_id), "summary": self.get_summary(paper_id), "processing_runs": []})
+        return result
+
+    def get_json(self, paper_id):
+        return self.get_paper(paper_id)
+
+    def get_bibtex(self, paper_id):
+        return self.get_paper(paper_id).get("bibtex", "")
 
     def get_markdown(self, paper_id):
         p = self.get_paper(paper_id)
@@ -105,6 +118,9 @@ class MockPaperDB:
 
     def get_methods(self, paper_id):
         return list(MOCK_METHODS)
+
+    def get_equation_variables(self, equation_id):
+        return [{"equation_id": equation_id, "symbol": "lambda", "meaning": "constraint multiplier"}]
 
     def get_tags(self, paper_id):
         return [t for t in MOCK_TAGS[:3]]
@@ -124,10 +140,10 @@ class MockPaperDB:
     def merge_tags(self, canonical, alias):
         return {"merged": alias, "into": canonical}
 
-    def status(self):
+    def status(self, missing=None, needs_reprocessing=False):
         return dict(MOCK_STATUS)
 
-    def build_topic_review(self, topic, focus=None, constraints=None, max_papers=30):
+    def build_topic_review(self, topic, focus=None, constraints=None, max_papers=30, llm_config=None):
         return {"topic": topic, "content": f"# Topic Review: {topic}\n\n## Papers\n- Macklin 2016 XPBD\n\n## Comparison\n| Method | Complexity |\n|--------|------------|\n| XPBD   | O(n)       |", "papers": ["Macklin_2016_XPBD"]}
 
     def compare_methods(self, problem, axes, constraints=None, max_papers=20):
@@ -142,8 +158,15 @@ class MockPaperDB:
     def get_tag_aliases(self, tag_name):
         return {"tag": tag_name, "aliases": [tag_name.lower(), tag_name.upper()]}
 
+    def add_user_tags(self, paper_id, tags):
+        return None
+
     def get_context_pack(self, context_id):
         return dict(MOCK_CONTEXT)
 
-# ── Set PaperDB on the mock package ───────────────────────────────────────────
-_mock_paperdb.PaperDB = MockPaperDB
+@pytest.fixture(autouse=True)
+def patch_paperdb_boundaries(monkeypatch):
+    import paperdb.cli as cli_module
+    import paperdb.mcp as mcp_module
+    monkeypatch.setattr(cli_module, "get_db", lambda: MockPaperDB())
+    mcp_module._db = MockPaperDB()

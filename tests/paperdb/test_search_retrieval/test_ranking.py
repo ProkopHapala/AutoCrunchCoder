@@ -9,7 +9,7 @@ if _repo_root not in sys.path:
 
 from paperdb.search.ranking import rank_papers, search, SearchResult, SCORE_REQUIRED_TAG, SCORE_PREFERRED_TAG, SCORE_TITLE, SCORE_ABSTRACT, SCORE_FTS, SCORE_USER_TAG
 from paperdb.search.fts import fts_search, SearchUnit
-from conftest import (create_test_db, insert_test_paper, insert_test_search_unit,
+from .conftest import (create_test_db, insert_test_paper, insert_test_search_unit,
                       insert_test_tag, insert_test_alias, insert_test_paper_tag)
 
 
@@ -149,13 +149,15 @@ def test_ranking_user_tag_boost():
     insert_test_search_unit(repo, pid1, 'section', 'section', "molecular dynamics", "Methods")
     insert_test_search_unit(repo, pid2, 'section', 'section', "molecular dynamics", "Methods")
     fts_results = fts_search("molecular", repo)
-    results = rank_papers("molecular", fts_results, repo, explain=True)
-    # Paper A should have user_tag boost
+    results = rank_papers("force field", fts_results, repo, explain=True)
+    # Paper A should have a boost because this user tag is query-relevant.
     a_result = [r for r in results if r.paper.id == pid1][0]
     b_result = [r for r in results if r.paper.id == pid2][0]
     assert a_result.breakdown.get('user_tags') == SCORE_USER_TAG
     assert 'user_tags' not in b_result.breakdown
     assert a_result.score > b_result.score
+    unrelated = rank_papers("molecular", fts_results, repo, explain=True)
+    assert all("user_tags" not in result.breakdown for result in unrelated)
     print(f"✓ test_ranking_user_tag_boost passed (A={a_result.score}, B={b_result.score})")
 
 
@@ -201,6 +203,33 @@ def test_ranking_sort_order():
     assert results[0].score >= results[1].score
     assert results[0].paper.id == pid1  # title match gives higher score
     print(f"✓ test_ranking_sort_order passed (sorted: {results[0].score} >= {results[1].score})")
+
+
+def test_search_includes_metadata_only_candidate():
+    conn, repo = create_test_db()
+    pid = insert_test_paper(repo, "Metadata_2026", title="Spectral Poisson Solver")
+    results = search("Spectral Poisson", repo)
+    assert [result.paper.id for result in results] == [pid]
+
+
+def test_typed_category_tag_is_an_exact_filter():
+    conn, repo = create_test_db()
+    solver_paper = insert_test_paper(repo, "Solver_2026", title="Solver")
+    domain_paper = insert_test_paper(repo, "Domain_2026", title="Domain")
+    solver_tag = insert_test_tag(repo, "xpbd", "solver")
+    domain_tag = insert_test_tag(repo, "xpbd", "domain")
+    insert_test_paper_tag(repo, solver_paper, solver_tag)
+    insert_test_paper_tag(repo, domain_paper, domain_tag)
+    results = search("solver:xpbd", repo)
+    assert [result.paper.id for result in results] == [solver_paper]
+
+
+def test_fts_unit_count_bonus_is_capped():
+    conn, repo = create_test_db()
+    pid = insert_test_paper(repo, "Verbose_2026", title="Verbose")
+    for i in range(10): insert_test_search_unit(repo, pid, 'paragraph', 'section', f"Ewald evidence {i}", "Methods")
+    results = rank_papers("Ewald", fts_search("Ewald", repo), repo, explain=True)
+    assert results[0].breakdown["fts"] == 3 * SCORE_FTS
 
 
 if __name__ == "__main__":

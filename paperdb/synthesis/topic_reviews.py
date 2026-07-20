@@ -55,7 +55,7 @@ Rules:
 - comparison_axes: dimensions to compare methods (e.g. "spatial_structure", "complexity", "synchronization")"""
 
 def build_topic_review(topic: str, repo, db=None, focus=None, constraints=None,
-                       max_papers=30, llm_config=None) -> dict:
+                       max_papers=30, llm_config=None, comparison_axes=None) -> dict:
     """Multi-step topical overview generation.
 
     Steps:
@@ -78,7 +78,7 @@ def build_topic_review(topic: str, repo, db=None, focus=None, constraints=None,
     Returns:
         Dict with 'content' (review markdown), 'topic_id', 'papers_used', 'comparison_matrix'.
     """
-    from paperdb.config import make_agent
+    from paperdb.config import make_agent, response_text
 
     if db is None:
         from paperdb import PaperDB
@@ -90,28 +90,27 @@ def build_topic_review(topic: str, repo, db=None, focus=None, constraints=None,
     agent.set_system_prompt(INTERPRET_QUERY_PROMPT)
     query_prompt = f"Topic: {topic}\nFocus: {focus or 'general'}\nConstraints: {json.dumps(constraints or {})}\n\nExtract search parameters."
     response = agent.query(query_prompt, response_format={"type": "json_object"})
-    raw_text = response.content if hasattr(response, 'content') else str(response)
+    raw_text = response_text(agent, response)
 
-    try:
-        search_params = _parse_json(raw_text)
-    except (json.JSONDecodeError, ValueError) as e:
-        print(f"[topic_reviews] Query interpretation failed, using raw topic: {e}")
-        search_params = {"search_terms": [topic], "required_tags": [], "preferred_tags": [], "comparison_axes": []}
+    search_params = _parse_json(raw_text)
+    if not isinstance(search_params, dict): raise ValueError("Topic query interpretation must be a JSON object")
 
     search_terms = search_params.get('search_terms', [topic])
     if not search_terms:
         search_terms = [topic]
-    comparison_axes = search_params.get('comparison_axes', [])
+    comparison_axes = comparison_axes or search_params.get('comparison_axes', [])
     if not comparison_axes:
         comparison_axes = ['complexity', 'accuracy', 'scalability']
 
-    # Step 2: Find papers
+    # Step 2: apply interpreted tags and caller constraints to real retrieval.
     search_query = ' '.join(search_terms)
-    try:
-        papers = db.search(search_query, limit=max_papers)
-    except Exception as e:
-        print(f"[topic_reviews] Search failed: {e}")
-        papers = []
+    constraints = constraints or {}
+    papers = db.search(search_query,
+                       required_tags=[*search_params.get('required_tags', []), *constraints.get('required_tags', [])] or None,
+                       preferred_tags=[*search_params.get('preferred_tags', []), *constraints.get('preferred_tags', [])] or None,
+                       excluded_tags=constraints.get('excluded_tags'), year_range=constraints.get('year_range'),
+                       limit=max_papers, explain=True)
+    papers = [_paper_record(paper) for paper in papers]
 
     if not papers:
         print(f"[topic_reviews] No papers found for topic '{topic}'")
@@ -121,17 +120,10 @@ def build_topic_review(topic: str, repo, db=None, focus=None, constraints=None,
     all_methods = []
     paper_method_map = {}
     for p in papers:
-        p = p if isinstance(p, dict) else {'id': getattr(p, 'id', None), 'paper_key': getattr(p, 'paper_key', ''), 'title': getattr(p, 'title', ''), 'year': getattr(p, 'year', None)}
         pid = p.get('id')
-        if not pid:
-            continue
-        try:
-            methods = repo.get_methods(pid, method_type='reconstructed_method')
-        except Exception:
-            try:
-                methods = repo.get_methods(pid)
-            except Exception:
-                methods = []
+        if not pid: continue
+        methods = repo.get_methods(pid, method_type='reconstructed_method')
+        if not methods: methods = repo.get_methods(pid)
         paper_method_map[pid] = methods
         all_methods.extend(methods)
 
@@ -143,14 +135,18 @@ def build_topic_review(topic: str, repo, db=None, focus=None, constraints=None,
 
     paper_summaries = []
     for i, p in enumerate(papers):
-        p = p if isinstance(p, dict) else {'id': getattr(p, 'id', None), 'paper_key': getattr(p, 'paper_key', ''), 'title': getattr(p, 'title', ''), 'year': getattr(p, 'year', None), 'essence': getattr(p, 'essence', '')}
         pid = p.get('id')
-        methods = paper_method_map.get(pid, [])
         method_descs = []
-        for m in methods[:3]:
-            m = m if isinstance(m, dict) else {'name': getattr(m, 'name', ''), 'purpose': getattr(m, 'purpose', ''), 'card_json': getattr(m, 'card_json', '{}')}
-            method_descs.append(f"  - {m.get('name', 'unknown')}: {m.get('purpose', '')}")
-        paper_summaries.append(f"[{i+1}] {p.get('paper_key', '?')} ({p.get('year', '?')}): {p.get('title', '?')}\n  Essence: {p.get('essence', 'N/A')}\n  Methods:\n{''.join(method_descs) if method_descs else '  No method cards extracted'}")
+        for method in paper_method_map.get(pid, [])[:3]:
+            m = method if isinstance(method, dict) else method.model_dump()
+            passages = json.loads(m.get('source_passages_json') or '[]')
+            method_descs.append(f"  - {m.get('name', 'unknown')}: {m.get('purpose', '')}\n    Evidence: {json.dumps(passages[:5], ensure_ascii=False)}")
+        equations = repo.get_equations_for_paper(pid)[:8]
+        equation_descs = []
+        for equation in equations:
+            eq = equation if isinstance(equation, dict) else equation.model_dump()
+            equation_descs.append(f"Eq. {eq.get('equation_number') or '?'} page {eq.get('page_number') or '?'} section {eq.get('section_path') or '?'}: {eq.get('latex_raw') or ''}")
+        paper_summaries.append(f"[{i+1}] {p.get('paper_key', '?')} ({p.get('year', '?')}): {p.get('title', '?')}\n  Essence: {p.get('essence', 'N/A')}\n  Methods:\n{chr(10).join(method_descs) if method_descs else '  No method cards extracted'}\n  Equations:\n{chr(10).join(equation_descs) if equation_descs else '  No equations extracted'}")
 
     comparison_table = _format_comparison_matrix(comparison_matrix)
 
@@ -168,42 +164,33 @@ Comparison axes: {', '.join(comparison_axes)}
 Write a comprehensive topical review. Use [N] to reference paper N from the list above."""
 
     response = agent.query(review_prompt)
-    review_content = response.content if hasattr(response, 'content') else str(response)
+    review_content = response_text(agent, response)
 
-    # Step 6: Store in database
-    topic_id = None
-    try:
-        topic_id = repo.add_topic(topic, description=focus or '')
-    except Exception as e:
-        print(f"[topic_reviews] Could not create topic: {e}")
-
-    if topic_id:
-        for i, p in enumerate(papers):
-            p = p if isinstance(p, dict) else {'id': getattr(p, 'id', None)}
-            pid = p.get('id')
-            if pid:
-                try:
-                    repo.add_topic_paper(topic_id, pid, relevance=f"Matched search: {search_query}", match_score=1.0 / (i + 1))
-                except Exception:
-                    pass
-
-        try:
-            model_name = getattr(agent, 'model_name', 'unknown')
-            repo.add_topic_overview(
-                topic_id=topic_id, content=review_content,
-                original_query=topic, filters_json=json.dumps({'focus': focus, 'constraints': constraints}),
-                comparison_matrix_json=json.dumps(comparison_matrix),
-                model_name=model_name, prompt_version='v1', is_active=1,
-            )
-        except Exception as e:
-            print(f"[topic_reviews] Could not store overview: {e}")
+    # Step 6: Store the evidence-bearing review and paper associations.
+    topic_id = repo.add_topic(topic, description=focus or '')
+    for i, paper in enumerate(papers):
+        if paper.get('id'):
+            repo.add_topic_paper(topic_id=topic_id, paper_id=paper['id'], relevance=f"Matched search: {search_query}", match_score=1.0 / (i + 1))
+    repo.add_topic_overview(topic_id=topic_id, content=review_content, original_query=topic,
+                            filters_json=json.dumps({'focus': focus, 'constraints': constraints, 'search_params': search_params}),
+                            comparison_matrix_json=json.dumps(comparison_matrix), model_name=getattr(agent, 'model_name', 'unknown'),
+                            prompt_version='v1', is_active=1)
 
     return {
         'content': review_content,
         'topic_id': topic_id,
-        'papers_used': [p if isinstance(p, dict) else {'id': p.id, 'paper_key': p.paper_key} for p in papers],
+        'papers_used': papers,
         'comparison_matrix': comparison_matrix,
     }
+
+def _paper_record(value) -> dict:
+    """Normalize PaperDB search results, including the facade's nested paper object."""
+    if isinstance(value, dict):
+        paper = dict(value.get('paper') or value)
+        for key in ('id', 'paper_key', 'title', 'year', 'essence', 'abstract'):
+            if key not in paper and key in value: paper[key] = value[key]
+        return paper
+    return value.model_dump() if hasattr(value, 'model_dump') else vars(value)
 
 def build_comparison_matrix(papers: list, methods: list, axes: list, repo) -> dict:
     """Build a comparison matrix across papers along specified axes.
@@ -241,10 +228,7 @@ def _extract_axis_value(paper_id: int, axis: str, methods: list, repo) -> str:
     for m in paper_methods:
         card_json = _get_method_field(m, 'card_json', '{}')
         if isinstance(card_json, str):
-            try:
-                card = json.loads(card_json)
-            except Exception:
-                card = {}
+            card = json.loads(card_json)
         else:
             card = card_json
 

@@ -30,7 +30,7 @@ def _sanitize_fts_query(query):
     terms = query.strip().split()
     if not terms:
         return '""'
-    return ' '.join(f'"{t}"' for t in terms)
+    return ' '.join(f'"{t.replace(chr(34), chr(34) * 2)}"' for t in terms)
 
 
 def fts_search(query, repo, limit=100):
@@ -81,13 +81,26 @@ _EQUATION_RE = re.compile(r'^\$\$(.+?)\$\$$', re.DOTALL)
 _FRONTMATTER_DELIM = '---'
 
 
-def build_search_units_from_markdown(paper_id, markdown_text, run_id, repo):
+def build_search_units_from_markdown(paper_id, markdown_text, run_id, repo, equations=None, methods=None):
     """Split markdown into search units by headings/equations/paragraphs.
     Types: 'summary', 'section', 'paragraph', 'equation', 'method'.
     Store via repo.replace_search_units() (transactional delete+insert, FTS triggers auto-sync).
     Returns list of created SearchUnit objects.
     """
     units = _split_markdown_to_units(paper_id, markdown_text, run_id)
+    if equations:
+        units = [unit for unit in units if unit.unit_type != "equation"]
+    for value in equations or []:
+        equation = value if isinstance(value, dict) else value.model_dump()
+        content = "\n".join(part for part in [equation.get("latex_raw") or equation.get("latex_normalized"), equation.get("context_before"), equation.get("context_after")] if part)
+        units.append(SearchUnit(paper_id=paper_id, run_id=run_id, unit_type="equation", source_type="equation",
+                                source_id=equation.get("id"), section_path=equation.get("section_path") or "",
+                                page_from=equation.get("page_number"), page_to=equation.get("page_number"), content=content))
+    for value in methods or []:
+        method = value if isinstance(value, dict) else value.model_dump()
+        content = "\n".join(part for part in [method.get("name"), method.get("purpose"), method.get("card_json"), method.get("source_passages_json")] if part)
+        units.append(SearchUnit(paper_id=paper_id, run_id=run_id, unit_type="method", source_type="method",
+                                source_id=method.get("id"), section_path=method.get("name") or "", content=content))
     repo.replace_search_units(paper_id, units)
     return units
 

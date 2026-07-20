@@ -12,6 +12,8 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
+from paperdb.db.models import to_serializable
+
 app = typer.Typer(name="paperdb", help="Scientific paper compiler and retrieval service", no_args_is_help=True)
 console = Console()
 
@@ -25,9 +27,10 @@ def get_db() -> "PaperDB":
 
 # ── Output helpers ────────────────────────────────────────────────────────────
 def _out(data, table=None):
-    """Output data as JSON or human-readable (rich table)."""
+    """Output models and dataclasses through one serializable boundary."""
+    data = to_serializable(data)
     if _state["json"]:
-        print(_json.dumps(data, indent=2, default=str))
+        print(_json.dumps(data, indent=2, ensure_ascii=False))
     elif table is not None:
         console.print(table)
     else:
@@ -45,7 +48,7 @@ def _papers_table(results, explain=False):
     for r in results:
         row = [str(r.get("score", "")), r.get("paper_key", ""), r.get("title", "")[:60], str(r.get("year", ""))]
         if explain:
-            row.append(r.get("match_reason", ""))
+            row.append(", ".join(f"{key}: {value}" for key, value in r.get("breakdown", {}).items()))
         t.add_row(*row)
     return t
 
@@ -68,21 +71,21 @@ def main_callback(
 def scan(folder: str, recursive: bool = typer.Option(True, "--recursive/--no-recursive", help="Scan recursively")):
     """Scan a folder for PDFs and index them in-place."""
     db = get_db()
-    count = db.scan_folder(folder, recursive=recursive)
-    _out(f"Scanned {folder}: {count} PDFs indexed" if not _state["json"] else {"folder": folder, "count": count})
+    results = db.scan_folder(folder, recursive=recursive)
+    _out(f"Scanned {folder}: {len(results)} PDFs indexed" if not _state["json"] else {"folder": folder, "count": len(results), "results": results})
 
 @app.command()
-def sync(folder: Optional[str] = typer.Option(None, "--folder", help="Specific folder to sync")):
-    """Sync: scan watched folders and process new/changed papers."""
+def sync(folder: str = typer.Option(..., "--folder", help="Source PDF folder to scan and ingest")):
+    """Scan an explicit source folder and process new/changed papers."""
     db = get_db()
-    result = db.scan_folder(folder, recursive=True) if folder else db.sync()
+    result = db.sync(folder, llm_config=_state["llm_config"])
     _out(f"Sync complete: {result}" if not _state["json"] else {"result": result})
 
 @app.command()
-def add(path_or_url_or_doi: str):
-    """Add a single paper from local path, URL, or DOI."""
+def add(path_or_url_or_doi: str, dest_dir: Optional[str] = typer.Option(None, "--dest-dir", help="Explicit destination for remote PDFs")):
+    """Add a local paper or acquire a remote paper into an explicit destination."""
     db = get_db()
-    result = db.add_paper(path_or_url_or_doi)
+    result = db.add_paper(path_or_url_or_doi, dest_dir=dest_dir)
     _out(f"Added: {result}" if not _state["json"] else {"result": result})
 
 @app.command()
@@ -94,11 +97,11 @@ def ingest(
     """Ingest (convert + summarize + tag + extract) papers."""
     db = get_db()
     if paper:
-        result = db.ingest_paper(paper)
+        result = db.ingest_paper(paper, llm_config=_state["llm_config"])
     elif folder:
-        result = db.ingest_folder(folder)
+        result = db.ingest_folder(folder, llm_config=_state["llm_config"])
     elif all_papers:
-        result = db.ingest_all()
+        result = db.ingest_all(llm_config=_state["llm_config"])
     else:
         console.print("[red]Must specify --all, --folder, or --paper[/red]")
         raise typer.Exit(1)
@@ -146,13 +149,14 @@ def context(
     """Assemble a compact, evidence-bearing context pack for an LLM agent."""
     db = get_db()
     include_types = include.split(",") if include else None
-    result = db.retrieve_context(query, token_budget=budget, include=include_types)
-    content = result if isinstance(result, str) else result.get("content", str(result))
+    result = db.retrieve_context(query, token_budget=budget, include=include_types, save=save)
+    result_data = to_serializable(result)
+    content = result_data.get("content", "")
     if out:
         Path(out).write_text(content, encoding="utf-8")
         _out(f"Context pack written to {out}" if not (json_output or _state["json"]) else {"out": out, "chars": len(content)})
     elif json_output or _state["json"]:
-        _out(result if isinstance(result, dict) else {"content": content})
+        print(_json.dumps(result_data, indent=2, ensure_ascii=False))
     else:
         console.print(content)
 
@@ -161,7 +165,7 @@ def context(
 def inspect(paper_key: str):
     """Show full metadata + tags + processing status for a paper."""
     db = get_db()
-    paper = db.get_paper(paper_key)
+    paper = db.describe_paper(paper_key)
     if _state["json"]:
         _out(paper)
     else:
@@ -180,30 +184,19 @@ def get(
     bib: bool = typer.Option(False, "--bib", help="Print BibTeX"),
     all_fmt: bool = typer.Option(False, "--all", help="Print all formats"),
 ):
-    """Get paper content in various formats."""
+    """Get compiled paper artifacts without swallowing missing/corrupt files."""
     db = get_db()
-    if all_fmt or (not markdown and not json_fmt and not bib):
-        all_fmt = True
-    if all_fmt or markdown:
-        md = db.get_markdown(paper_key)
-        console.print(md) if not _state["json"] else _out({"markdown": md})
-    if all_fmt or json_fmt:
-        j = db.get_paper(paper_key)
-        if _state["json"]:
-            _out(j)
-        else:
-            console.print(_json.dumps(j, indent=2, default=str) if j else "Not found")
-    if all_fmt or bib:
-        p = db.get_paper(paper_key)
-        bibtext = ""
-        if p:
-            bib_path = getattr(p, 'bibtex_path', None) if not isinstance(p, dict) else p.get('bibtex_path')
-            if bib_path:
-                try:
-                    bibtext = Path(bib_path).read_text(encoding='utf-8')
-                except Exception:
-                    pass
-        console.print(bibtext)
+    if all_fmt or not (markdown or json_fmt or bib): all_fmt = True
+    artifacts = {}
+    if all_fmt or markdown: artifacts["markdown"] = db.get_markdown(paper_key)
+    if all_fmt or json_fmt: artifacts["json"] = db.get_json(paper_key)
+    if all_fmt or bib: artifacts["bibtex"] = db.get_bibtex(paper_key)
+    if _state["json"]:
+        _out(artifacts)
+        return
+    if "markdown" in artifacts: console.print(artifacts["markdown"])
+    if "json" in artifacts: console.print(_json.dumps(artifacts["json"], indent=2, ensure_ascii=False) if artifacts["json"] else "Not found")
+    if "bibtex" in artifacts: console.print(artifacts["bibtex"])
 
 @app.command()
 def equations(paper_key: str):
@@ -215,7 +208,7 @@ def equations(paper_key: str):
     else:
         t = Table(show_header=True, header_style="bold")
         t.add_column("#"); t.add_column("LaTeX"); t.add_column("Section"); t.add_column("Page")
-        eqs = result if isinstance(result, list) else [result]
+        eqs = to_serializable(result)
         for eq in eqs:
             t.add_row(str(eq.get("equation_number", "")), (eq.get("latex_raw") or eq.get("latex_normalized", ""))[:50], eq.get("section_path", ""), str(eq.get("page_number", "")))
         _out(None, table=t)
@@ -224,12 +217,17 @@ def equations(paper_key: str):
 def methods(query: str, limit: int = typer.Option(20, "--limit", help="Max results")):
     """Find methods across papers matching a topic."""
     db = get_db()
-    results = db.search(query, limit=limit)
-    if _state["json"]:
-        _out(results)
+    papers = db.search(query, limit=limit)
+    results = []
+    for paper in papers:
+        item = dict(paper)
+        item["methods"] = to_serializable(db.get_methods(paper["id"]))
+        results.append(item)
+    if _state["json"]: _out(results)
     else:
-        t = _papers_table(results)
-        _out(None, table=t)
+        for item in results:
+            console.print(f"[bold]{item['paper_key']}[/bold]")
+            for method in item["methods"]: console.print(f"  {method.get('name')}: {method.get('purpose') or ''}")
 
 @app.command()
 def method(paper_key: str, name: Optional[str] = typer.Option(None, "--name", help="Method name to show")):
@@ -239,7 +237,7 @@ def method(paper_key: str, name: Optional[str] = typer.Option(None, "--name", he
     if _state["json"]:
         _out(result)
     else:
-        ms = result if isinstance(result, list) else [result]
+        ms = to_serializable(result)
         if name:
             ms = [m for m in ms if name.lower() in (m.get("name", "")).lower()]
         for m in ms:
@@ -269,19 +267,15 @@ def tags(
         else:
             t = Table(show_header=True, header_style="bold")
             t.add_column("Category"); t.add_column("Tag"); t.add_column("Count")
-            tag_list = result if isinstance(result, list) else []
-            for tag in tag_list:
-                if isinstance(tag, dict):
-                    t.add_row(tag.get("category", ""), tag.get("canonical_name", tag.get("name", "")), str(tag.get("count", "")))
-                else:
-                    t.add_row("", str(tag), "")
+            for tag in to_serializable(result):
+                t.add_row(tag.get("category", ""), tag.get("canonical_name", tag.get("name", "")), str(tag.get("count", "")))
             _out(None, table=t)
 
 @app.command()
 def related(paper_key: str, limit: int = typer.Option(5, "--limit", help="Max results")):
     """Find papers sharing tags with the given paper."""
     db = get_db()
-    result = db.get_related(paper_key, limit=limit) if hasattr(db, "get_related") else db.search("", limit=limit)
+    result = db.get_related(paper_key, limit=limit)
     if _state["json"]:
         _out(result)
     else:
@@ -297,13 +291,13 @@ def topic(
 ):
     """Generate a topical review document comparing methods across papers."""
     db = get_db()
-    result = db.build_topic_review(topic_name) if hasattr(db, "build_topic_review") else {"content": f"Topic review for '{topic_name}' — not yet implemented"}
+    result = db.build_topic_review(topic_name, llm_config=_state["llm_config"])
     content = result.get("content", str(result)) if isinstance(result, dict) else str(result)
     if out:
         Path(out).write_text(content, encoding="utf-8")
         _out(f"Topic overview written to {out}" if not (json_output or _state["json"]) else {"out": out})
     elif json_output or _state["json"]:
-        _out(result)
+        print(_json.dumps(to_serializable(result), indent=2, ensure_ascii=False))
     else:
         console.print(content)
 
@@ -312,7 +306,7 @@ def compare(topic_name: str, axes: str = typer.Option(..., "--axes", help="Compa
     """Compare methods across papers along specified axes."""
     db = get_db()
     axes_list = axes.split(",")
-    result = db.compare_methods(topic_name, axes_list) if hasattr(db, "compare_methods") else {"content": f"Comparison for '{topic_name}' — not yet implemented"}
+    result = db.compare_methods(topic_name, axes_list, llm_config=_state["llm_config"])
     if _state["json"]:
         _out(result)
     else:
@@ -327,7 +321,7 @@ def export(
 ):
     """Export the library."""
     db = get_db()
-    result = db.export_bibtex() if hasattr(db, "export_bibtex") else ""
+    result = db.export_bibtex()
     if out:
         Path(out).write_text(result, encoding="utf-8")
         _out(f"Exported to {out}" if not _state["json"] else {"out": out, "chars": len(result)})
@@ -351,7 +345,7 @@ def reindex(
     if not operations:
         console.print("[red]Must specify at least one --re-* flag[/red]")
         raise typer.Exit(1)
-    result = db.reindex(operations, llm_config=llm_config or _state["llm_config"]) if hasattr(db, "reindex") else "reindex not yet implemented"
+    result = db.reindex(operations, llm_config=llm_config or _state["llm_config"])
     _out(f"Reindex complete: {result}" if not _state["json"] else {"result": result, "operations": operations})
 
 # ── Status ────────────────────────────────────────────────────────────────────
@@ -362,7 +356,7 @@ def status(
 ):
     """Show database statistics and processing status."""
     db = get_db()
-    result = db.status()
+    result = db.status(missing=missing, needs_reprocessing=needs_reprocessing)
     if _state["json"]:
         _out(result)
     else:
@@ -400,9 +394,9 @@ def migrate(
     """Import existing data from legacy databases or Mendeley BibTeX."""
     db = get_db()
     if from_db:
-        result = db.migrate_from_db(from_db) if hasattr(db, "migrate_from_db") else f"Migration from {from_db} not yet implemented"
+        result = db.migrate_from_db(from_db)
     elif from_mendeley:
-        result = db.migrate_from_mendeley(from_mendeley) if hasattr(db, "migrate_from_mendeley") else f"Mendeley import from {from_mendeley} not yet implemented"
+        result = db.migrate_from_mendeley(from_mendeley)
     else:
         console.print("[red]Must specify --from or --from-mendeley[/red]")
         raise typer.Exit(1)

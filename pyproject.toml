@@ -3,7 +3,7 @@ name = "paperdb"
 version = "0.1.0"
 description = "Local scientific paper knowledge base — compile, index, retrieve"
 requires-python = ">=3.10"
-dependencies = ["bibtexparser", "openai", "pydantic", "jinja2", "requests", "typer", "toml", "rich"]
+dependencies = ["bibtexparser", "openai", "pydantic", "jinja2", "requests", "typer", "toml", "rich", "PyPDF2"]
 
 [project.scripts]
 paperdb = "paperdb.cli:main"
@@ -22,3 +22,6 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
 packages = ["paperdb", "paperdb.db", "paperdb.identity", "paperdb.ingest", "paperdb.extract", "paperdb.search", "paperdb.synthesis", "paperdb.taxonomy"]
+
+[tool.pytest.ini_options]
+addopts = "--import-mode=importlib"

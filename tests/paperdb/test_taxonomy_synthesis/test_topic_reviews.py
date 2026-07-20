@@ -3,7 +3,7 @@
 import json
 import pytest
 from unittest.mock import patch, MagicMock
-from tests.paperdb.test_taxonomy_synthesis.conftest import make_mock_repo, MockAgent
+from .conftest import make_mock_repo, MockAgent
 
 MOCK_INTERPRET_RESPONSE = json.dumps({
     "search_terms": ["XPBD", "position based dynamics", "constraint solving"],
@@ -54,7 +54,7 @@ class MockPaperDB:
         self.repo = repo
         self.paper_ids = paper_ids
 
-    def search(self, query, limit=30):
+    def search(self, query, required_tags=None, preferred_tags=None, excluded_tags=None, year_range=None, limit=30, explain=False):
         results = []
         for pid in self.paper_ids[:limit]:
             p = self.repo.get_paper(pid)

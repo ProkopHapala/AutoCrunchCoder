@@ -185,7 +185,7 @@ class MockRepository:
         self.conn.execute(f"UPDATE papers SET {', '.join(parts)} WHERE id = ?", vals)
         self.conn.commit()
 
-    def set_paper_bibtex(self, paper_id, bibtex_text):
+    def set_paper_bibtex(self, paper_id, bibtex_text, bibtex_path=None):
         self.conn.execute("UPDATE papers SET bibtex_text = ? WHERE id = ?", (bibtex_text, paper_id))
         self.conn.commit()
 
@@ -203,7 +203,7 @@ class MockRepository:
 
     def find_file_by_hash(self, sha256):
         cur = self.conn.execute("SELECT * FROM paper_files WHERE sha256 = ?", (sha256,))
-        return self._row_to_dict(cur.fetchone())
+        return [self._row_to_dict(row) for row in cur.fetchall()]
 
     def find_file_by_path(self, path):
         cur = self.conn.execute("SELECT * FROM paper_files WHERE path = ?", (path,))
@@ -214,8 +214,12 @@ class MockRepository:
         self.conn.execute("UPDATE paper_files SET is_preferred = 1 WHERE id = ?", (file_id,))
         self.conn.commit()
 
-    def touch_file(self, file_id):
-        self.conn.execute("UPDATE paper_files SET last_seen = CURRENT_TIMESTAMP WHERE id = ?", (file_id,))
+    def touch_file(self, file_id, sha256=None, file_size=None, modified_time=None):
+        self.conn.execute("UPDATE paper_files SET last_seen=CURRENT_TIMESTAMP, exists_now=1, sha256=COALESCE(?,sha256), file_size=COALESCE(?,file_size), modified_time=COALESCE(?,modified_time) WHERE id=?", (sha256, file_size, modified_time, file_id))
+        self.conn.commit()
+
+    def move_file(self, file_id, path, file_size=None, modified_time=None):
+        self.conn.execute("UPDATE paper_files SET path=?, file_size=COALESCE(?,file_size), modified_time=COALESCE(?,modified_time), exists_now=1 WHERE id=?", (path, file_size, modified_time, file_id))
         self.conn.commit()
 
     # --- Processing runs ---
@@ -231,10 +235,17 @@ class MockRepository:
         self.conn.commit()
         return cur.lastrowid
 
-    def finish_run(self, run_id, status='ok', message=None):
-        self.conn.execute("UPDATE processing_runs SET status = ?, finished_at = CURRENT_TIMESTAMP, message = ? WHERE id = ?",
-                          (status, message, run_id))
+    def finish_run(self, run_id, status='ok', message=None, output_path=None):
+        self.conn.execute("UPDATE processing_runs SET status=?, finished_at=CURRENT_TIMESTAMP, message=?, output_path=COALESCE(?,output_path) WHERE id=?",
+                          (status, message, output_path, run_id))
         self.conn.commit()
+
+    def find_equivalent_run(self, paper_id, operation, config_hash, input_sha256=None, backend=None, model_name=None, prompt_version=None):
+        from types import SimpleNamespace
+        row = self.conn.execute("""SELECT * FROM processing_runs WHERE paper_id=? AND operation=? AND config_hash=? AND status='ok'
+            AND (? IS NULL OR input_sha256=?) AND (? IS NULL OR backend=?) AND (? IS NULL OR model_name=?) AND (? IS NULL OR prompt_version=?) ORDER BY id DESC LIMIT 1""",
+            (paper_id, operation, config_hash, input_sha256, input_sha256, backend, backend, model_name, model_name, prompt_version, prompt_version)).fetchone()
+        return SimpleNamespace(**dict(row)) if row else None
 
     def get_current_run(self, paper_id, operation):
         cur = self.conn.execute("""SELECT * FROM processing_runs WHERE paper_id = ? AND operation = ? AND status = 'ok'
@@ -285,8 +296,9 @@ class MockRepository:
     def replace_search_units(self, paper_id, units):
         self.conn.execute("DELETE FROM search_units WHERE paper_id = ?", (paper_id,))
         for u in units:
+            value = u if isinstance(u, dict) else vars(u)
             self.conn.execute("""INSERT INTO search_units (paper_id, run_id, unit_type, source_type, section_path, content)
-                VALUES (?,?,?,?,?,?)""", (u['paper_id'], u.get('run_id'), u.get('unit_type'), u.get('source_type'), u.get('section_path'), u.get('content')))
+                VALUES (?,?,?,?,?,?)""", (value['paper_id'], value.get('run_id'), value.get('unit_type'), value.get('source_type'), value.get('section_path'), value.get('content')))
         self.conn.commit()
 
     def get_search_units_for_paper(self, paper_id):

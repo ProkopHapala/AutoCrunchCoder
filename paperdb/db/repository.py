@@ -5,6 +5,7 @@ Repository(connection) provides CRUD for every table in the schema.
 import sqlite3
 from typing import Any, Optional
 from paperdb.db.models import *
+from paperdb.db.connection import db_transaction
 
 class Repository:
     def __init__(self, conn: sqlite3.Connection):
@@ -29,10 +30,13 @@ class Repository:
         Accepts either a Paper object or keyword arguments."""
         if paper is None:
             paper = Paper(**kwargs)
-        row = self._fetchone("SELECT id FROM papers WHERE paper_key = ?", (paper.paper_key,))
+        row = self._fetchone("SELECT id FROM papers WHERE doi = ?", (paper.doi,)) if paper.doi else None
+        if row is None: row = self._fetchone("SELECT id FROM papers WHERE paper_key = ?", (paper.paper_key,))
         if row:
-            self._execute("""UPDATE papers SET doi=?, arxiv_id=?, title=?, authors_text=?, year=?, journal=?,
-                abstract=?, keywords=?, essence=?, markdown_path=?, json_path=?, bibtex_path=?, updated_at=CURRENT_TIMESTAMP
+            self._execute("""UPDATE papers SET doi=COALESCE(?,doi), arxiv_id=COALESCE(?,arxiv_id), title=COALESCE(?,title),
+                authors_text=COALESCE(?,authors_text), year=COALESCE(?,year), journal=COALESCE(?,journal),
+                abstract=COALESCE(?,abstract), keywords=COALESCE(?,keywords), essence=COALESCE(?,essence),
+                markdown_path=COALESCE(?,markdown_path), json_path=COALESCE(?,json_path), bibtex_path=COALESCE(?,bibtex_path), updated_at=CURRENT_TIMESTAMP
                 WHERE id=?""",
                 (paper.doi, paper.arxiv_id, paper.title, paper.authors_text, paper.year, paper.journal,
                  paper.abstract, paper.keywords, paper.essence, paper.markdown_path, paper.json_path, paper.bibtex_path, row["id"]))
@@ -70,18 +74,18 @@ class Repository:
         params.append(paper_id)
         self._execute(f"UPDATE papers SET {', '.join(parts)} WHERE id=?", tuple(params))
 
-    def set_paper_bibtex(self, paper_id: int, bibtex_text: str):
-        """Store BibTeX raw text in the paper's .bib file path and update bibtex_path."""
-        import os
-        p = self.get_paper(paper_id)
-        if p is None: return
-        if p.bibtex_path:
-            with open(p.bibtex_path, 'w') as f: f.write(bibtex_text)
-        else:
-            from paperdb.paths import get_papers_dir
-            bib_path = os.path.join(str(get_papers_dir()), f"{p.paper_key}.bib")
-            with open(bib_path, 'w') as f: f.write(bibtex_text)
-            self.update_paper_paths(paper_id=paper_id, bibtex_path=bib_path)
+    def set_paper_bibtex(self, paper_id: int, bibtex_text: str, bibtex_path: str | None = None):
+        """Store BibTeX at an explicit artifact path and update the paper."""
+        from pathlib import Path
+        paper = self.get_paper(paper_id)
+        if paper is None: raise ValueError(f"Paper {paper_id} not found")
+        path = Path(bibtex_path or paper.bibtex_path) if (bibtex_path or paper.bibtex_path) else None
+        if path is None: raise ValueError("set_paper_bibtex requires an explicit path for a paper without one")
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = path.with_name(path.name + ".tmp")
+        tmp.write_text(bibtex_text, encoding="utf-8")
+        tmp.replace(path)
+        self.update_paper_paths(paper_id=paper_id, bibtex_path=str(path))
 
     # ── Paper Files ─────────────────────────────────────────────────────
 
@@ -110,22 +114,30 @@ class Repository:
         row = self._fetchone("SELECT * FROM paper_files WHERE path = ?", (path,))
         return PaperFile(**dict(row)) if row else None
 
-    def touch_file(self, file_id: int):
-        """Update last_seen timestamp for a file record."""
-        self._execute("UPDATE paper_files SET last_seen=CURRENT_TIMESTAMP WHERE id=?", (file_id,))
+    def touch_file(self, file_id: int, sha256: str | None = None, file_size: int | None = None, modified_time: float | None = None):
+        """Mark a file present and refresh its observed identity."""
+        self._execute("""UPDATE paper_files SET last_seen=CURRENT_TIMESTAMP, exists_now=1,
+            sha256=COALESCE(?,sha256), file_size=COALESCE(?,file_size), modified_time=COALESCE(?,modified_time) WHERE id=?""",
+            (sha256, file_size, modified_time, file_id))
+
+    def move_file(self, file_id: int, path: str, file_size: int | None = None, modified_time: float | None = None):
+        """Update a file path after hash-based move detection."""
+        self._execute("""UPDATE paper_files SET path=?, file_size=COALESCE(?,file_size), modified_time=COALESCE(?,modified_time),
+            exists_now=1, last_seen=CURRENT_TIMESTAMP WHERE id=?""", (path, file_size, modified_time, file_id))
 
     # ── Search Units ────────────────────────────────────────────────────
 
     def replace_search_units(self, paper_id: int, units: list):
         """Transactional delete+insert for search units of a paper.
         Accepts list of SearchUnit objects or list of dicts."""
-        self._execute("DELETE FROM search_units WHERE paper_id = ?", (paper_id,))
-        for u in units:
-            if isinstance(u, dict):
-                u = SearchUnit(paper_id=paper_id, **{k: v for k, v in u.items() if k != 'paper_id'})
-            self._execute("""INSERT INTO search_units (paper_id, run_id, unit_type, source_type, source_id, section_path, page_from, page_to, content)
-                VALUES (?,?,?,?,?,?,?,?,?)""",
-                (paper_id, u.run_id, u.unit_type, u.source_type, u.source_id, u.section_path, u.page_from, u.page_to, u.content))
+        with db_transaction(self.conn):
+            self._execute("DELETE FROM search_units WHERE paper_id = ?", (paper_id,))
+            for u in units:
+                if isinstance(u, dict):
+                    u = SearchUnit(paper_id=paper_id, **{k: v for k, v in u.items() if k != 'paper_id'})
+                self._execute("""INSERT INTO search_units (paper_id, run_id, unit_type, source_type, source_id, section_path, page_from, page_to, content)
+                    VALUES (?,?,?,?,?,?,?,?,?)""",
+                    (paper_id, u.run_id, u.unit_type, u.source_type, u.source_id, u.section_path, u.page_from, u.page_to, u.content))
 
     def get_search_units_for_paper(self, paper_id: int) -> list[SearchUnit]:
         rows = self._fetchall("SELECT * FROM search_units WHERE paper_id = ? ORDER BY id", (paper_id,))
@@ -158,25 +170,27 @@ class Repository:
             WHERE id=?""", (status, message, output_path, run_id))
 
     def get_current_run(self, paper_id: int, operation: str) -> ProcessingRun | None:
-        """Get the most recent non-superseded run for a paper+operation."""
-        row = self._fetchone("""SELECT * FROM processing_runs WHERE paper_id=? AND operation=? AND status='ok'
-            AND supersedes_run_id IS NULL ORDER BY id DESC LIMIT 1""", (paper_id, operation))
-        if row is None:
-            row = self._fetchone("""SELECT * FROM processing_runs WHERE paper_id=? AND operation=? AND status='ok'
-                ORDER BY id DESC LIMIT 1""", (paper_id, operation))
+        """Get the newest active successful run for a paper and operation."""
+        row = self._fetchone("SELECT * FROM processing_runs WHERE paper_id=? AND operation=? AND status='ok' ORDER BY id DESC LIMIT 1", (paper_id, operation))
         return ProcessingRun(**dict(row)) if row else None
 
     def supersede_run(self, run_id: int, new_run_id: int):
-        self._execute("UPDATE processing_runs SET status='superseded', supersedes_run_id=? WHERE id=?", (new_run_id, run_id))
+        """Mark the immediate predecessor superseded and link it from the new run."""
+        self._execute("UPDATE processing_runs SET status='superseded' WHERE id=?", (run_id,))
+        self._execute("UPDATE processing_runs SET supersedes_run_id=? WHERE id=?", (run_id, new_run_id))
 
-    def find_equivalent_run(self, paper_id: int = None, operation: str = None, config_hash: str = None, input_sha256: str | None = None, **kwargs) -> ProcessingRun | None:
-        """Find an existing successful run with same operation+config+input — for skip-if-equivalent logic."""
+    def mark_run_superseded(self, run_id: int):
+        """Deactivate an older successful run without changing lineage on the new run."""
+        self._execute("UPDATE processing_runs SET status='superseded' WHERE id=?", (run_id,))
+
+    def find_equivalent_run(self, paper_id: int = None, operation: str = None, config_hash: str = None, input_sha256: str | None = None,
+                            backend: str | None = None, model_name: str | None = None, prompt_version: str | None = None, **kwargs) -> ProcessingRun | None:
+        """Find an existing successful run with identical input and processing configuration."""
         sql = """SELECT * FROM processing_runs WHERE paper_id=? AND operation=? AND config_hash=? AND status='ok'
-            ORDER BY id DESC LIMIT 1"""
-        params = (paper_id, operation, config_hash)
+            AND (? IS NULL OR input_sha256=?) AND (? IS NULL OR backend=?)
+            AND (? IS NULL OR model_name=?) AND (? IS NULL OR prompt_version=?) ORDER BY id DESC LIMIT 1"""
+        params = (paper_id, operation, config_hash, input_sha256, input_sha256, backend, backend, model_name, model_name, prompt_version, prompt_version)
         row = self._fetchone(sql, params)
-        if row and input_sha256 and row["input_sha256"] != input_sha256:
-            return None
         return ProcessingRun(**dict(row)) if row else None
 
     def get_runs_for_paper(self, paper_id: int) -> list[ProcessingRun]:
@@ -225,8 +239,24 @@ class Repository:
         """Add a paper-tag association. Accepts PaperTag object or kwargs."""
         if pt is None:
             pt = PaperTag(**kwargs)
-        self._execute("""INSERT OR IGNORE INTO paper_tags (paper_id, tag_id, source, run_id, confidence, raw_name)
+        run = self.get_run_by_id(pt.run_id) if pt.source == "llm" and pt.run_id is not None else None
+        visible = run is None or run.status == "ok"
+        exists = self._fetchone("SELECT 1 FROM paper_tags WHERE paper_id=? AND tag_id=? AND IFNULL(source,'')=IFNULL(?, '')",
+                                (pt.paper_id, pt.tag_id, pt.source))
+        if visible and not exists:
+            self._execute("""INSERT INTO paper_tags (paper_id, tag_id, source, run_id, confidence, raw_name)
+                VALUES (?,?,?,?,?,?)""", (pt.paper_id, pt.tag_id, pt.source, pt.run_id, pt.confidence, pt.raw_name))
+        self._execute("""INSERT OR IGNORE INTO tag_assertions (paper_id, tag_id, source, run_id, confidence, raw_name)
             VALUES (?,?,?,?,?,?)""", (pt.paper_id, pt.tag_id, pt.source, pt.run_id, pt.confidence, pt.raw_name))
+
+    def refresh_paper_tags(self, paper_id: int):
+        """Rebuild LLM canonical links from active assertions after a tag run succeeds."""
+        with db_transaction(self.conn):
+            self._execute("DELETE FROM paper_tags WHERE paper_id=? AND source='llm'", (paper_id,))
+            self._execute("""INSERT INTO paper_tags (paper_id, tag_id, source, run_id, confidence, raw_name)
+                SELECT a.paper_id, a.tag_id, a.source, MAX(a.run_id), MAX(a.confidence), MAX(a.raw_name)
+                FROM tag_assertions a JOIN processing_runs r ON r.id=a.run_id
+                WHERE a.paper_id=? AND a.source='llm' AND r.status='ok' GROUP BY a.paper_id, a.tag_id, a.source""", (paper_id,))
 
     def list_all_tags(self, category: str | None = None) -> list[Tag]:
         if category:
@@ -276,8 +306,13 @@ class Repository:
         return [PaperTag(**dict(r)) for r in rows]
 
     def delete_paper_tags_by_tag(self, tag_id: int):
-        """Delete all paper_tags for a given tag."""
+        """Delete all canonical paper-tag links for a given tag."""
         self._execute("DELETE FROM paper_tags WHERE tag_id=?", (tag_id,))
+
+    def move_tag_assertions(self, from_tag_id: int, to_tag_id: int):
+        """Preserve every raw assertion while changing its canonical tag."""
+        self._execute("UPDATE OR IGNORE tag_assertions SET tag_id=? WHERE tag_id=?", (to_tag_id, from_tag_id))
+        self._execute("DELETE FROM tag_assertions WHERE tag_id=?", (from_tag_id,))
 
     def delete_tag_aliases_by_tag(self, tag_id: int):
         """Delete all tag_aliases for a given tag."""
@@ -312,8 +347,10 @@ class Repository:
              eq.section_path, eq.page_number, eq.bbox_json, eq.context_before, eq.context_after, eq.parser, eq.confidence, eq.verification_status))
         return cur.lastrowid
 
-    def get_equations_for_paper(self, paper_id: int) -> list[Equation]:
-        rows = self._fetchall("SELECT * FROM equations WHERE paper_id = ? ORDER BY id", (paper_id,))
+    def get_equations_for_paper(self, paper_id: int, include_superseded: bool = False) -> list[Equation]:
+        sql = """SELECT e.* FROM equations e LEFT JOIN processing_runs r ON r.id=e.run_id WHERE e.paper_id=?
+            AND (? OR e.run_id IS NULL OR r.status='ok') ORDER BY e.id"""
+        rows = self._fetchall(sql, (paper_id, int(include_superseded)))
         return [Equation(**dict(r)) for r in rows]
 
     def add_variable(self, var: EquationVariable | None = None, **kwargs) -> int:
@@ -341,17 +378,20 @@ class Repository:
         """Convenience alias for upsert_method with kwargs — matches synthesis/method_cards.py."""
         return self.upsert_method(**kwargs)
 
-    def get_methods_for_paper(self, paper_id: int) -> list[Method]:
-        rows = self._fetchall("SELECT * FROM methods WHERE paper_id = ? ORDER BY id", (paper_id,))
+    def get_methods_for_paper(self, paper_id: int, include_superseded: bool = False) -> list[Method]:
+        sql = """SELECT m.* FROM methods m LEFT JOIN processing_runs r ON r.id=m.run_id WHERE m.paper_id=?
+            AND (? OR m.run_id IS NULL OR r.status='ok') ORDER BY m.id"""
+        rows = self._fetchall(sql, (paper_id, int(include_superseded)))
         return [Method(**dict(r)) for r in rows]
 
     def get_methods(self, paper_id: int, method_type: str | None = None) -> list[Method]:
-        """Get methods for a paper, optionally filtered by method_type.
-        Matches caller expectations in synthesis/method_cards.py and topic_reviews.py."""
+        """Get active methods for a paper, optionally filtered by method_type."""
         if method_type:
-            rows = self._fetchall("SELECT * FROM methods WHERE paper_id = ? AND method_type = ? ORDER BY id", (paper_id, method_type))
+            rows = self._fetchall("""SELECT m.* FROM methods m LEFT JOIN processing_runs r ON r.id=m.run_id
+                WHERE m.paper_id=? AND m.method_type=? AND (m.run_id IS NULL OR r.status='ok') ORDER BY m.id""", (paper_id, method_type))
         else:
-            rows = self._fetchall("SELECT * FROM methods WHERE paper_id = ? ORDER BY id", (paper_id,))
+            rows = self._fetchall("""SELECT m.* FROM methods m LEFT JOIN processing_runs r ON r.id=m.run_id
+                WHERE m.paper_id=? AND (m.run_id IS NULL OR r.status='ok') ORDER BY m.id""", (paper_id,))
         return [Method(**dict(r)) for r in rows]
 
     def link_method_equation(self, method_id: int, equation_id: int, role: str):
@@ -360,18 +400,27 @@ class Repository:
     # ── Summaries ───────────────────────────────────────────────────────
 
     def add_summary(self, s: Summary | None = None, **kwargs) -> int:
-        """Add a summary, deactivating prior active summaries for this paper.
-        Accepts Summary object or kwargs."""
+        """Stage a run-owned summary; expose it only after its run succeeds."""
         if s is None:
             s = Summary(**kwargs)
-        # deactivate prior active summaries for this paper
-        self._execute("UPDATE summaries SET is_active=0 WHERE paper_id=? AND is_active=1", (s.paper_id,))
+        run = self.get_run_by_id(s.run_id) if s.run_id is not None else None
+        visible = run is None or run.status == "ok"
+        if visible: self._execute("UPDATE summaries SET is_active=0 WHERE paper_id=? AND is_active=1", (s.paper_id,))
         cur = self._execute("""INSERT INTO summaries (paper_id, run_id, model_name, prompt_version, content, is_active)
-            VALUES (?,?,?,?,?,1)""", (s.paper_id, s.run_id, s.model_name, s.prompt_version, s.content))
+            VALUES (?,?,?,?,?,?)""", (s.paper_id, s.run_id, s.model_name, s.prompt_version, s.content, int(visible)))
         return cur.lastrowid
 
+    def refresh_active_summary(self, paper_id: int):
+        """Atomically expose the newest summary backed by a successful run."""
+        with db_transaction(self.conn):
+            self._execute("UPDATE summaries SET is_active=0 WHERE paper_id=?", (paper_id,))
+            self._execute("""UPDATE summaries SET is_active=1 WHERE id=(
+                SELECT s.id FROM summaries s LEFT JOIN processing_runs r ON r.id=s.run_id
+                WHERE s.paper_id=? AND (s.run_id IS NULL OR r.status='ok') ORDER BY s.id DESC LIMIT 1)""", (paper_id,))
+
     def get_active_summary(self, paper_id: int) -> Summary | None:
-        row = self._fetchone("SELECT * FROM summaries WHERE paper_id=? AND is_active=1 ORDER BY id DESC LIMIT 1", (paper_id,))
+        row = self._fetchone("""SELECT s.* FROM summaries s LEFT JOIN processing_runs r ON r.id=s.run_id
+            WHERE s.paper_id=? AND s.is_active=1 AND (s.run_id IS NULL OR r.status='ok') ORDER BY s.id DESC LIMIT 1""", (paper_id,))
         return Summary(**dict(row)) if row else None
 
     def list_summaries(self, paper_id: int) -> list[Summary]:
@@ -461,6 +510,28 @@ class Repository:
 
     # ── Stats ───────────────────────────────────────────────────────────
 
+    def find_papers_missing(self, field: str) -> list[Paper]:
+        """Return papers missing one supported compiled artifact or derived record."""
+        queries = {
+            "bibtex": "SELECT p.* FROM papers p WHERE p.bibtex_path IS NULL OR p.bibtex_path='' ORDER BY p.id",
+            "markdown": "SELECT p.* FROM papers p WHERE p.markdown_path IS NULL OR p.markdown_path='' ORDER BY p.id",
+            "json": "SELECT p.* FROM papers p WHERE p.json_path IS NULL OR p.json_path='' ORDER BY p.id",
+            "summary": "SELECT p.* FROM papers p WHERE NOT EXISTS (SELECT 1 FROM summaries s WHERE s.paper_id=p.id AND s.is_active=1) ORDER BY p.id",
+            "pdf": "SELECT p.* FROM papers p WHERE NOT EXISTS (SELECT 1 FROM paper_files f WHERE f.paper_id=p.id AND f.exists_now=1) ORDER BY p.id",
+        }
+        if field not in queries: raise ValueError(f"Unknown missing field '{field}'. Expected one of: {', '.join(queries)}")
+        return [Paper(**dict(row)) for row in self._fetchall(queries[field])]
+
+    def find_papers_needing_reprocessing(self) -> list[Paper]:
+        """Return papers without conversion or whose latest run for an operation failed."""
+        rows = self._fetchall("""SELECT p.* FROM papers p WHERE
+            NOT EXISTS (SELECT 1 FROM processing_runs ok WHERE ok.paper_id=p.id AND ok.operation='convert' AND ok.status='ok')
+            OR EXISTS (SELECT 1 FROM processing_runs failed WHERE failed.paper_id=p.id AND failed.status='failed'
+                AND NOT EXISTS (SELECT 1 FROM processing_runs newer WHERE newer.paper_id=failed.paper_id
+                    AND newer.operation=failed.operation AND newer.status='ok' AND newer.id>failed.id))
+            ORDER BY p.id""")
+        return [Paper(**dict(row)) for row in rows]
+
     def get_status_counts(self) -> dict:
         """Return counts for status dashboard."""
         counts = {}
@@ -468,8 +539,8 @@ class Repository:
         counts["files"] = self._fetchone("SELECT COUNT(*) as c FROM paper_files")["c"]
         counts["search_units"] = self._fetchone("SELECT COUNT(*) as c FROM search_units")["c"]
         counts["tags"] = self._fetchone("SELECT COUNT(*) as c FROM tags")["c"]
-        counts["equations"] = self._fetchone("SELECT COUNT(*) as c FROM equations")["c"]
-        counts["methods"] = self._fetchone("SELECT COUNT(*) as c FROM methods")["c"]
+        counts["equations"] = self._fetchone("SELECT COUNT(*) as c FROM equations e LEFT JOIN processing_runs r ON r.id=e.run_id WHERE e.run_id IS NULL OR r.status='ok'")["c"]
+        counts["methods"] = self._fetchone("SELECT COUNT(*) as c FROM methods m LEFT JOIN processing_runs r ON r.id=m.run_id WHERE m.run_id IS NULL OR r.status='ok'")["c"]
         counts["summaries"] = self._fetchone("SELECT COUNT(*) as c FROM summaries WHERE is_active=1")["c"]
         counts["runs"] = self._fetchone("SELECT COUNT(*) as c FROM processing_runs WHERE status='ok'")["c"]
         counts["topics"] = self._fetchone("SELECT COUNT(*) as c FROM topics")["c"]

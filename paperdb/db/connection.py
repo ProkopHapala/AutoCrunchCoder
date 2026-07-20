@@ -1,4 +1,4 @@
-"""SQLite connection management — WAL mode, foreign keys ON, single connection per process."""
+"""SQLite connection management — WAL mode, foreign keys ON, durable writes."""
 import sqlite3
 from contextlib import contextmanager
 from pathlib import Path
@@ -17,7 +17,9 @@ def get_connection(db_path: str | Path | None = None) -> sqlite3.Connection:
     if _connection is not None and db_path is None:
         return _connection
     path = str(db_path) if db_path is not None else str(get_db_path())
-    conn = sqlite3.connect(path, check_same_thread=False)
+    # Autocommit makes individual Repository calls durable for short-lived CLI processes.
+    # Multi-statement operations use db_transaction() explicitly.
+    conn = sqlite3.connect(path, check_same_thread=False, isolation_level=None)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
     conn.execute("PRAGMA journal_mode = WAL")
@@ -25,25 +27,27 @@ def get_connection(db_path: str | Path | None = None) -> sqlite3.Connection:
         _connection = conn
     return conn
 
-def close_connection():
-    """Close the singleton connection if open."""
+def close_connection(conn: sqlite3.Connection | None = None):
+    """Close a supplied connection, or the default singleton when omitted."""
     global _connection
-    if _connection is not None:
-        _connection.close()
+    target = conn if conn is not None else _connection
+    if target is not None:
+        target.close()
+    if target is _connection:
         _connection = None
 
 @contextmanager
 def db_transaction(conn: sqlite3.Connection | None = None):
     """Context manager for a transaction. Commits on success, rolls back on exception."""
-    own_conn = conn is None
-    if own_conn: conn = get_connection()
+    if conn is None: conn = get_connection()
+    nested = conn.in_transaction
+    if not nested: conn.execute("BEGIN")
     try:
         yield conn
-        conn.commit()
+        if not nested: conn.commit()
     except Exception:
-        conn.rollback()
+        if not nested: conn.rollback()
         raise
-    # don't close if we didn't create it
 
 def init_schema(conn: sqlite3.Connection | None = None):
     """Execute schema.sql to create all tables if they don't exist."""
@@ -52,4 +56,3 @@ def init_schema(conn: sqlite3.Connection | None = None):
     schema_path = Path(__file__).parent / "schema.sql"
     with open(schema_path, "r") as f:
         conn.executescript(f.read())
-    conn.commit()

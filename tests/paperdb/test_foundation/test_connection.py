@@ -44,3 +44,16 @@ def test_row_factory():
         conn = get_connection(db)
         assert conn.row_factory == sqlite3.Row
         conn.close()
+
+
+def test_repository_write_survives_reopen(tmp_path):
+    from paperdb.db.models import Paper
+    from paperdb.db.repository import Repository
+    db_path = tmp_path / "durable.db"
+    conn = get_connection(db_path)
+    init_schema(conn)
+    Repository(conn).upsert_paper(Paper(paper_key="Durable_2026_Record", title="durable"))
+    conn.close()
+    reopened = sqlite3.connect(db_path)
+    assert reopened.execute("SELECT COUNT(*) FROM papers WHERE paper_key='Durable_2026_Record'").fetchone()[0] == 1
+    reopened.close()

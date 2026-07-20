@@ -1,7 +1,7 @@
 """Test alias resolution, ambiguity handling, merge operations."""
 
 import pytest
-from tests.paperdb.test_taxonomy_synthesis.conftest import make_mock_repo
+from .conftest import make_mock_repo
 
 def test_normalize_alias():
     """Test that normalize_alias lowercases and strips punctuation."""

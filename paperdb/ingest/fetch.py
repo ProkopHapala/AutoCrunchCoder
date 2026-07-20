@@ -14,6 +14,7 @@ from typing import Optional
 import urllib.request, urllib.error
 
 from ..db.models import Paper, PaperFile
+from ..identity.matching import resolve_collisions
 
 logger = logging.getLogger(__name__)
 
@@ -34,11 +35,13 @@ def _http_get_text(url: str, headers: Optional[dict] = None, timeout: int = 30) 
 
 
 def _download_file(url: str, dest_path: str, timeout: int = 120) -> str:
-    """Download a file from URL to dest_path. Returns dest_path."""
+    """Atomically download and validate a PDF."""
     data = _http_get(url, timeout=timeout)
+    if not data.startswith(b"%PDF-"): raise RuntimeError(f"Downloaded content is not a PDF: {url}")
     Path(dest_path).parent.mkdir(parents=True, exist_ok=True)
-    with open(dest_path, "wb") as f:
-        f.write(data)
+    tmp = dest_path + ".tmp"
+    with open(tmp, "wb") as f: f.write(data)
+    os.replace(tmp, dest_path)
     return dest_path
 
 
@@ -106,16 +109,17 @@ def fetch_by_doi(doi: str, dest_dir: str) -> dict:
     if not metadata:
         raise RuntimeError(f"CrossRef lookup failed for DOI: {doi}")
 
-    # Try to find PDF — CrossRef sometimes has a link to full-text
+    # identity.metadata intentionally returns normalized bibliography only; enrich it
+    # with CrossRef link/BibTeX fields used by acquisition.
+    direct = _crossref_lookup_direct(doi)
+    for key, value in direct.items():
+        if value and not metadata.get(key): metadata[key] = value
     pdf_path = None
     pdf_url = metadata.get("pdf_url")
-    if pdf_url:
-        try:
-            filename = f"{doi.replace('/', '_')}.pdf"
-            pdf_path = _download_file(pdf_url, os.path.join(dest_dir, filename))
-            logger.info(f"Downloaded PDF: {pdf_path}")
-        except Exception as e:
-            logger.warning(f"PDF download failed for DOI {doi}: {e}")
+    if pdf_url and dest_dir:
+        filename = f"{doi.replace('/', '_')}.pdf"
+        pdf_path = _download_file(pdf_url, os.path.join(dest_dir, filename))
+        logger.info(f"Downloaded PDF: {pdf_path}")
 
     return {"metadata": metadata, "pdf_path": pdf_path}
 
@@ -241,7 +245,7 @@ def fetch_by_url(url: str, dest_dir: str) -> dict:
     return {"metadata": {}, "pdf_path": pdf_path}
 
 
-def add_paper_from_source(source: str, repo, dest_dir: Optional[str] = None) -> int:
+def add_paper_from_source(source: str, repo, dest_dir: Optional[str] = None, artifact_dir: Optional[str] = None) -> int:
     """Add a paper from path, URL, or DOI.
 
     1. Determine source type (path, URL, DOI, arXiv ID)
@@ -252,12 +256,18 @@ def add_paper_from_source(source: str, repo, dest_dir: Optional[str] = None) -> 
     Returns:
         paper_id
     """
-    if dest_dir is None:
-        from ..paths import get_data_dir
-        dest_dir = os.path.join(str(get_data_dir()), "downloads")
-    os.makedirs(dest_dir, exist_ok=True)
-
     source = source.strip()
+    expanded_source = os.path.expanduser(source)
+    if os.path.exists(expanded_source): source = expanded_source
+    is_local = os.path.exists(source)
+    is_doi = _detect_doi(source)
+    is_arxiv = _detect_arxiv_id(source)
+    is_url = source.startswith("http://") or source.startswith("https://")
+    if (is_arxiv or (is_url and not is_doi)) and dest_dir is None:
+        raise ValueError("Remote PDF acquisition requires an explicit dest_dir owned by the user")
+    if dest_dir is not None:
+        dest_dir = os.path.abspath(os.path.expanduser(dest_dir))
+        os.makedirs(dest_dir, exist_ok=True)
 
     # Case 1: Local file path
     if os.path.exists(source):
@@ -269,9 +279,7 @@ def add_paper_from_source(source: str, repo, dest_dir: Optional[str] = None) -> 
         result = fetch_by_doi(doi, dest_dir)
         metadata = result["metadata"]
         pdf_path = result.get("pdf_path")
-        if not pdf_path:
-            raise RuntimeError(f"Could not download PDF for DOI {doi}. "
-                             f"Metadata fetched but no PDF URL available.")
+        # Metadata-only DOI records are useful and can be linked to a PDF later.
     # Case 3: arXiv ID
     elif _detect_arxiv_id(source):
         arxiv_id = _detect_arxiv_id(source)
@@ -286,33 +294,32 @@ def add_paper_from_source(source: str, repo, dest_dir: Optional[str] = None) -> 
     else:
         raise RuntimeError(f"Cannot determine source type for: {source}")
 
-    if not pdf_path or not os.path.exists(pdf_path):
+    if pdf_path is not None and not os.path.exists(pdf_path):
         raise RuntimeError(f"PDF file not available after fetch: {pdf_path}")
 
-    # Compute hash
-    sha256 = _compute_sha256(pdf_path)
-
-    # Check if paper already exists by hash
-    if hasattr(repo, "find_file_by_hash"):
+    sha256 = _compute_sha256(pdf_path) if pdf_path else None
+    if sha256:
         existing = repo.find_file_by_hash(sha256)
         if existing:
             pf = existing[0]
-            logger.info(f"Paper already exists (hash match): {pf.paper_id}")
-            # Add this path as an additional file
-            repo.add_paper_file(PaperFile(paper_id=pf.paper_id, path=pdf_path,
-                               file_role="duplicate", sha256=sha256))
+            if os.path.abspath(pf.path) != os.path.abspath(pdf_path):
+                repo.add_paper_file(PaperFile(paper_id=pf.paper_id, path=os.path.abspath(pdf_path), file_role="duplicate", sha256=sha256))
             return pf.paper_id
 
     # Generate paper_key
-    paper_key = _generate_paper_key(metadata, pdf_path)
+    paper_key = _generate_paper_key(metadata, pdf_path or metadata.get("doi", "paper"))
+    if not (metadata.get("doi") and repo.get_paper_by_doi(metadata["doi"])):
+        paper_key = resolve_collisions(paper_key, repo)
 
     # Check if paper exists by DOI
     if metadata.get("doi") and hasattr(repo, "get_paper_by_doi"):
         existing = repo.get_paper_by_doi(metadata["doi"])
         if existing:
-            repo.add_paper_file(PaperFile(paper_id=existing.id, path=pdf_path,
-                               file_role="publisher" if not metadata.get("arxiv_id") else "arxiv",
-                               sha256=sha256))
+            if pdf_path:
+                st = os.stat(pdf_path)
+                repo.add_paper_file(PaperFile(paper_id=existing.id, path=pdf_path,
+                                   file_role="publisher" if not metadata.get("arxiv_id") else "arxiv",
+                                   sha256=sha256, file_size=st.st_size, modified_time=st.st_mtime))
             return existing.id
 
     # Create new paper record
@@ -334,9 +341,13 @@ def add_paper_from_source(source: str, repo, dest_dir: Optional[str] = None) -> 
         file_role = "arxiv"
     elif os.path.exists(source) and source != pdf_path:
         file_role = "local"
-    repo.add_paper_file(PaperFile(paper_id=paper_id, path=pdf_path, file_role=file_role,
-                       sha256=sha256, is_preferred=1))
-
+    if pdf_path:
+        st = os.stat(pdf_path)
+        repo.add_paper_file(PaperFile(paper_id=paper_id, path=os.path.abspath(pdf_path), file_role=file_role,
+                           sha256=sha256, file_size=st.st_size, modified_time=st.st_mtime, is_preferred=1))
+    if metadata.get("bibtex"):
+        if artifact_dir is None: raise ValueError("BibTeX acquisition requires an explicit PaperDB artifact directory")
+        repo.set_paper_bibtex(paper_id, metadata["bibtex"], str(Path(artifact_dir) / f"{paper_key}.bib"))
     logger.info(f"Added paper {paper_id}: {paper_key} from {source}")
     return paper_id
 

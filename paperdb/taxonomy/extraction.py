@@ -83,20 +83,20 @@ def extract_tags(markdown: str, paper_id: int, run_id: int, repo, llm_config=Non
     Returns:
         List of (tag_id, category, canonical_name, raw_name, confidence) tuples for stored tags.
     """
-    from paperdb.config import make_agent
+    from paperdb.config import make_agent, response_text
     from paperdb.taxonomy.aliases import resolve_to_canonical, normalize_alias
 
     agent = make_agent(llm_config)
     agent.set_system_prompt(SYSTEM_PROMPT)
 
     # Truncate markdown to fit context window
-    max_chars = min(agent.max_context_length * 3 if agent.max_context_length else 12000, 50000)
+    max_chars = max(12000, agent.max_context_length * 3 - 16000) if agent.max_context_length else 12000
     md_truncated = markdown[:max_chars]
 
     prompt = f"Extract structured tags from this paper. Return JSON with these keys: {', '.join(TAG_CATEGORIES)}.\n\nPaper markdown:\n{md_truncated}"
 
     response = agent.query(prompt, response_format={"type": "json_object"})
-    raw_text = response.content if hasattr(response, 'content') else str(response)
+    raw_text = response_text(agent, response)
 
     try:
         tags_dict = _parse_llm_json(raw_text)
@@ -131,38 +131,17 @@ def extract_tags(markdown: str, paper_id: int, run_id: int, repo, llm_config=Non
                     _store_paper_tag(repo, paper_id, tag_id, run_id, raw_name, source='llm', confidence=0.7)
                     # Also add as alias
                     normalized = normalize_alias(raw_name)
-                    try:
-                        repo.add_tag_alias(tag_id, raw_name, normalized)
-                    except Exception:
-                        pass  # alias may already exist
+                    repo.add_tag_alias(tag_id=tag_id, alias=raw_name, normalized_alias=normalized)
                     results.append((tag_id, category, canonical_name, raw_name, 0.7))
 
     return results
 
 def _get_or_create_tag(repo, canonical_name: str, category: str) -> Optional[int]:
     """Get existing tag or create new one. Returns tag_id."""
-    try:
-        existing = repo.get_tag_by_name(canonical_name, category)
-        if existing:
-            return existing['id'] if isinstance(existing, dict) else existing.id
-    except Exception:
-        pass
-    try:
-        return repo.add_tag(canonical_name, category)
-    except Exception:
-        # Maybe created concurrently — try fetching again
-        try:
-            existing = repo.get_tag_by_name(canonical_name, category)
-            if existing:
-                return existing['id'] if isinstance(existing, dict) else existing.id
-        except Exception:
-            pass
-    return None
+    existing = repo.get_tag_by_name(canonical_name, category)
+    if existing: return existing['id'] if isinstance(existing, dict) else existing.id
+    return repo.add_tag(canonical_name=canonical_name, category=category)
 
 def _store_paper_tag(repo, paper_id: int, tag_id: int, run_id: int, raw_name: str, source: str, confidence: float):
     """Store a paper_tags assertion, preserving raw_name."""
-    try:
-        repo.add_paper_tag(paper_id, tag_id, source=source, run_id=run_id, confidence=confidence, raw_name=raw_name)
-    except Exception as e:
-        # PK conflict — paper_tag already exists for this (paper_id, tag_id, source, run_id)
-        print(f"[extraction] paper_tag already exists: paper={paper_id} tag={tag_id} source={source} run={run_id}: {e}")
+    repo.add_paper_tag(paper_id=paper_id, tag_id=tag_id, source=source, run_id=run_id, confidence=confidence, raw_name=raw_name)

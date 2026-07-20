@@ -7,7 +7,7 @@ from paperdb.identity.matching import (
     match_by_metadata, find_or_create_paper
 )
 from paperdb.identity.hashing import clear_cache
-from mock_repo import MockRepository
+from .mock_repo import MockRepository
 
 @pytest.fixture(autouse=True)
 def clean_cache(tmp_path, monkeypatch):

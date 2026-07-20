@@ -28,14 +28,13 @@ _VAR_DEF_PATTERNS = [
 def _normalize_latex(latex_raw: str) -> str:
     """Basic LaTeX normalization — strip trailing equation numbers, fix common issues."""
     s = latex_raw.strip()
-    # Remove trailing equation numbers like (1), (2.3)
-    s = re.sub(r'\s*\(\d+(?:\.\d+)*\)\s*$', '', s)
-    # Remove surrounding $$ if present
+    # Remove presentation delimiters before parsing the equation number. The raw
+    # payload is retained separately and is never rewritten.
     if s.startswith('$$') and s.endswith('$$'):
         s = s[2:-2].strip()
-    # Remove surrounding $ if present (inline)
-    if s.startswith('$') and s.endswith('$') and len(s) > 2:
+    elif s.startswith('$') and s.endswith('$') and len(s) > 2:
         s = s[1:-1].strip()
+    s = re.sub(r'\s*\(\d+(?:\.\d+)*\)\s*$', '', s)
     # Collapse whitespace
     s = re.sub(r'\s+', ' ', s)
     return s
@@ -157,6 +156,7 @@ def _extract_from_markdown(md_text: str, sections: list[dict]) -> list[dict]:
                 matches = re.findall(r'\$\$(.+?)\$\$', line, re.DOTALL)
                 for m in matches:
                     latex = m.strip()
+                    raw = f"$${m}$$"
                     if len(latex) > 3:
                         eq_number = None
                         num_match = re.search(r'\((\d+(?:\.\d+)*)\)\s*$', latex)
@@ -166,8 +166,8 @@ def _extract_from_markdown(md_text: str, sections: list[dict]) -> list[dict]:
                         context_before = lines[i-1] if i > 0 else ""
                         context_after = lines[i+1] if i+1 < len(lines) else ""
                         equations.append({
-                            "latex_raw": latex,
-                            "latex_normalized": None,
+                            "latex_raw": raw,
+                            "latex_normalized": _normalize_latex(raw),
                             "equation_number": eq_number,
                             "section_path": current_section,
                             "page_number": None,
@@ -191,6 +191,7 @@ def _extract_from_markdown(md_text: str, sections: list[dict]) -> list[dict]:
                     start = block_text.find("$$") + 2
                     end = block_text.rfind("$$")
                     if start < end:
+                        raw = block_text
                         latex = block_text[start:end].strip()
                         if len(latex) > 3:
                             eq_number = None
@@ -201,8 +202,8 @@ def _extract_from_markdown(md_text: str, sections: list[dict]) -> list[dict]:
                             context_before = lines[i-1] if i > 0 else ""
                             context_after = lines[j+1] if j+1 < len(lines) else ""
                             equations.append({
-                                "latex_raw": latex,
-                                "latex_normalized": None,
+                                "latex_raw": raw,
+                                "latex_normalized": _normalize_latex(raw),
                                 "equation_number": eq_number,
                                 "section_path": current_section,
                                 "page_number": None,

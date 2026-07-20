@@ -2,7 +2,16 @@
 from __future__ import annotations
 from datetime import datetime
 from typing import Optional
+from dataclasses import asdict, is_dataclass
 from pydantic import BaseModel, Field
+
+def to_serializable(value):
+    """Recursively convert Pydantic/dataclass results at CLI and MCP boundaries."""
+    if isinstance(value, BaseModel): return {k: to_serializable(v) for k, v in value.model_dump().items()}
+    if is_dataclass(value): return {k: to_serializable(v) for k, v in asdict(value).items()}
+    if isinstance(value, dict): return {k: to_serializable(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)): return [to_serializable(v) for v in value]
+    return value
 
 class Paper(BaseModel):
     id: Optional[int] = None

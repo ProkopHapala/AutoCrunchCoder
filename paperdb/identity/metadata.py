@@ -133,6 +133,36 @@ def match_bibtex_to_paper(entry: dict, repo) -> int | None:
             return row.get('id') if isinstance(row, dict) else row.id
     return None
 
+def local_pdf_metadata(pdf_path: str) -> dict:
+    """Extract conservative local metadata for semantic identity without modifying the PDF."""
+    from pathlib import Path
+    stem = Path(pdf_path).stem
+    metadata = {"stem": stem}
+    try:
+        from PyPDF2 import PdfReader
+    except ImportError:
+        PdfReader = None
+    if PdfReader is not None:
+        reader = PdfReader(pdf_path)
+        doc = reader.metadata or {}
+        title = str(doc.get("/Title") or "").strip()
+        author = str(doc.get("/Author") or "").strip()
+        if title: metadata["title"] = title
+        if author: metadata["authors"] = author
+        creation = str(doc.get("/CreationDate") or "")
+        year_match = re.search(r"(?:19|20)\d{2}", creation)
+        if year_match: metadata["year"] = int(year_match.group(0))
+    tokens = [t for t in re.split(r"[_\-]+", stem) if t]
+    if "year" not in metadata:
+        year_token = next((t for t in tokens if re.fullmatch(r"(?:19|20)\d{2}", t)), None)
+        if year_token: metadata["year"] = int(year_token)
+    if "authors" not in metadata and tokens:
+        metadata["authors"] = tokens[0]
+    if "title" not in metadata:
+        title_tokens = [t for t in tokens[1:] if not re.fullmatch(r"(?:19|20)\d{2}", t)]
+        metadata["title"] = " ".join(title_tokens) or stem
+    return metadata
+
 # --- CrossRef lookup ---
 
 CROSSREF_API = 'https://api.crossref.org/works/'

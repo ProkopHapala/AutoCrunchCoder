@@ -2,7 +2,7 @@
 
 import pytest
 from unittest.mock import patch
-from tests.paperdb.test_taxonomy_synthesis.conftest import make_mock_repo, MockAgent
+from .conftest import make_mock_repo, MockAgent
 
 SAMPLE_MD = """# Test Paper: A Method for Something
 

@@ -3,7 +3,7 @@
 import json
 import pytest
 from unittest.mock import patch
-from tests.paperdb.test_taxonomy_synthesis.conftest import make_mock_repo, MockAgent
+from .conftest import make_mock_repo, MockAgent
 
 MOCK_RECONSTRUCT_RESPONSE = json.dumps({
     "name": "XPBD constraint update",
@@ -20,7 +20,9 @@ MOCK_RECONSTRUCT_RESPONSE = json.dumps({
     "limitations": ["Stiff constraints require many iterations", "Gauss-Seidel is sequential"],
     "complexity": "O(n*c) where n=particles, c=constraints",
     "confidence": 0.85,
-    "source_passages": [{"page": 4, "section": "3.1", "text": "We update the multiplier..."}]
+    "source_passages": [{"page": 4, "section": "3.1", "text": "We update the multiplier..."}],
+    "field_evidence": {"steps": [0], "assumptions": [0]},
+    "equation_refs": ["1"]
 })
 
 def test_reconstruct_method_basic():
@@ -134,8 +136,8 @@ def test_reconstruct_method_links_equations():
                     card_json='{}', source_passages_json='[]')
 
     # Add an equation
-    repo.conn.execute("INSERT INTO equations (paper_id, run_id, latex_raw, section_path) VALUES (?, ?, ?, ?)",
-                      (paper_id, run_id, "$$x_{n+1} = x_n + \\alpha r_n$$", "3.1"))
+    repo.conn.execute("INSERT INTO equations (paper_id, run_id, latex_raw, equation_number, section_path) VALUES (?, ?, ?, ?, ?)",
+                      (paper_id, run_id, "$$x_{n+1} = x_n + \\alpha r_n$$", "1", "3.1"))
     repo.conn.commit()
 
     mock_agent = MockAgent(responses=[MOCK_RECONSTRUCT_RESPONSE])

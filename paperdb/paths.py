@@ -18,26 +18,26 @@ def get_db_path() -> Path:
     if env: return Path(env)
     return get_data_dir() / "papers.db"
 
-def get_papers_dir() -> Path:
+def get_papers_dir(data_dir: str | Path | None = None) -> Path:
     """Directory for .md/.json/.bib files, grouped by year."""
-    p = get_data_dir() / "papers"
+    p = (Path(data_dir).expanduser() if data_dir is not None else get_data_dir()) / "papers"
     p.mkdir(parents=True, exist_ok=True)
     return p
 
-def get_legacy_dir() -> Path:
+def get_legacy_dir(data_dir: str | Path | None = None) -> Path:
     """Directory for migrated legacy data."""
-    p = get_data_dir() / "legacy"
+    p = (Path(data_dir).expanduser() if data_dir is not None else get_data_dir()) / "legacy"
     p.mkdir(parents=True, exist_ok=True)
     return p
 
-def get_logs_dir() -> Path:
+def get_logs_dir(data_dir: str | Path | None = None) -> Path:
     """Directory for processing logs and migration reports."""
-    p = get_data_dir() / "logs"
+    p = (Path(data_dir).expanduser() if data_dir is not None else get_data_dir()) / "logs"
     p.mkdir(parents=True, exist_ok=True)
     return p
 
-def get_reviews_dir() -> Path:
+def get_reviews_dir(data_dir: str | Path | None = None) -> Path:
     """Directory for generated topical overviews."""
-    p = get_data_dir() / "reviews"
+    p = (Path(data_dir).expanduser() if data_dir is not None else get_data_dir()) / "reviews"
     p.mkdir(parents=True, exist_ok=True)
     return p

@@ -32,12 +32,15 @@ Return JSON with these fields:
   "limitations": ["list of limitations"],
   "complexity": "computational complexity if stated",
   "confidence": 0.0-1.0 self-reported confidence,
-  "source_passages": [{"page": null, "section": null, "text": "relevant passage from paper"}]
+  "source_passages": [{"page": null, "section": null, "text": "relevant passage from paper"}],
+  "field_evidence": {"steps": [0], "assumptions": [1]},
+  "equation_refs": ["equation number explicitly used by this method"]
 }
 
 Rules:
 - Only include information present in the paper. Do NOT invent.
-- For each field, cite the source passage it came from in source_passages.
+- For each populated field, list the zero-based source_passages indexes supporting it in field_evidence.
+- Only list equations actually used by the method in equation_refs; use their equation_number.
 - If a field cannot be determined from the paper, use null or empty list.
 - confidence reflects how completely the method could be reconstructed."""
 
@@ -55,40 +58,25 @@ def reconstruct_method(paper_id: int, run_id: int, repo, llm_config=None) -> lis
     """
     from paperdb.config import make_agent
 
-    # Read source_algorithm methods (from Task 5's extraction)
-    try:
-        source_methods = repo.get_methods(paper_id, method_type='source_algorithm')
-    except Exception:
-        source_methods = []
+    source_methods = repo.get_methods(paper_id, method_type='source_algorithm')
 
     if not source_methods:
         print(f"[method_cards] No source_algorithm methods for paper {paper_id}")
         return []
 
-    # Read paper markdown for context
-    try:
-        paper = repo.get_paper(paper_id)
-        paper = paper if isinstance(paper, dict) else {'markdown_path': getattr(paper, 'markdown_path', None)}
-        md_path = paper.get('markdown_path')
-    except Exception:
-        md_path = None
-
+    paper = repo.get_paper(paper_id)
+    md_path = paper.get('markdown_path') if isinstance(paper, dict) else getattr(paper, 'markdown_path', None)
     paper_text = ""
     if md_path:
-        try:
-            from pathlib import Path
-            paper_text = Path(md_path).read_text(encoding='utf-8')[:30000]
-        except Exception:
-            pass
+        from pathlib import Path
+        paper_text = Path(md_path).read_text(encoding='utf-8')
 
-    # Read equations for this paper
-    try:
-        equations = repo.get_equations_for_paper(paper_id)
-    except Exception:
-        equations = []
+    equations = repo.get_equations_for_paper(paper_id)
 
     agent = make_agent(llm_config)
     agent.set_system_prompt(RECONSTRUCT_PROMPT)
+    paper_limit = max(12000, agent.max_context_length * 3 - 24000) if agent.max_context_length else 12000
+    paper_text = paper_text[:paper_limit]
 
     results = []
     for sm in source_methods:
@@ -100,17 +88,11 @@ def reconstruct_method(paper_id: int, run_id: int, repo, llm_config=None) -> lis
         # Build context for LLM
         source_card = sm.get('card_json', '{}')
         if isinstance(source_card, str):
-            try:
-                source_card = json.loads(source_card)
-            except Exception:
-                source_card = {}
+            source_card = json.loads(source_card)
 
         source_passages = sm.get('source_passages_json', '[]')
         if isinstance(source_passages, str):
-            try:
-                source_passages = json.loads(source_passages)
-            except Exception:
-                source_passages = []
+            source_passages = json.loads(source_passages)
 
         eq_text = ""
         for eq in equations[:10]:
@@ -126,19 +108,16 @@ Source passages:
 Relevant equations:
 {eq_text if eq_text else 'None extracted'}
 
-Paper text (truncated):
-{paper_text[:15000]}
+Paper text (bounded by configured model context):
+{paper_text}
 
 Reconstruct a coherent method card from this information. Return JSON only."""
 
         response = agent.query(prompt, response_format={"type": "json_object"})
         raw_text = response.content if hasattr(response, 'content') else str(response)
 
-        try:
-            card = _parse_json(raw_text)
-        except (json.JSONDecodeError, ValueError) as e:
-            print(f"[method_cards] LLM returned invalid JSON for paper {paper_id}, method '{sm.get('name')}': {e}")
-            continue
+        card = _parse_json(raw_text)
+        if not isinstance(card, dict): raise ValueError(f"Method reconstruction for '{sm.get('name')}' must be a JSON object")
 
         # Extract fields
         name = card.get('name', sm.get('name', 'unknown'))
@@ -159,29 +138,24 @@ Reconstruct a coherent method card from this information. Return JSON only."""
             'convergence': card.get('convergence'),
             'parallelization': card.get('parallelization'),
             'limitations': card.get('limitations', []),
+            'field_evidence': card.get('field_evidence', {}),
         })
         source_passages_json = json.dumps(source_passages_out)
 
-        try:
-            method_id = repo.add_method(
-                paper_id=paper_id, run_id=run_id, name=name,
-                method_type='reconstructed_method', purpose=purpose,
-                complexity=complexity, confidence=confidence,
-                card_json=card_json, source_passages_json=source_passages_json,
-            )
-        except Exception as e:
-            print(f"[method_cards] Failed to store reconstructed method for paper {paper_id}: {e}")
-            continue
+        method_id = repo.add_method(
+            paper_id=paper_id, run_id=run_id, name=name,
+            method_type='reconstructed_method', purpose=purpose,
+            complexity=complexity, confidence=confidence,
+            card_json=card_json, source_passages_json=source_passages_json,
+        )
 
-        # Link equations to this method
+        # Link only explicitly cited equations, never every equation in the paper.
+        refs = {str(ref) for ref in card.get('equation_refs', [])}
         for eq in equations:
-            eq = eq if isinstance(eq, dict) else {'id': eq.id}
-            eq_id = eq.get('id')
-            if eq_id:
-                try:
-                    repo.link_method_equation(method_id, eq_id, role='core')
-                except Exception:
-                    pass
+            eq_id = eq.get('id') if isinstance(eq, dict) else eq.id
+            eq_num = eq.get('equation_number') if isinstance(eq, dict) else eq.equation_number
+            if eq_id and eq_num is not None and str(eq_num) in refs:
+                repo.link_method_equation(method_id=method_id, equation_id=eq_id, role='core')
 
         results.append({
             'id': method_id, 'name': name, 'purpose': purpose,

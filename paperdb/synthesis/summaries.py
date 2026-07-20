@@ -53,7 +53,7 @@ def generate_summary(markdown: str, paper_id: int, run_id: int, repo,
     Returns:
         Summary markdown text.
     """
-    from paperdb.config import make_agent
+    from paperdb.config import make_agent, response_text
 
     prompt_template = SUMMARY_PROMPTS.get(prompt_version)
     if prompt_template is None:
@@ -62,46 +62,33 @@ def generate_summary(markdown: str, paper_id: int, run_id: int, repo,
     agent = make_agent(llm_config)
     agent.set_system_prompt(prompt_template)
 
-    max_chars = min(agent.max_context_length * 3 if agent.max_context_length else 12000, 50000)
+    max_chars = max(12000, agent.max_context_length * 3 - 16000) if agent.max_context_length else 12000
     md_truncated = markdown[:max_chars]
 
     response = agent.query(f"Summarize this paper:\n\n{md_truncated}")
-    summary_text = response.content if hasattr(response, 'content') else str(response)
-
-    # Deactivate previous active summaries (keep history — don't delete)
-    try:
-        repo.deactivate_summaries(paper_id)
-    except Exception as e:
-        print(f"[summaries] Warning: could not deactivate old summaries for paper {paper_id}: {e}")
+    summary_text = response_text(agent, response)
 
     model_name = getattr(agent, 'model_name', 'unknown')
-    try:
-        repo.add_summary(paper_id, run_id=run_id, model_name=model_name,
-                         prompt_version=prompt_version, content=summary_text, is_active=1)
-    except Exception as e:
-        raise RuntimeError(f"Failed to store summary for paper {paper_id}: {e}")
+    repo.add_summary(paper_id=paper_id, run_id=run_id, model_name=model_name,
+                     prompt_version=prompt_version, content=summary_text, is_active=1)
 
     return summary_text
 
 def get_active_summary(paper_id: int, repo) -> Optional[dict]:
-    """Get the active summary for a paper. Returns summary dict or None."""
-    try:
-        return repo.get_active_summary(paper_id)
-    except Exception:
-        return None
+    """Get the active summary for a paper."""
+    return repo.get_active_summary(paper_id)
 
 def get_summary_history(paper_id: int, repo) -> list:
     """Get all summary versions for a paper (newest first)."""
-    try:
-        return repo.get_summary_history(paper_id)
-    except Exception:
-        return []
+    return repo.get_summary_history(paper_id)
+
+def source_markdown(markdown: str) -> str:
+    """Return parser-produced source text from either raw or compiled Markdown."""
+    marker = "# Extracted source text"
+    return markdown.split(marker, 1)[1].lstrip("\n") if marker in markdown else markdown
 
 def format_summary_section(summary_text: str, prompt_version: str = "v1") -> str:
-    """Format summary for embedding in paper markdown.
-
-    The summary is clearly separated from source text per §8.
-    """
+    """Format a generated summary with an explicit provenance boundary."""
     return f"""# Generated scientific summary
 
 > This section was generated from the paper and is not source text.
@@ -113,3 +100,8 @@ def format_summary_section(summary_text: str, prompt_version: str = "v1") -> str
 
 # Extracted source text
 """
+
+def compile_markdown(source_text: str, summary_text: str | None = None, prompt_version: str = "v1") -> str:
+    """Build the central Markdown representation without nesting prior summaries."""
+    source_text = source_markdown(source_text)
+    return format_summary_section(summary_text, prompt_version) + source_text if summary_text else source_text
