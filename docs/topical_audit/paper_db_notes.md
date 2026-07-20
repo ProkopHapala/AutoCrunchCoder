@@ -2,15 +2,17 @@
 
 ## 1. What this is
 
-This is not a database project. The database is just one component. The real goal is a **knowledge base** — a "second brain" — that helps a computational chemist/physicist extract and use knowledge from scientific papers, both for the human researcher and for LLM coding agents.
+Paperdb is a **local, non-destructive scientific-paper compiler and retrieval service**. It indexes existing PDF libraries in place; compiles each PDF into a high-quality Markdown document (the central scientific representation, used by both humans and LLMs); extracts source-grounded equations and computational methods; and assembles compact evidence-bearing context packages for researchers and LLM coding agents.
 
 The system should:
-- Extract **machine-readable markdown** from PDFs, especially **equations** and **pseudocode**.
-- Make this knowledge **searchable and accessible** from CLI, GUI, MCP, and Python API.
-- Help **LLM agents implement algorithms** from papers by providing structured equations and pseudocode.
-- **Index existing PDFs in-place** without reshuffling the user's manually organized folders.
-- Store **cached markdown extracts** separately from the original PDFs.
-- Be **interconnected** — CLI, MCP server, `.bashrc` paths — so LLMs from any workspace can access it.
+- **Compile** PDFs into high-quality Markdown (the central representation), plus structured JSON and BibTeX companions. Markdown preserves equations (LaTeX), section hierarchy, reading order, and a clearly separated generated summary — it is the primary form given to LLMs, not merely a human-readable export.
+- **Index** papers with semantic tags, bibliographic metadata, and full-text search — without moving or reshuffling the user's PDFs.
+- **Retrieve** relevant papers, equations, and methods for a given scientific problem — using typed tags, tag aliases, FTS5, and weighted ranking with explainable scores.
+- **Assemble context packs** — compact, evidence-bearing packages that can be given to LLM coding agents for implementation, writing, or grant proposals. A common workflow is to retrieve several relevant papers and provide their complete Markdown documents directly to an LLM.
+- **Generate topical overviews** — review-like documents comparing methods across papers, for the user or for LLM agents to see the landscape and pick the best approach.
+- Be **accessible system-wide** — CLI on PATH, MCP server for coding agents (Devin, Cursor, Codex, OpenCode), Python API — all from any workspace.
+
+SQLite is the searchable catalogue and processing state, Markdown is the central complete representation of each paper, and CLI/Python/MCP are interchangeable access interfaces. Full-text search is the default retrieval mechanism, while embeddings and knowledge graphs are optional enhancements rather than architectural dependencies.
 
 ## 2. User context
 
@@ -170,20 +172,22 @@ From runs: `20260218_191049` (512 papers), `20260223_195058` (372), `20260224_11
 
 ### 5.1 Core goals
 
-1. **Knowledge extraction**: Convert PDFs to machine-readable markdown with preserved equations (LaTeX) and structured pseudocode.
-2. **Knowledge indexing**: Build a persistent index over all papers, searchable by keyword, tag, equation, algorithm, DOI, author.
+1. **Knowledge compilation**: Convert PDFs into high-quality Markdown (the central complete representation, used by both humans and LLMs) plus structured JSON and BibTeX companions. Markdown preserves equations (LaTeX), section hierarchy, reading order, and a clearly separated generated summary. Extraction quality is a primary scientific requirement.
+2. **Knowledge indexing**: Build a persistent index over all papers, searchable by typed tags, tag aliases, bibliographic metadata, full-text search, equation content, and method characteristics.
 3. **Knowledge access**: CLI on system PATH, MCP server for coding agents (Devin, Cursor, Codex, OpenCode), Python API — all accessible from anywhere. Internet access for fetching papers by DOI/URL and syncing with Mendeley/Zotero APIs.
-4. **LLM agent support**: The core use case is **quickly gathering context from relevant papers and providing it to an LLM** for coding, writing articles, or grant proposals. MCP tools let coding agents search papers, get equations, get algorithms, get summaries — so they can implement from papers.
-5. **Non-destructive**: Index PDFs in-place. Paperdb is a metadata layer, not the owner of the data. Never move, rename, or delete user's PDFs. Store extracted markdown in a user-specified, human-browsable folder.
+4. **Context packs**: The central output is not "give me paper X" but **"assemble a compact, evidence-bearing context package for this scientific problem"** — selecting relevant papers, extracting relevant sections/equations/methods, and presenting them with a comparison matrix and bibliography. This directly serves the workflow of gathering context for LLM coding agents.
+5. **Non-destructive**: Index PDFs in-place. Paperdb is a metadata layer, not the owner of the data. Never move, rename, or delete user's PDFs. Store extracted representations in a user-specified, human-browsable folder with semantic filenames.
 6. **Built on pyCruncher**: paperdb is a paper-specific module of pyCruncher, reusing `pyCruncher.Agent` for LLM access and `config/LLMs.toml` for provider config.
+7. **Explainable retrieval**: Search results show why each paper matched (`--explain`). Weighted scoring: required tag match (+10), preferred tag (+4), user tag (+6), title (+5), abstract/summary (+2), full-text (+1). Much easier to debug than opaque vector similarity.
 
 ### 5.2 Domain-specific requirements
 
-- **Equations**: Accurately extract LaTeX from PDFs. Be able to refer to each equation (which paper, which section, which equation number). Extraction quality is critical — equations must be faithful to the source. Equation extraction and paper classification are separate concerns.
-- **Algorithms/pseudocode**: Extract in a form that LLMs can use as context. The goal is not to copy methods verbatim but to **aggregate and combine algorithms from multiple papers** — taking the best pieces from each. Truthful extraction matters more than format.
-- **Tags**: Domain, solver, data structure, math class — specifically useful for computational chemistry/physics/game physics. Start with provisional LLM-extracted tags, consolidate later by analyzing patterns in the data.
-- **Context gathering**: The primary workflow is: find relevant papers for a problem -> provide their markdown/equations/summaries as context to a coding agent -> agent takes inspiration, combines, and paraphrases.
-- **Topical overviews**: The system should be able to generate **topic-focused review documents** — not for an audience, but for the user and for LLM coding agents. For example: "molecular force fields", "pseudopotential methods", "fast multipole methods", "accelerating collisions (spatial partitioning)", etc. Classify algorithms and computational methods by these topics, and quickly generate an overview to compare which methods are more useful for a given problem. This is like writing a review paper, but for ourselves — to see the landscape of methods and pick the best approach.
+- **Equations**: Accurately extract LaTeX from PDFs. Store both `latex_raw` (what parser extracted) and `latex_normalized` (cleaned up) — never overwrite raw. Store page number, section, bounding box, context before/after. Variable definitions as separate evidence records with source location. Equation extraction and paper classification are separate concerns.
+- **Method cards**: Distinguish `source_algorithm` (verbatim from paper) vs `reconstructed_method` (LLM interpretation from multiple passages). Method card fields: name, purpose, assumptions, state variables, inputs, outputs, core equations, initialization, iteration steps, boundary conditions, convergence criterion, complexity, parallelization, source passages, extraction type (verbatim/parsed/reconstructed), confidence. Every reconstructed field refers back to source passages — lets coding agent distinguish "paper says this" from "model inferred this".
+- **Tags**: Typed tags with categories: domain, physical_system, phenomenon, model_or_theory, method, solver, data_structure, discretization, task, implementation, software, material_or_molecule, user. Start with provisional LLM-extracted tags, consolidate later by analyzing patterns in the data. Preserve raw tag assertions (don't delete original forms when merging).
+- **Context gathering**: The primary workflow is: find relevant papers for a problem → provide their markdown/equations/methods as context to a coding agent → agent takes inspiration, combines, and paraphrases. The system assembles the context pack; the agent uses it.
+- **Topical overviews**: Generate **topic-focused review documents** — not for an audience, but for the user and for LLM coding agents. Pipeline: query → candidate papers → per-paper method cards → comparison table → evidence-backed synthesis → saved review. Retains original query, filters, selected papers, model/prompt, comparison matrix, and generated narrative for auditing.
+- **Two-stage retrieval**: Stage A: select papers (tags + metadata + title/abstract/essence + FTS). Stage B: search within selected papers (sections, equations, methods). Prevents one verbose paper dominating results while missing other relevant methods.
 
 ### 5.3 Non-goals
 
@@ -194,16 +198,15 @@ From runs: `20260218_191049` (512 papers), `20260223_195058` (372), `20260224_11
 
 ## 6. Key design challenges
 
-### C1: How to index PDFs in-place without moving them?
+### C1: How to identify papers and index PDFs in-place?
 
 The user has manually organized folders. The system must:
 - Scan folders recursively, find all PDFs.
-- Compute a content hash for each PDF (for dedup and tracking).
-- Store the path in the DB, but **never move the file**.
-- When a PDF is moved by the user, detect it by content hash and update the path.
-- Store extracted markdown/summaries in a **separate cache directory**, not next to the PDFs.
-
-**Proposed**: Cache directory at `~/.local/share/paperdb/cache/<hash>/` containing `markdown.md`, `summary.md`, `chunks/`, `equations.json`. The DB maps `content_hash -> original_pdf_path + cache_dir`.
+- Use a **semantic `paper_key`** (e.g. `Macklin_2016_XPBD`) as the human-readable unique identifier — NOT a hash.
+- DOI is the canonical scholarly identifier when available (normalized: lowercase, no `https://doi.org/` prefix).
+- `content_hash` (SHA-256) is stored internally in `paper_files` for dedup and move detection, but **never appears in filenames or directory names**.
+- Store all PDF paths in `paper_files` table (a paper can have multiple files: publisher PDF, arXiv, supplement, duplicates).
+- When a PDF is moved by the user, detect by hash and update the path. User can mark a preferred path.
 
 ### C2: How to handle 3 generations of existing processed data?
 
@@ -213,306 +216,508 @@ We have:
 - _pipleline_new: 383 full pipeline outputs (best quality, with tags + embeddings)
 - consolidated.db: 895 papers merged from 4 runs
 
-**Challenge**: How to migrate this to the new system without losing data or re-processing everything?
+**Challenge**: How to migrate without losing data or re-processing everything?
 
-**Proposed**: Import script that:
-1. Loads consolidated.db as the base.
-2. For each paper, checks if markdown exists in any of the 3 output locations.
-3. Picks the best available markdown (docling > pdfminer).
-4. Picks the best available summary (_pipleline_new > PAPERS_meta).
-5. Imports tags from consolidated.db.
-6. Marks papers as "needs re-processing" if markdown is from pdfminer or summary is missing.
-7. Does NOT delete any existing files.
+**Proposed**: Import all legacy outputs as **competing artifacts** with provenance:
+1. Import every historical output (pdfminer, docling, etc.) with producer, version, timestamp.
+2. Select active artifact by policy: manual override > docling+formulas > docling > vlm > pdfminer.
+3. Don't discard alternatives during migration — keep them in `legacy/`.
+4. Produce a conflict report for review.
+5. Mark papers as "needs re-processing" if markdown is from pdfminer or summary is missing.
 
-### C3: How to make equations and pseudocode truly useful for LLM agents?
+### C3: How to make equations and methods truly useful for LLM agents?
 
 **Current**: equations are `$$...$$` blocks in chunk text. Pseudocode is "numbered steps" in summary markdown.
 
 **Challenge**: An LLM agent implementing a force field needs:
-- The energy expression in LaTeX.
-- The force derivation (if available).
-- The algorithm steps in a structured format.
-- Variable definitions.
-- Which paper it came from.
+- The energy expression in LaTeX, with source coordinates (page, section, equation number).
+- Variable definitions as separate evidence records.
+- The algorithm as a **method card** — not generic "numbered steps" but structured: purpose, assumptions, state variables, inputs, outputs, core equations, initialization, iteration steps, boundary conditions, convergence criterion, complexity, parallelization, source passages, extraction type, confidence.
+- Distinction between what the paper explicitly says vs what the extraction model inferred.
 
-**Proposed**: Structured extraction into DB tables:
-- `extracted_equations`: `paper_id`, `latex`, `eq_number`, `context`, `section`, `variables_json` (name -> description).
-- `extracted_algorithms`: `paper_id`, `name`, `steps_json` (array of step strings), `inputs_json`, `outputs_json`, `complexity`, `raw_text`.
-- MCP tool `get_equations(paper_id)` returns structured JSON, not markdown slices.
-- MCP tool `get_algorithm(paper_id, name)` returns structured steps + variable definitions.
+**Proposed**: Structured extraction into DB tables with source fidelity:
+- `equations`: `latex_raw`, `latex_normalized`, `eq_number`, `section`, `page_number`, `bbox_json`, `context_before`, `context_after`, `parser`, `confidence`.
+- `methods`: `name`, `type` (source_algorithm vs reconstructed_method), structured fields as JSON, `source_passages_json`, `confidence`.
+- MCP tools return structured JSON with provenance, not markdown slices.
 
 ### C4: How to handle the LLM backend for summarization?
 
 **Current**: hardcoded to LM Studio. Local models (Llama-8B, phi-4) have small context windows, producing truncated summaries.
 
-**Challenge**: Cloud models (DeepSeek, Gemini) have 128K-2M context — can summarize full papers. But they cost money and need API keys. Local models are free but limited.
-
-**Proposed**: Use `config/LLMs.toml` for backend selection. CLI flag `--llm-config gemini-flash` or env var `PAPERDB_LLM`. Default to local for conversion/tagging, allow cloud for summarization.
+**Proposed**: Use `pyCruncher.Agent` + `config/LLMs.toml` for backend selection. CLI flag `--llm-config gemini-flash` or env var `PAPERDB_LLM`. Whether local or cloud is transparent — the agent abstraction handles it.
 
 ### C5: How to move data out of the repo without breaking things?
 
 **Current**: `tests/paper_pipeline_out/` (474MB) is inside the repo.
 
-**Challenge**: Moving it breaks hardcoded paths in `gui_browser.py`, `clean_tags.py`, etc.
-
 **Proposed**:
-- New data directory: `~/.local/share/paperdb/` (XDG standard).
-- Migration script copies (not moves) data to the new location.
+- New data directory: `~/paperdb/` (user can override via `PAPERDB_DATA`).
+- Migration script copies (not moves) data to `~/paperdb/legacy/`.
 - Old paths remain valid until user confirms migration is complete.
 - Only then delete from repo (with explicit user permission).
 
 ### C6: How to handle deduplication across Mendeley + PAPERs folders?
 
-Same paper may exist in:
-- `/home/prokop/Mendeley Desktop/Journal of.../Author2023.pdf`
-- `/home/prokop/Desktop/PAPERs/PAPERS_new/ByProposal/Author2023.pdf`
-- `/home/prokop/Desktop/PAPERs/PAPERS_old/2023_06_15/Author2023.pdf`
+Same paper may exist in multiple locations. Use `paper_files` table: one `papers` record, multiple `paper_files` rows. Dedup by:
+1. Exact match: same SHA-256 → same file, different locations.
+2. DOI match: normalized DOI → same work.
+3. Fuzzy match: title + authors + year → likely same work (flag for review).
 
-**Proposed**: Content hash dedup. When the same hash is seen at multiple paths, store all paths but keep one record. The "primary" path is the most recently seen one. User can mark a preferred path via CLI.
+User can mark a preferred file. All locations are retained.
 
 ### C7: How to handle the tag mess?
 
-1279 tags, many duplicates. `clean_tags.py` has consolidation rules but it's a one-shot script.
-
-**Proposed**:
-- Run `clean_tags.py` logic as part of the import/migration.
-- Add a `tag_aliases` table: `canonical_tag_id`, `alias_name`.
-- LLM tag extraction should map to canonical tags when possible.
+1279 tags, many duplicates. Strategy:
+- Preserve **raw tag assertions** — don't delete original forms when merging.
+- `tags` table: canonical name + category.
+- `tag_aliases` table: alias → canonical tag.
+- `paper_tags` table: paper_id + tag_id + source (llm/user/bibtex/imported) + confidence + raw_name.
+- Run `clean_tags.py` consolidation rules as part of migration.
 - CLI: `paperdb tags --merge "DFT" "density functional theory (dft)"`.
-- GUI: tag management panel.
+- Extended tag categories: domain, physical_system, phenomenon, model_or_theory, method, solver, data_structure, discretization, task, implementation, software, material_or_molecule, user.
+- **Do not try to get it perfect from the start.** Let the data inform the classification.
 
 ## 7. Proposed architecture
 
 `paperdb` is a paper-specific module built on top of `pyCruncher`. It reuses `pyCruncher.Agent` for LLM access, `config/LLMs.toml` for provider config, and `pyCruncher.bib_utils` for BibTeX handling.
 
+**Architectural rule**: CLI, MCP, and GUI must not contain their own SQL queries or parsing logic. All go through a stable `PaperDB` API facade.
+
+```
+CLI ─┐
+MCP ─┼──> PaperDB API ──> repository / services
+GUI ─┘
+```
+
 ```
 paperdb/                              # paper-specific module inside AutoCrunchCoder
-├── paperdb/__init__.py               # PaperDB main class, public API
-├── paperdb/core/
-│   ├── db.py                         # SQLite schema, migrations, queries
-│   ├── models.py                     # Pydantic: Paper, Summary, Tag, Equation, Algorithm
-│   ├── paths.py                      # data dir (~/paperdb/), config loading
-│   └── config.py                     # LLM config via pyCruncher.Agent + config/LLMs.toml
+├── paperdb/__init__.py               # PaperDB main class — stable public API facade
+├── paperdb/config.py                 # LLM config via pyCruncher.Agent + config/LLMs.toml
+├── paperdb/paths.py                  # data dir (~/paperdb/), config loading
+├── paperdb/db/
+│   ├── connection.py                 # SQLite connection, WAL mode, PRAGMA foreign_keys=ON
+│   ├── schema.sql                    # canonical schema definition
+│   ├── migrations/                   # numbered SQL migrations (001_init.sql, 002_*.sql, ...)
+│   ├── repository.py                 # all SQL queries — CRUD for papers, tags, equations, methods
+│   └── models.py                     # Pydantic: Paper, Tag, Equation, Method, SearchUnit, etc.
+├── paperdb/identity/
+│   ├── hashing.py                    # SHA-256 computation (lazy: compare size+mtime first)
+│   ├── matching.py                   # dedup by hash, DOI, title+authors+year
+│   └── metadata.py                   # DOI normalization, BibTeX parsing (reuses pyCruncher.bib_utils)
 ├── paperdb/ingest/
-│   ├── pdf.py                        # docling / vlm / pdfminer drivers
+│   ├── scanner.py                    # find PDFs in folders, compute hashes, store paths
+│   ├── pipeline.py                   # orchestrate: convert → summarize → tag → extract equations → extract methods
+│   ├── jobs.py                       # incremental job execution, skip if equivalent run exists
 │   ├── fetch.py                      # download PDFs + metadata from DOI/URL (CrossRef, arXiv, Zotero API)
-│   ├── bibtex.py                     # bib parsing + CrossRef + Mendeley (reuses pyCruncher.bib_utils)
-│   ├── summarize.py                  # prompt-driven summary via pyCruncher.Agent
-│   ├── equations.py                  # structured equation extraction
-│   ├── algorithms.py                 # structured pseudocode extraction
-│   └── dedup.py                      # content hash, DOI dedup, path tracking
+│   └── migration.py                  # import legacy data as competing artifacts
+├── paperdb/extract/
+│   ├── base.py                       # base parser interface
+│   ├── docling_backend.py            # primary: Docling structured output + Markdown
+│   ├── mineru_backend.py             # fallback: MinerU for problematic papers
+│   ├── equations.py                  # equation extraction with source coordinates (latex_raw, latex_normalized, bbox)
+│   └── methods.py                    # method card extraction (source_algorithm vs reconstructed_method)
 ├── paperdb/search/
-│   ├── sqlite_fts.py                 # FTS5 full-text + tag filters
-│   ├── hybrid.py                     # FTS + vector similarity (optional)
-│   └── vectors.py                    # optional chroma/faiss
-├── paperdb/graph/
-│   ├── tags.py                       # LLM tag extraction + cleanup
-│   ├── topics.py                     # topical overviews — generate review-like docs comparing methods across papers
-│   └── vault.py                      # Obsidian vault generator (low priority)
-├── paperdb/cli.py                    # Typer CLI
+│   ├── fts.py                        # FTS5 on search_units (not paper-level)
+│   ├── ranking.py                    # weighted scoring with --explain
+│   ├── context.py                    # context pack assembly (two-stage retrieval)
+│   ├── vectors.py                    # optional: sqlite-vec or chromadb
+│   └── hybrid.py                     # optional: reciprocal-rank fusion of FTS + vector
+├── paperdb/synthesis/
+│   ├── summaries.py                  # versioned summaries via pyCruncher.Agent
+│   ├── method_cards.py               # method card construction with evidence links
+│   └── topic_reviews.py              # topical overviews: query → papers → method cards → comparison → synthesis
+├── paperdb/taxonomy/
+│   ├── extraction.py                 # LLM tag extraction (reuses knowledge_graph.py logic)
+│   └── aliases.py                    # tag consolidation, canonical mapping, raw assertion preservation
+├── paperdb/cli.py                    # Typer CLI — thin wrapper, no SQL
+├── paperdb/mcp.py                    # MCP server — thin wrapper, no SQL, read-only by default
 ├── paperdb/gui.py                    # GUI (adapt existing gui_browser.py later)
-├── paperdb/mcp.py                    # MCP server
-├── paperdb/migrate.py                # migration from existing data
-└── pyproject.toml
+└── (pyproject.toml at AutoCrunchCoder repo root)
 ```
 
 ## 8. Data directory layout
 
 Default: `~/paperdb/` (user can override via `PAPERDB_DATA` env var).
 
+**Lean filesystem: one `.md`, one `.json`, one `.bib` per paper.** Grouped by year to avoid one directory with thousands of files.
+
 ```
 ~/paperdb/
-├── papers.db                         # main SQLite database (index + metadata)
-├── markdown/                         # extracted markdown, human-browsable by stem name
-│   ├── Electrostatic_Catalysis_Diels_Alder_reaction_nature16989.md
-│   ├── As_Rigid_As_Possible_Machine_Learning_2108.09432v2.md
+├── papers.db                         # main SQLite database (index + metadata + search units)
+├── papers/                           # human-browsable, grouped by year
+│   ├── 1989/
+│   │   ├── Parrinello_1989_PhysRevB_CarParrinello__p0123.md
+│   │   ├── Parrinello_1989_PhysRevB_CarParrinello__p0123.json
+│   │   └── Parrinello_1989_PhysRevB_CarParrinello__p0123.bib
+│   ├── 2016/
+│   │   ├── Macklin_2016_XPBD__p0427.md
+│   │   ├── Macklin_2016_XPBD__p0427.json
+│   │   └── Macklin_2016_XPBD__p0427.bib
 │   └── ...
-├── summaries/                        # LLM structured summaries, by stem name
-│   ├── Electrostatic_Catalysis_Diels_Alder_reaction_nature16989.md
+├── reviews/                          # generated topical overviews
+│   ├── gpu_collision_methods.md
 │   └── ...
-├── equations/                        # structured equation extracts (JSON or .md)
-│   ├── Electrostatic_Catalysis_Diels_Alder_reaction_nature16989.json
-│   └── ...
-├── algorithms/                       # structured pseudocode extracts
-│   └── ...
-├── chunks/                           # chunked text for RAG (optional)
-│   └── ...
-├── embeddings/                       # optional vector embeddings
-│   └── nomic-embed-text-v1.5/
-│       └── vectors.bin
 ├── legacy/                           # migrated old data from tests/paper_pipeline_out/
 │   ├── consolidated.db
 │   ├── 20260218_191049/
 │   ├── 20260223_195058/
 │   └── ...
-└── vault/                            # Obsidian vault (generated, low priority)
-    └── ...
+└── logs/                             # processing logs, migration reports
 ```
 
-**Original PDFs stay where they are.** The DB stores `original_pdf_path` and `content_hash`. Markdown and summaries are stored in a human-browsable way (by stem name), so the user can navigate them manually. If a PDF moves, we detect by hash and update the path.
+### Representations and their roles
+
+The four representations have distinct, non-overlapping roles:
+
+- **PDF** — original visual source and final reference for verification. Never moved or modified.
+- **Markdown (`.md`)** — **central complete representation** of the paper for reading, search, context gathering, and LLM consumption. Not merely a human-readable export — it is the primary form given to LLMs. Must preserve complete readable text in correct reading order, section hierarchy, equations in LaTeX, equation numbering and surrounding explanations, tables/captions/algorithms where possible, bibliographic identity, and a clearly separated generated scientific summary.
+- **JSON (`.json`)** — structured companion containing metadata, tags, equations, method cards, source coordinates, and processing provenance. Does NOT duplicate the full markdown source text.
+- **SQLite (`papers.db`)** — searchable catalogue, relationships, processing state, FTS index, and access layer across all papers. May contain searchable sections and structured objects derived from Markdown, but the complete Markdown document remains the main portable representation of the paper.
+
+### Source of truth
+
+**SQLite is authoritative for structured metadata, tags, equations, methods, processing state, and paths. The Markdown file is the central complete representation. The JSON and BibTeX files are synchronized materialized views generated from the current database state and Markdown. All mutations go through the PaperDB API.**
+
+Without this rule, manual edits or interrupted processing will eventually cause drift. Manual JSON/Markdown edits may be permitted later through an explicit `paperdb import-edits` operation, but do not silently treat all three as independent authorities.
+
+### The Markdown file (`.md`)
+
+Central complete representation of the paper, used by both humans and LLMs. Contains both generated summary and source text, visibly separated:
+
+```markdown
+---
+paper_id: 427
+paper_key: Macklin_2016_XPBD
+doi: 10.1145/2994258.2994272
+title: XPBD: Position-Based Simulation of Compliant Constrained Dynamics
+authors: [Miles Macklin, Matthias Müller]
+year: 2016
+source_pdf: /home/prokop/Desktop/PAPERs/...
+conversion_backend: docling
+---
+
+# Generated scientific summary
+
+> This section was generated from the paper and is not source text.
+
+## Essence
+...
+
+## Key equations
+...
+
+## Methods
+...
+
+---
+
+# Extracted source text
+
+## Introduction
+...
+```
+
+### The JSON file (`.json`)
+
+Structured data that benefits from structure — **does NOT duplicate the full markdown source text**:
+
+```json
+{
+  "paper_id": 427,
+  "paper_key": "Macklin_2016_XPBD",
+  "identifiers": {"doi": "10.1145/2994258.2994272"},
+  "source_files": [
+    {"path": "/home/prokop/Desktop/PAPERs/...", "role": "publisher", "preferred": true},
+    {"path": "/home/prokop/Mendeley Desktop/...", "role": "duplicate"}
+  ],
+  "conversion": {"backend": "docling", "status": "ok", "created_at": "..."},
+  "tags": {
+    "domain": ["game physics", "computational mechanics"],
+    "solver": ["gauss-seidel", "position based dynamics"],
+    "math_class": ["constrained dynamics"],
+    "task": ["constraint solving"],
+    "implementation": []
+  },
+  "equations": [
+    {"number": "7", "latex_raw": "...", "latex_normalized": "...", "section": "3.1", "page": 4,
+     "context": "...", "variables": {"lambda": "constraint multiplier", "alpha": "compliance"}}
+  ],
+  "methods": [
+    {"name": "XPBD constraint update", "type": "reconstructed", "steps": ["..."],
+     "source_pages": [4, 5], "confidence": 0.9}
+  ]
+}
+```
+
+### The BibTeX file (`.bib`)
+
+Portable, directly usable by LaTeX, compatible with Mendeley/Zotero, easy for agents to quote.
+
+**Original PDFs stay where they are.** The DB stores paths in `paper_files` table. Markdown/JSON/BibTeX are stored in a human-browsable way (by `paper_key`), so the user can navigate them manually. If a PDF moves, we detect by hash and update the path.
 
 ## 9. Database schema
 
 ```sql
--- Core paper record
+PRAGMA foreign_keys = ON;
+PRAGMA journal_mode = WAL;
+
+-- Core paper record — semantic identity, not hash-based
 CREATE TABLE papers(
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    doi TEXT,
+    paper_key TEXT NOT NULL UNIQUE,        -- human-readable: Macklin_2016_XPBD
+    doi TEXT UNIQUE,                       -- normalized: lowercase, no prefix
+    arxiv_id TEXT,
     title TEXT,
-    authors TEXT,
-    year TEXT,
+    authors_text TEXT,                     -- "Macklin, Miles; Müller, Matthias"
+    year INTEGER,                          -- integer, not text
     journal TEXT,
+    abstract TEXT,
     keywords TEXT,
-    stem TEXT,                         -- filesystem-safe identifier
-    content_hash TEXT,                 -- SHA-256 of first 10KB, for dedup + path tracking
-    original_pdf_path TEXT,            -- current location of the PDF (may change)
-    pdf_size INTEGER,
-    md_backend TEXT,                   -- 'docling' | 'vlm' | 'pdfminer'
-    md_cached_at TEXT,                 -- when markdown was last extracted
-    summary_model TEXT,                -- which LLM produced the summary
-    summary_cached_at TEXT,
-    essence TEXT,                      -- 1-2 sentence summary
-    bibtex_text TEXT,
-    bibtex_source TEXT,                -- 'mendeley' | 'crossref' | 'pdf2doi' | 'manual'
+    essence TEXT,                          -- 1-2 sentence summary
+    markdown_path TEXT,                    -- ~/paperdb/papers/2016/Macklin_2016_XPBD__p0427.md
+    json_path TEXT,                        -- ~/paperdb/papers/2016/Macklin_2016_XPBD__p0427.json
+    bibtex_path TEXT,                      -- ~/paperdb/papers/2016/Macklin_2016_XPBD__p0427.bib
     created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-    updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(content_hash)
+    updated_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 
--- Multiple paths for the same paper (dedup)
-CREATE TABLE paper_paths(
-    paper_id INTEGER REFERENCES papers(id),
-    path TEXT,
-    last_seen TEXT DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY(paper_id, path)
+-- Multiple files for the same paper (dedup, versions, duplicates)
+CREATE TABLE paper_files(
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    paper_id INTEGER NOT NULL REFERENCES papers(id),
+    path TEXT NOT NULL UNIQUE,
+    file_role TEXT,                        -- 'publisher' | 'arxiv' | 'supplement' | 'manuscript' | 'duplicate'
+    version_label TEXT,
+    file_size INTEGER,
+    modified_time REAL,
+    sha256 TEXT,                           -- internal checksum, never in filenames
+    exists_now INTEGER DEFAULT 1,
+    is_preferred INTEGER DEFAULT 0,
+    last_seen TEXT DEFAULT CURRENT_TIMESTAMP
 );
 
--- Full-text search
-CREATE VIRTUAL TABLE papers_fts USING fts5(
-    stem, doi, title, authors, year, journal, keywords, md_text,
-    content='papers', content_rowid='id'
+-- At most one preferred file per paper
+CREATE UNIQUE INDEX one_preferred_file_per_paper ON paper_files(paper_id) WHERE is_preferred = 1;
+CREATE INDEX idx_paper_files_paper ON paper_files(paper_id);
+CREATE INDEX idx_paper_files_sha256 ON paper_files(sha256);
+
+-- Searchable units — FTS at section/paragraph/equation/method level, NOT paper-level
+CREATE TABLE search_units(
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    paper_id INTEGER NOT NULL REFERENCES papers(id),
+    run_id INTEGER REFERENCES processing_runs(id),
+    unit_type TEXT,                        -- 'summary' | 'section' | 'paragraph' | 'equation' | 'method'
+    source_type TEXT,                      -- 'section' | 'equation' | 'method' | 'summary'
+    source_id INTEGER,                     -- FK to the source row (equations.id, methods.id, etc.)
+    section_path TEXT,                     -- e.g. "3.1 Compliance"
+    page_from INTEGER,
+    page_to INTEGER,
+    content TEXT
 );
 
--- Processing state
-CREATE TABLE paper_state(
-    paper_id INTEGER PRIMARY KEY REFERENCES papers(id),
-    pdf_converted INTEGER DEFAULT 0,
-    summary_done INTEGER DEFAULT 0,
-    tags_extracted INTEGER DEFAULT 0,
-    equations_extracted INTEGER DEFAULT 0,
-    algorithms_extracted INTEGER DEFAULT 0,
-    embeddings_done INTEGER DEFAULT 0,
-    bibtex_done INTEGER DEFAULT 0,
-    last_updated TEXT
+CREATE VIRTUAL TABLE search_units_fts USING fts5(
+    content,
+    section_path,
+    content='search_units',
+    content_rowid='id'
 );
 
--- Tags
+-- FTS5 synchronization triggers (external-content tables do NOT auto-sync)
+CREATE TRIGGER search_units_ai AFTER INSERT ON search_units BEGIN
+    INSERT INTO search_units_fts(rowid, content, section_path)
+    VALUES (new.id, new.content, new.section_path);
+END;
+CREATE TRIGGER search_units_ad AFTER DELETE ON search_units BEGIN
+    INSERT INTO search_units_fts(search_units_fts, rowid, content, section_path)
+    VALUES ('delete', old.id, old.content, old.section_path);
+END;
+CREATE TRIGGER search_units_au AFTER UPDATE ON search_units BEGIN
+    INSERT INTO search_units_fts(search_units_fts, rowid, content, section_path)
+    VALUES ('delete', old.id, old.content, old.section_path);
+    INSERT INTO search_units_fts(rowid, content, section_path)
+    VALUES (new.id, new.content, new.section_path);
+END;
+
+-- Processing runs — replaces boolean flags with proper provenance
+CREATE TABLE processing_runs(
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    paper_id INTEGER NOT NULL REFERENCES papers(id),
+    operation TEXT,                        -- 'convert' | 'summarize' | 'tag' | 'equations' | 'methods' | 'embed' | 'migrate_markdown' | 'migrate_summary'
+    backend TEXT,                          -- 'docling' | 'mineru' | 'legacy_pdfminer' | 'legacy_docling' | 'legacy_llama8b' | 'llm'
+    backend_version TEXT,
+    model_name TEXT,                       -- which LLM (for summarize/tag/extract)
+    prompt_version TEXT,
+    configuration_json TEXT,
+    config_hash TEXT,                      -- hash of config for skip-if-equivalent logic
+    source_file_id INTEGER REFERENCES paper_files(id),  -- which PDF was processed
+    input_sha256 TEXT,                     -- hash of input PDF — detects replaced/corrected files
+    output_path TEXT,                      -- path to the output artifact
+    supersedes_run_id INTEGER REFERENCES processing_runs(id),  -- prior run this replaces
+    status TEXT,                           -- 'pending' | 'running' | 'ok' | 'partial' | 'failed' | 'superseded'
+    started_at TEXT,
+    finished_at TEXT,
+    message TEXT
+);
+
+-- Effective processing key: operation + input_sha256 + backend/version + config_hash + model + prompt_version
+-- When a new run succeeds, prior current run for that operation becomes 'superseded'.
+
+-- Tags — canonical names with categories
 CREATE TABLE tags(
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT UNIQUE,
-    category TEXT,                     -- 'domain' | 'math_class' | 'solver' | 'data_structure' | 'user'
-    source TEXT DEFAULT 'llm'
+    canonical_name TEXT NOT NULL,
+    category TEXT NOT NULL,               -- 'domain' | 'physical_system' | 'phenomenon' | 'model_or_theory' |
+                                          -- 'method' | 'solver' | 'data_structure' | 'discretization' |
+                                          -- 'task' | 'implementation' | 'software' | 'material_or_molecule' | 'user'
+    UNIQUE(canonical_name, category)
 );
+
+-- Tag aliases — preserve original forms, map to canonical (not globally unique — abbreviations can be ambiguous)
 CREATE TABLE tag_aliases(
-    canonical_tag_id INTEGER REFERENCES tags(id),
-    alias TEXT UNIQUE
-);
-CREATE TABLE article_tags(
-    article_id INTEGER REFERENCES papers(id),
-    tag_id INTEGER REFERENCES tags(id),
-    UNIQUE(article_id, tag_id)
+    tag_id INTEGER NOT NULL REFERENCES tags(id),
+    alias TEXT NOT NULL,
+    normalized_alias TEXT NOT NULL,         -- lowercase, stripped
+    UNIQUE(tag_id, normalized_alias)
 );
 
--- Structured equations
-CREATE TABLE extracted_equations(
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    paper_id INTEGER REFERENCES papers(id),
-    latex TEXT,
-    eq_number TEXT,
-    context TEXT,
-    section TEXT,
-    variables_json TEXT                -- {"r_A": "position of atom A", ...}
+-- Paper-tag assertions — preserve raw names, source, confidence, run provenance
+CREATE TABLE paper_tags(
+    paper_id INTEGER NOT NULL REFERENCES papers(id),
+    tag_id INTEGER NOT NULL REFERENCES tags(id),
+    source TEXT,                           -- 'llm' | 'user' | 'bibtex' | 'imported'
+    run_id INTEGER REFERENCES processing_runs(id),  -- which run produced this (distinguishes two LLM tagging runs)
+    confidence REAL,
+    raw_name TEXT,                         -- original tag text before canonicalization
+    PRIMARY KEY(paper_id, tag_id, source, run_id)
 );
 
--- Structured algorithms/pseudocode
-CREATE TABLE extracted_algorithms(
+-- Equations with source fidelity
+CREATE TABLE equations(
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    paper_id INTEGER REFERENCES papers(id),
+    paper_id INTEGER NOT NULL REFERENCES papers(id),
+    run_id INTEGER REFERENCES processing_runs(id),
+    latex_raw TEXT,                        -- what parser extracted — never overwrite
+    latex_normalized TEXT,                 -- cleaned up by LLM or symbolic parser
+    equation_number TEXT,
+    section_path TEXT,
+    page_number INTEGER,
+    bbox_json TEXT,                        -- bounding box for visual QA
+    context_before TEXT,
+    context_after TEXT,
+    parser TEXT,
+    confidence REAL,
+    verification_status TEXT               -- 'unverified' | 'visual_qa_pass' | 'visual_qa_fail' | 'manual'
+);
+
+-- Variable definitions as separate evidence records
+CREATE TABLE equation_variables(
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    equation_id INTEGER NOT NULL REFERENCES equations(id),
+    symbol TEXT,
+    meaning TEXT,
+    source_page INTEGER,
+    source_context TEXT
+);
+
+-- Method cards — source algorithm vs reconstructed method (simplified: card_json for evolving fields)
+CREATE TABLE methods(
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    paper_id INTEGER NOT NULL REFERENCES papers(id),
+    run_id INTEGER REFERENCES processing_runs(id),
     name TEXT,
-    steps_json TEXT,                   -- ["1. Initialize positions", "2. Compute forces", ...]
-    inputs_json TEXT,                  -- ["positions", "velocities", "masses"]
-    outputs_json TEXT,                 -- ["new_positions", "new_velocities"]
-    complexity TEXT,                   -- "O(N)" etc.
-    raw_text TEXT
+    method_type TEXT,                      -- 'source_algorithm' | 'reconstructed_method'
+    purpose TEXT,
+    complexity TEXT,
+    confidence REAL,
+    card_json TEXT,                        -- evolving structured details: assumptions, state_variables, inputs, outputs, initialization, steps, boundary_conditions, convergence, parallelization, limitations
+    source_passages_json TEXT,             -- [{"page": 4, "section": "3.1", "text": "..."}]
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 
--- Chunks for RAG (optional)
-CREATE TABLE chunks(
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    paper_id INTEGER REFERENCES papers(id),
-    chunk_type TEXT,                   -- 'heading' | 'equation' | 'paragraph'
-    ref TEXT,                          -- e.g. "## Methods"
-    content TEXT,
-    embedding BLOB,                    -- optional, NULL if no embeddings
-    embedding_model TEXT
+-- Method-equation junction (referential integrity without heavy schema)
+CREATE TABLE method_equations(
+    method_id INTEGER NOT NULL REFERENCES methods(id),
+    equation_id INTEGER NOT NULL REFERENCES equations(id),
+    role TEXT,                             -- 'core' | 'update' | 'initialization' | 'boundary'
+    PRIMARY KEY(method_id, equation_id, role)
 );
 
--- Summary versioning
+-- Versioned summaries (expensive to regenerate, keep history)
 CREATE TABLE summaries(
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    paper_id INTEGER REFERENCES papers(id),
+    paper_id INTEGER NOT NULL REFERENCES papers(id),
+    run_id INTEGER REFERENCES processing_runs(id),
     model_name TEXT,
     prompt_version TEXT,
-    content TEXT,                      -- full summary markdown
+    content TEXT,                          -- full summary markdown
     timestamp TEXT DEFAULT CURRENT_TIMESTAMP,
     is_active INTEGER DEFAULT 1
-);
-
--- Processing log (audit trail)
-CREATE TABLE processing_log(
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    paper_id INTEGER REFERENCES papers(id),
-    operation TEXT,                    -- 'convert' | 'summarize' | 'bibtex' | 'tag' | 'embed'
-    status TEXT,                       -- 'ok' | 'fail' | 'skip'
-    message TEXT,
-    timestamp TEXT DEFAULT CURRENT_TIMESTAMP
-);
-
--- Citations (future)
-CREATE TABLE citations(
-    citing_paper_id INTEGER REFERENCES papers(id),
-    cited_doi TEXT,
-    cited_title TEXT,
-    matched_paper_id INTEGER REFERENCES papers(id),
-    UNIQUE(citing_paper_id, cited_doi)
 );
 
 -- Topical overviews (generated review-like documents)
 CREATE TABLE topics(
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT UNIQUE,                   -- e.g. "molecular force fields", "fast multipole methods"
+    name TEXT UNIQUE,                      -- e.g. "molecular force fields", "GPU collision methods"
     description TEXT,
     created_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 CREATE TABLE topic_papers(
-    topic_id INTEGER REFERENCES topics(id),
-    paper_id INTEGER REFERENCES papers(id),
-    relevance TEXT,                     -- why this paper is relevant to this topic
+    topic_id INTEGER NOT NULL REFERENCES topics(id),
+    paper_id INTEGER NOT NULL REFERENCES papers(id),
+    relevance TEXT,                        -- why this paper was selected
+    match_score REAL,
     PRIMARY KEY(topic_id, paper_id)
 );
 CREATE TABLE topic_overviews(
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    topic_id INTEGER REFERENCES topics(id),
-    content TEXT,                       -- generated overview markdown
-    model_name TEXT,                    -- which LLM generated it
+    topic_id INTEGER NOT NULL REFERENCES topics(id),
+    content TEXT,                          -- generated overview markdown
+    original_query TEXT,
+    filters_json TEXT,
+    comparison_matrix_json TEXT,
+    model_name TEXT,
+    prompt_version TEXT,
     timestamp TEXT DEFAULT CURRENT_TIMESTAMP,
     is_active INTEGER DEFAULT 1
 );
+
+-- Context packs (the central output — persistable for reproducibility)
+CREATE TABLE context_packs(
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    query TEXT NOT NULL,
+    filters_json TEXT,
+    selected_units_json TEXT,              -- which search_units were included
+    content TEXT,                          -- assembled context pack text
+    output_path TEXT,                      -- if saved to file
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Citations (future)
+CREATE TABLE citations(
+    citing_paper_id INTEGER NOT NULL REFERENCES papers(id),
+    cited_doi TEXT,
+    cited_title TEXT,
+    matched_paper_id INTEGER REFERENCES papers(id),
+    UNIQUE(citing_paper_id, cited_doi)
+);
 ```
+
+### SQLite best practices
+
+- `PRAGMA foreign_keys=ON` — SQLite doesn't enforce FKs by default.
+- WAL mode for concurrent read/write.
+- Numbered SQL migrations (`001_init.sql`, `002_add_topics.sql`, ...) — not scattered schema creation.
+- Normalize DOI before uniqueness checks: `10.1103/physrevb.40.3979`.
+- Integer years, not text.
+- Don't store full `md_text` in FTS — use `search_units` table instead.
+- FTS5 external-content tables do NOT auto-sync — use triggers (see `search_units_ai/ad/au` above).
+- Execute one paper's state changes in a transaction.
+- Don't write one SQLite connection per individual operation.
+- Partial unique index for preferred file: `CREATE UNIQUE INDEX ... WHERE is_preferred = 1`.
 
 ## 10. CLI design
 
-Single command `paperdb` (or alias `papers`), built with `typer`:
+Single command `paperdb` (or alias `papers`), built with `typer`. CLI is a thin wrapper — no SQL, no parsing logic, all goes through `PaperDB` API.
 
 ```bash
 # Scan and index PDFs (in-place, no moving)
@@ -526,35 +731,49 @@ paperdb sync --folder ~/Desktop/PAPERs/PAPERS_new
 # Add a single paper from any location (path or URL)
 paperdb add /path/to/paper.pdf
 paperdb add https://arxiv.org/pdf/2401.02058
-paperdb add 10.1103/PhysRevB.40.3979          # by DOI
+paperdb add 10.1103/PhysRevB.40.3979          # by DOI (fetches from CrossRef)
 
-# Ingest (convert + summarize + tag) — processes only papers not yet done
+# Ingest (convert + summarize + tag + extract) — processes only papers not yet done
 paperdb ingest --all                          # process all indexed but unprocessed
 paperdb ingest --folder ~/Desktop/PAPERs/PAPERS_new/ByProposal
-paperdb ingest --paper <stem_or_hash>         # process single paper
+paperdb ingest --paper <paper_key>            # process single paper
 
-# Search
-paperdb search "Gauss-Seidel XPBD" --json --limit 20
-paperdb search "SIBFA" --tags solver --year 2015-2025
-paperdb search "Ewald slab" --full-text
+# Search — with explainable ranking
+paperdb search "Gauss-Seidel XPBD" --limit 20
+paperdb search "SIBFA" --tag solver --year 2015-2025
+paperdb search "Ewald slab" --explain         # show why each paper matched
+paperdb search --tag solver:xpbd --tag domain:game_physics
 
-# Get full markdown for a paper (for LLM context)
-paperdb get <stem_or_doi> --format markdown    # print full markdown
-paperdb get <stem_or_doi> --format summary     # print structured summary
-paperdb get <stem_or_doi> --format equations   # print extracted equations
-paperdb get <stem_or_doi> --format all         # everything in one output
+# Context pack — the central output for LLM agents
+paperdb context "stable GPU broad-phase collision using uniform grids without atomics" \
+    --budget 24000 --include equations,methods,assumptions --out context.md
 
-# Equations and algorithms
-paperdb equations <paper_id>                  # list extracted equations
-paperdb algorithm <paper_id> --name "XPBD"    # show structured pseudocode
+# Inspect a specific paper
+paperdb inspect Macklin_2016_XPBD             # full metadata + tags + processing status
+paperdb get Macklin_2016_XPBD --markdown      # print full markdown
+paperdb get Macklin_2016_XPBD --json          # print structured JSON
+paperdb get Macklin_2016_XPBD --bib           # print BibTeX
+
+# Equations and methods
+paperdb equations Macklin_2016_XPBD           # list extracted equations with source coords
+paperdb methods "constraint dynamics"         # find methods across papers matching topic
+paperdb method Macklin_2016_XPBD --name "XPBD"  # show method card with evidence links
 
 # Tags
 paperdb tags --category solver
 paperdb tags --merge "DFT" "density functional theory (dft)"
-paperdb related <paper_id>                    # papers sharing tags
+paperdb related Macklin_2016_XPBD             # papers sharing tags
+
+# Topical overviews — generate review-like document for a topic
+paperdb topic "molecular force fields"           # gather papers, generate overview
+paperdb topic "GPU collision methods" --json     # output as JSON for LLM consumption
+paperdb topic "spatial partitioning" --out overview.md
+
+# Compare methods across papers
+paperdb compare "GPU particle collision" \
+    --axes "spatial_structure,construction_cost,pair_enumeration,memory_layout,synchronization"
 
 # Export
-paperdb vault --out ~/paper_vault             # Obsidian vault (low priority)
 paperdb export --bibtex --out library.bib
 
 # Re-process
@@ -572,19 +791,14 @@ paperdb mcp --transport stdio                 # for IDE integration
 paperdb mcp --transport sse --port 8000
 paperdb gui                                   # launch GUI (later)
 
-# Topical overviews — generate review-like document for a topic
-paperdb topic "molecular force fields"           # gather all papers tagged with relevant tags, generate overview
-paperdb topic "fast multipole methods" --json    # output as JSON for LLM consumption
-paperdb topic "spatial partitioning" --out overview.md  # save to file
-
 # Import existing data
 paperdb migrate --from consolidated.db        # import from old consolidated DB
 paperdb migrate --from-mendeley ~/Mendeley_Desktop_bibtex/INTERESTS.bib
 ```
 
-**Core use case**: `paperdb search "XPBD" | paperdb get <stem> --format all` — quickly gather context from articles and provide it to an LLM for coding, writing, or grant proposals.
+**Core use case**: `paperdb context "GPU collision without atomics" --budget 24000` — assembles a compact, evidence-bearing context package from multiple papers for an LLM coding agent.
 
-**Topical overview use case**: `paperdb topic "molecular force fields"` — generates a review-like document comparing methods across papers, for the user or for an LLM coding agent to see the landscape and pick the best approach.
+**Topical overview use case**: `paperdb topic "molecular force fields"` — generates a review-like document comparing methods across papers, with a comparison matrix and evidence-backed synthesis.
 
 ## 11. GUI design (low priority — later)
 
@@ -596,7 +810,7 @@ GUI is not the focus. Priority is CLI, MCP, and the extraction/indexing pipeline
 
 **This is critical**: the package must be visible across the system and accessible from other software — coding agents (Devin, Cursor, Codex, OpenCode), other repos, shell scripts, etc.
 
-`pyproject.toml`:
+`pyproject.toml` at the **AutoCrunchCoder repository root** (not inside `paperdb/`):
 
 ```toml
 [project]
@@ -613,8 +827,7 @@ vlm      = ["pdf2image", "Pillow"]
 gui      = ["PyQt5"]
 gui-web  = ["streamlit"]
 mcp      = ["fastmcp"]
-vector   = ["chromadb", "sentence-transformers"]
-all      = ["paperdb[docling,gui,mcp,vector]"]
+vector   = ["sqlite-vec", "sentence-transformers"]
 ```
 
 Install (editable, system-wide):
@@ -662,7 +875,7 @@ After this, any coding agent in any workspace can:
 
 **This is a primary access point.** The MCP server lets coding agents (Devin, Cursor, Codex, OpenCode) query the knowledge base directly without shell commands. It must be easy to start and connect from any IDE/agent.
 
-Extend `tests/mcp_research_server.py` into `paperdb/mcp.py`.
+Extend `tests/mcp_research_server.py` into `paperdb/mcp.py`. MCP is a thin wrapper — no SQL, no parsing logic, all goes through `PaperDB` API. **Read-only by default** — accidental DB mutation by an autonomous agent is too easy.
 
 ### Transport modes
 
@@ -694,28 +907,63 @@ paperdb mcp --transport sse --port 8000 --daemon
 MCP_URL=http://localhost:8000
 ```
 
-### Tools
+### Discovery tools (scientific tasks, not database mechanics)
 
 | Tool | Description |
 |------|-------------|
-| `search_papers(query, limit=10, tags=None, year_range=None)` | FTS + tag filter search |
-| `get_paper(paper_id_or_doi)` | Full metadata + summary + tags |
-| `get_equations(paper_id)` | Structured equation list (LaTeX + context + variables) |
-| `get_algorithm(paper_id, name=None)` | Structured pseudocode steps + I/O |
-| `get_related_papers(paper_id, limit=5)` | Papers sharing tags |
-| `get_summary(paper_id)` | Full structured summary markdown |
-| `list_tags(category=None)` | All tags, optionally filtered by category |
-| `get_papers_by_tag(tag_name)` | All papers with a given tag |
-| `get_full_text(paper_id, section=None)` | Full or section-specific markdown |
-| `generate_topic_overview(topic, max_papers=20)` | Gather papers for a topic, generate a review-like overview comparing methods, equations, and algorithms across papers. Returns markdown for LLM consumption. |
-| `ingest_pdf(path_or_url, tags=None)` | Add a paper from local path or URL (arXiv, DOI, etc.) |
-| `fetch_bibtex(doi_or_query)` | Fetch BibTeX from CrossRef/arXiv by DOI or search query |
-| `sync_mendeley()` | Re-import from Mendeley BibTeX files |
-| `sync_zotero()` | Re-import from Zotero API (requires API key) |
+| `search_papers(query, required_tags=None, preferred_tags=None, excluded_tags=None, year_range=None, limit=20)` | FTS + tag filter search with explainable ranking. Returns papers + match reasons. |
+| `find_methods(problem, constraints=None, limit=20)` | Find methods across papers matching a scientific problem. E.g. "short-range interaction search on GPU, avoid atomics". |
+| `find_equations(concept, variables=None, tags=None, limit=30)` | Find equations across papers matching a concept. E.g. "constraint compliance update", "Ewald summation for 2D periodicity". |
+| `compare_methods(problem, comparison_axes, constraints=None, max_papers=20)` | Compare methods across papers along specified axes (spatial_structure, complexity, synchronization, etc.). Returns comparison matrix. |
+| `build_topic_review(topic, focus=None, constraints=None, max_papers=30)` | Multi-step: interpret query → find papers → retrieve method cards → compare → synthesize. Returns evidence-backed review. |
 
-Resources:
-- `papers://stats` — database statistics
-- `papers://tags/{category}` — tag list by category
+### Inspection tools
+
+| Tool | Description |
+|------|-------------|
+| `get_paper(paper_id_or_key_or_doi)` | Full metadata + summary + tags + processing status |
+| `get_paper_markdown(paper_id)` | Full markdown (summary + source text) |
+| `get_paper_methods(paper_id)` | All method cards for a paper with evidence links |
+| `get_paper_equations(paper_id)` | All equations with source coordinates (latex_raw, latex_normalized, page, section) |
+| `get_related_papers(paper_id, limit=5)` | Papers sharing tags |
+| `explain_paper_match(paper_id, query)` | Why this paper matched the query |
+
+### Context pack tool
+
+| Tool | Description |
+|------|-------------|
+| `retrieve_context(query, token_budget=24000, include=None, filters=None)` | Assemble a compact, evidence-bearing context package: select papers (stage A) → retrieve relevant units (stage B) → format with comparison matrix + bibliography. |
+
+### Taxonomy tools
+
+| Tool | Description |
+|------|-------------|
+| `list_tags(category=None)` | All tags, optionally filtered by category |
+| `list_tag_aliases(tag_name)` | All aliases mapping to a canonical tag |
+
+### Mutating tools (separate, not enabled by default)
+
+| Tool | Description |
+|------|-------------|
+| `ingest_pdf(path_or_url, tags=None)` | Add a paper from local path or URL (arXiv, DOI, etc.) |
+| `reprocess_document(paper_id, operation)` | Re-run a specific operation (convert, summarize, tag, etc.) |
+| `merge_tags(canonical, alias)` | Merge tag alias into canonical |
+| `set_preferred_location(paper_id, file_id)` | Set preferred PDF path |
+
+### Resources
+
+```
+paperdb://work/{id}                    — paper metadata
+paperdb://document/{id}/markdown       — full markdown
+paperdb://document/{id}/summary        — structured summary
+paperdb://equation/{id}                — equation with source coords
+paperdb://method/{id}                  — method card with evidence
+paperdb://context/{id}                 — saved context pack
+paperdb://tags/{category}              — tag list by category
+paperdb://stats                        — database statistics
+```
+
+Tools should normally return compact structured results plus resource links, rather than several hundred kilobytes of Markdown.
 
 ### Internet access for external APIs
 
@@ -728,49 +976,244 @@ The MCP server and CLI should have access to the internet to:
 
 This enables `paperdb add 10.1103/PhysRevB.40.3979` or `paperdb add https://arxiv.org/pdf/2401.02058` — the system fetches the PDF and metadata from the internet, then processes it locally.
 
-## 15. RAG / semantic search (later phase)
+## 15. Retrieval and search
 
-Keep vector store optional. Default: SQLite FTS5 only.
+### Phase 1: tags + FTS5 (no embeddings needed)
 
-For RAG:
-- Chunk markdown by headings and equations (existing chunking logic).
-- Store chunks in `chunks` table with optional `embedding` BLOB.
-- Generate embeddings via LM-Studio `nomic-embed-text-v1.5`.
-- Hybrid search: FTS5 keyword + cosine similarity, merge scores.
-- Chroma/langchain as optional extras.
+The first useful semantic retrieval system can be:
+
+```
+typed tags + tag aliases + bibliographic metadata + title/abstract/essence + FTS5
+```
+
+No vector database is initially required. Tag-based search is already semantic because tags represent interpreted scientific meaning:
+
+```
+"XPBD" → solver
+"constrained dynamics" → math_class
+"game physics" → domain
+"GPU" → implementation
+"uniform grid" → data_structure
+```
+
+FTS5 is particularly important in this domain because terms like `XPBD`, `SIBFA`, `DFTB3`, `HLLC`, `M06-2X`, `Ewald`, `Slater-Koster` are better matched lexically than semantically.
+
+### NL query → structured tag query
+
+The LLM translates natural language into a transparent search specification:
+
+```
+"Find methods for fast GPU collision detection using uniform grids, preferably without atomics"
+```
+
+becomes:
+
+```json
+{
+  "required": [["task", "collision detection"], ["implementation", "GPU"]],
+  "preferred": [["data_structure", "uniform grid"], ["method", "spatial hashing"]],
+  "text_terms": ["broad phase", "neighbor search", "without atomics", "prefix sum"]
+}
+```
+
+Then SQLite performs the actual search. This separates LLM interpretation from deterministic retrieval.
+
+### Search ranking with `--explain`
+
+Weighted scoring:
+
+```
+required tag match       +10
+preferred tag match       +4
+user-assigned tag         +6
+title match               +5
+abstract/summary match    +2
+full-text match           +1
+```
+
+`paperdb search --explain` shows why each paper matched:
+
+```
+Macklin 2016, XPBD
+Score: 28
+
+Matched:
+  solver: position based dynamics
+  math_class: constrained dynamics
+  title: XPBD
+  summary: compliant constraints
+```
+
+### Two-stage retrieval
+
+**Stage A: select papers** — use tags, title, authors, journal, year, abstract, essence, FTS.
+**Stage B: search within selected papers** — use section text, equations, method cards, limitations.
+
+This prevents returning twenty paragraph matches from one verbose paper while missing five other relevant methods.
+
+### Context pack format
+
+```text
+Query and constraints
+
+Paper 1
+  bibliographic identity
+  why it was selected
+  relevant sections
+  equations
+  method card
+  source locations
+
+Paper 2
+  ...
+
+Comparison matrix
+  method | complexity | memory structure | synchronization | limitations
+
+Bibliography
+```
+
+### Phase 2: optional vector retrieval (future)
+
+Embeddings help when the query and paper use different language:
+
+```
+"atom-local rotational degrees of freedom"
+```
+
+versus:
+
+```
+"oriented interaction sites attached to rigid particles"
+```
+
+At our scale, avoid a separate Chroma/Qdrant service. Use `sqlite-vec` to keep embeddings in the same database. Pin the version and hide behind a `VectorIndex` interface.
+
+Hybrid score via reciprocal-rank fusion:
+
+```
+S(d) = w_FTS / (k + r_FTS(d)) + w_vec / (k + r_vec(d))
+```
+
+No large RAG framework is required.
 
 ## 16. Migration from current system
 
-1. **Create new DB** at `~/paperdb/papers.db`.
-2. **Move old data to `~/paperdb/legacy/`**: copy `tests/paper_pipeline_out/` contents (consolidated.db, per-run dirs, markdown, summaries) to `~/paperdb/legacy/`. Do NOT delete from repo yet.
-3. **Import consolidated.db**: load 895 papers, tags, article_tags into new schema.
-4. **Import existing markdown**: for each paper, find best available markdown (docling from PAPERS_ghost or _pipleline_new > pdfminer from PAPERS_meta). Copy to `~/paperdb/markdown/` by stem name.
-5. **Import existing summaries**: prefer _pipleline_new summaries over PAPERS_meta. Copy to `~/paperdb/summaries/` by stem name.
-6. **Run tag cleanup**: apply `clean_tags.py` consolidation rules, build `tag_aliases` table. Keep provisional tags — don't try to perfect.
-7. **Scan PDF folders**: index all 1254 PDFs from `~/Desktop/PAPERs/` + Mendeley, compute hashes, match to existing DB records.
-8. **Mark needs-reprocessing**: papers with pdfminer markdown, missing summaries, or missing equations.
-9. **Gradually migrate** from `~/paperdb/legacy/` to the new structure. Do NOT reprocess with LLM unless needed — reuse existing results.
-10. **Keep `pyCruncher` as wrapper**: old CLI still works, delegates to `paperdb`.
+Legacy data should be **converted into the new Paperdb representation**, not preserved indefinitely in its old directory structure or schema. However, existing Markdown conversions, summaries, BibTeX metadata, tags, and embeddings should be reused whenever possible — re-running PDF conversion or LLM summarization for hundreds of papers would be unnecessarily expensive and could replace acceptable existing outputs with different results.
 
-**CRITICAL**: Migration must NOT delete any existing files. All copies. User confirms before any cleanup. LLM processing is costly — reuse existing results whenever possible.
+Migration proceeds in two explicit phases.
+
+### Phase A — convert and construct the new database
+
+1. **Copy legacy data to `~/paperdb/legacy/`**: copy `tests/paper_pipeline_out/` contents (consolidated.db, per-run dirs, markdown, summaries) to `~/paperdb/legacy/`. Do NOT delete from repo yet.
+2. **Inventory all legacy artifacts**: databases, PDFs, markdown, summaries, logs. Compute full file hashes.
+3. **Match legacy records to semantic paperdb records** using DOI, PDF path, filename, title, authors, year, and optional file hashes. Generate `paper_key` for each paper.
+4. **Select best existing Markdown** for each paper according to a transparent policy: docling+formulas > docling > vlm > pdfminer. Record each candidate as a `processing_runs` row with `operation='migrate_markdown'`, `backend='legacy_docling'` (or `legacy_pdfminer`), `input_sha256`, `output_path`.
+5. **Reuse existing summaries**: prefer _pipleline_new summaries over PAPERS_meta. Store as `summaries` rows with `operation='migrate_summary'` in `processing_runs`.
+6. **Run tag cleanup**: apply `clean_tags.py` consolidation rules, build `tag_aliases` table. Preserve raw tag assertions in `paper_tags.raw_name`. Keep provisional tags — don't try to perfect.
+7. **Scan PDF folders**: index all 1254 PDFs from `~/Desktop/PAPERs/` + Mendeley, compute SHA-256 (lazy: compare size+mtime first), match to existing DB records by hash, DOI, or title+authors+year. Store in `paper_files`.
+8. **Convert all data into the new SQLite schema**.
+9. **Generate the new semantic `.md`/`.json`/`.bib` bundle** for every successfully matched paper, written to `~/paperdb/papers/<year>/`.
+10. **Build search units and FTS indices** from the migrated Markdown (after bundles are generated, so the index is derived from the canonical active representation).
+11. **Produce a migration report**: conflicts, missing files, ambiguous matches, papers needing later reprocessing. Save to `~/paperdb/logs/migration_report.md`.
+12. **Mark needs-reprocessing**: papers with pdfminer markdown, missing summaries, or missing equations.
+
+This phase creates a complete new Paperdb installation without modifying or deleting the original data.
+
+### Phase B — validate and gradually retire the legacy data
+
+1. **Compare** paper counts, DOI coverage, metadata, tags, Markdown sizes, summaries, and equations between the legacy and new systems.
+2. **Manually inspect** a representative subset of papers, especially equation-heavy and algorithm-heavy papers.
+3. **Verify** that new Markdown files open correctly and that CLI, FTS, context retrieval, and MCP access return the expected papers.
+4. **Keep old data as read-only backup** until the new system has been used successfully for a sufficient period.
+5. **Reprocess only** papers that are missing data or whose migrated extraction is demonstrably inadequate.
+6. **Delete old copies** only through a separate explicit cleanup operation after user approval.
+
+```
+legacy data
+    ↓
+conversion into the new representation
+    ↓
+independent validation
+    ↓
+normal use of the new system
+    ↓
+optional, delayed cleanup of old backups
+```
+
+Legacy formats are not part of the final architecture. They are temporary migration sources retained only until the correctness and completeness of the new system have been verified.
+
+### Atomic file updates
+
+When writing `.md`/`.json`/`.bib` files during migration or processing:
+```
+write temporary file → validate (parse JSON, check markdown) → rename over active file → record run in SQLite
+```
+This prevents corruption from interrupted processing.
+
+### Small regression corpus
+
+Not a formal benchmark, but keep 5-10 manually verified representative papers (equation-heavy, two-column, scanned/old, algorithm-heavy) with 10-20 checked equations. This protects against future regressions — e.g., after changing Docling options, you can determine whether equation extraction became better or worse.
 
 ## 17. Suggested implementation order
 
-1. **Package skeleton**: `paperdb/` directory, `pyproject.toml`, `PaperDB` class, `paths.py`.
-2. **DB layer**: `core/db.py` — schema creation, migrations, upsert, FTS5.
-3. **Migration script**: import `consolidated.db` + existing markdown/summaries.
-4. **Scan/index**: `paperdb scan` — find PDFs, compute hashes, store paths.
-5. **CLI basics**: `paperdb scan`, `paperdb search`, `paperdb status`, `paperdb get`.
-6. **Ingest pipeline**: adapt `paper_pipeline.py` functions into `paperdb/ingest/`.
-7. **LLM config integration**: use `pyCruncher.Agent` + `config/LLMs.toml` for backend selection.
-8. **Structured extraction**: equations and algorithms into DB tables.
-9. **MCP server**: adapt `mcp_research_server.py`, including `generate_topic_overview`.
-10. **Topical overviews**: `paperdb topic` — gather papers by tag/topic, generate review-like comparison docs.
-11. **Tag cleanup**: adapt `clean_tags.py`, `knowledge_graph.py` — provisional tags, consolidate later.
-12. **GUI**: adapt `gui_browser.py` (low priority).
-13. **RAG**: optional vector store, hybrid search.
-14. **Citation graph**: reference extraction.
-15. **Documentation**: README, usage examples, `.bashrc` template.
+### Phase 0 — foundation and migration
+
+1. **Package skeleton**: `paperdb/` directory, `pyproject.toml` at repo root, `PaperDB` class, `paths.py`, `config.py`.
+2. **DB layer**: `db/connection.py` (WAL, FK enforcement), `db/schema.sql`, `db/migrations/`, `db/repository.py`.
+3. **Identity**: `identity/hashing.py` (lazy SHA-256), `identity/matching.py` (dedup by hash/DOI/title), `identity/metadata.py` (DOI normalization, BibTeX parsing).
+4. **Migration script (Phase A)**: convert `consolidated.db` + existing markdown/summaries into new schema. Generate `paper_key` for each paper. Record `migrate_markdown`/`migrate_summary` in `processing_runs`. Produce migration report.
+5. **Scan/index**: `ingest/scanner.py` — find PDFs, compute hashes, store paths in `paper_files`.
+
+### Phase 1 — useful search + basic agent access (no LLM needed)
+
+6. **File generation**: write `.md`/`.json`/`.bib` bundles for all migrated papers (before search units, so index is derived from canonical representation).
+7. **Search units**: build `search_units` table from generated markdown (split by headings/equations). FTS triggers auto-sync.
+8. **FTS5 search**: `search/fts.py` — full-text search on `search_units`.
+9. **Tag-based search**: `taxonomy/aliases.py` — tag aliases, canonical mapping. `search/ranking.py` — weighted scoring with `--explain`.
+10. **CLI basics**: `paperdb scan`, `paperdb search --explain`, `paperdb status`, `paperdb inspect`, `paperdb get`.
+11. **Basic context pack**: `search/context.py` — assemble papers + summaries + relevant sections + match explanations + bibliography. No equations/methods yet.
+12. **Basic read-only MCP**: `mcp.py` — `search_papers`, `get_paper`, `get_paper_markdown`, `retrieve_context`. Validates the central use case early.
+
+At this point the system is already useful without new LLM work — all existing data is searchable and accessible to coding agents.
+
+### Phase 2 — reliable new ingestion
+
+13. **Ingest pipeline**: adapt `paper_pipeline.py` functions into `ingest/pipeline.py`. Use `pyCruncher.Agent` + `config/LLMs.toml`.
+14. **Docling backend**: `extract/docling_backend.py` — structured output + Markdown. The single paper JSON contains the useful normalized Docling structure. Do NOT produce a separate `docling.json` — raw parser debug output goes to `logs/debug/` only when `--keep-parser-debug` is requested.
+15. **Incremental jobs**: `ingest/jobs.py` — skip if equivalent `processing_runs` exists (same operation + input_sha256 + backend + config_hash + model + prompt). Process only new/changed papers. Supersede prior runs on success.
+16. **BibTeX matching**: `identity/metadata.py` — CrossRef lookup by DOI, Mendeley BibTeX import.
+17. **Internet fetch**: `ingest/fetch.py` — download PDFs + metadata from DOI/URL (CrossRef, arXiv).
+18. **Error and quality reports**: processing failures, low-confidence extractions.
+
+### Phase 3 — scientific extraction
+
+19. **Equation extraction**: `extract/equations.py` — `latex_raw`, `latex_normalized`, source coordinates, variable definitions as evidence records.
+20. **Method cards**: `extract/method_cards.py` — source_algorithm vs reconstructed_method, `card_json` with structured fields, `method_equations` junction for equation references.
+21. **Versioned summaries**: `synthesis/summaries.py` — prompt-driven summary via `pyCruncher.Agent`, keep history.
+22. **Tag extraction**: `taxonomy/extraction.py` — LLM tag extraction with extended categories, provisional tags. Record `run_id` in `paper_tags`.
+
+### Phase 4 — enriched agent access
+
+23. **Enriched MCP tools**: add `find_methods`, `find_equations`, `compare_methods`, `build_topic_review` to MCP. Enrich context pack with equations, method cards, comparison matrix.
+24. **Coding-agent integration tests**: verify MCP works with Cursor, Claude Desktop, etc.
+25. **Mutating MCP tools** (opt-in): `ingest_pdf`, `reprocess_document`, `merge_tags`.
+
+### Phase 5 — synthesis and intelligence
+
+26. **Topical overviews**: `synthesis/topic_reviews.py` — query → papers → method cards → comparison → evidence-backed synthesis.
+27. **Compare methods**: `paperdb compare` — comparison matrix across papers along specified axes.
+28. **Tag consolidation**: analyze tag distribution, merge aliases, build canonical taxonomy.
+29. **Citation graph**: reference extraction, `citations` table, `get_related_papers` by citation.
+
+### Phase 6 — optional enhancements (future)
+
+30. **Embeddings**: `search/vectors.py` — `sqlite-vec` for in-database vector search. `search/hybrid.py` — reciprocal-rank fusion.
+31. **Equation visual QA**: crop equation from PDF → render extracted LaTeX → compare → flag low-confidence.
+32. **GROBID backend**: bibliographic header extraction, reference parsing, citation graph.
+33. **GUI**: adapt `gui_browser.py` to use `PaperDB` API.
+34. **Zotero API integration**: sync with Zotero library.
+35. **Obsidian vault generator** (if user adopts Obsidian).
 
 ## 18. Design decisions (resolved)
 
@@ -782,12 +1225,13 @@ For RAG:
 
 Focus on the **global database** integrating all storage points (PDFs from different folders, Mendeley, etc.). Per-project databases with project-specific info are an open question for later — not now.
 
-### D3: PDF storage — RESOLVED: index in-place, markdown in user-specified folder
+### D3: PDF storage — RESOLVED: index in-place, semantic paper_key identity
 
 - **PDFs are NOT owned by paperdb.** They stay where they are. Paperdb is a metadata layer on top.
-- **Never move, copy, or reshuffle PDFs.** The DB stores `original_pdf_path` + `content_hash`.
-- **Markdown extracts go to a user-specified folder** (default `~/paperdb/`), NOT in `~/.local/share/paperdb/cache/<hash>/`. The user wants to be able to navigate markdown files manually. Markdown files should be organized in a human-browsable way (e.g. by stem name or topic), not hidden in hash-named cache directories.
-- When a PDF is moved by the user, detect by content hash and update the path in DB.
+- **Never move, copy, or reshuffle PDFs.** The DB stores paths in `paper_files` table with optional SHA-256 for dedup.
+- **Semantic `paper_key`** (e.g. `Macklin_2016_XPBD`) is the human-readable unique identifier — NOT a hash. DOI is canonical scholarly identifier when available. Hash is internal infrastructure only, never in filenames.
+- **Lean 3-file filesystem**: one `.md`, one `.json`, one `.bib` per paper, grouped by year. Human-browsable, not hidden in hash-named cache directories.
+- When a PDF is moved by the user, detect by hash and update the path in DB.
 
 ### D4: GUI — RESOLVED: not central focus, existing PyQt5 is good enough
 
@@ -797,10 +1241,12 @@ GUI is not a priority now. The existing `gui_browser.py` (PyQt5) works and will 
 
 Paperdb is built on top of `pyCruncher`. LLM access goes through `pyCruncher/Agent.py` — which already handles local (LM Studio), cloud (DeepSeek, Gemini, Claude, etc.), and any OpenAI-compatible API. Whether the LLM is local or cloud is not a concern of paperdb — it just uses the agent abstraction. The user selects the model via `config/LLMs.toml` key.
 
-### D6: Tag taxonomy — RESOLVED: provisional tags first, consolidate later
+### D6: Tag taxonomy — RESOLVED: provisional tags first, consolidate later, preserve raw assertions
 
 This is important but cannot be solved perfectly from the start. Strategy:
 - Assign **provisional tags** via LLM extraction (as currently done).
+- Use **extended tag categories**: domain, physical_system, phenomenon, model_or_theory, method, solver, data_structure, discretization, task, implementation, software, material_or_molecule, user.
+- **Preserve raw tag assertions** — don't delete original forms when merging. Store `raw_name` + `canonical_tag_id` + `source` + `confidence`.
 - **Analyze the tags** over time — with many detailed tags, it's easier to find patterns and consolidate them later.
 - Both user and LLMs can help with consolidation.
 - Use `clean_tags.py` + `tag_aliases` table as the mechanism.
@@ -815,24 +1261,26 @@ Target is a few thousand papers. Focus is not on massive scale but on **extracti
 User has no experience with Obsidian and doesn't know what a vault is. This is not a priority. The main focus is:
 - **MCP server** — so LLM agents can query the knowledge base.
 - **CLI** — so the user and LLMs can search and retrieve from the command line.
-- **Ability to take a paper (PDF path, name, or DOI) and find the full markdown** — which can be used as context for coding, writing articles, or grant proposals.
+- **Context packs** — assemble compact, evidence-bearing packages for LLM agents.
 
 The core use case: **quickly gather context from a bunch of articles and provide it to an LLM for processing.**
 
-### D9: Pseudocode / algorithm use case — RESOLVED: aggregation and combination, not copying
+### D9: Method cards — RESOLVED: source_algorithm vs reconstructed_method, with evidence links
 
 The goal is not to copy methods verbatim. The workflow is:
 1. **Find relevant papers** for a certain problem.
 2. **Provide them as context** to a coding agent.
 3. The agent **takes inspiration**, **aggregates/combines algorithms from multiple papers**, and **paraphrases** them — taking the best pieces from each.
-4. Having **truthful equations and algorithms** for each source paper is critical for this.
+4. Having **truthful equations and method cards** for each source paper is critical for this.
 
-So extraction quality matters more than format. The extracted equations and algorithms must be accurate and faithful to the source.
+Distinguish `source_algorithm` (verbatim from paper) vs `reconstructed_method` (LLM interpretation from multiple passages). Every reconstructed field refers back to source passages — lets coding agent distinguish "paper says this" from "model inferred this".
 
-### D10: Equation handling — RESOLVED: extraction and classification are separate issues
+### D10: Equation handling — RESOLVED: source fidelity, raw vs normalized, separate from classification
 
-- **Equation extraction** is about accurately extracting LaTeX from PDFs and being able to refer to it (which paper, which section, which equation number).
-- **Paper classification** (by topic, solver, domain) is a separate concern. Equations relevant to a topic are part of classifying the paper as a whole, not individual equation classification.
+- **Equation extraction** is about accurately extracting LaTeX from PDFs with source coordinates (page, section, equation number, bbox).
+- Store both `latex_raw` (what parser extracted) and `latex_normalized` (cleaned up) — never overwrite raw.
+- Variable definitions as separate evidence records with source location.
+- **Paper classification** (by topic, solver, domain) is a separate concern.
 - These two should be handled separately in the pipeline.
 
 ### D11: Auto-ingest / watch mode — RESOLVED: semi-automatic sync
@@ -845,14 +1293,272 @@ So extraction quality matters more than format. The extracted equations and algo
 
 Parse `library.bib` / `INTERESTS.bib` to match by filename/DOI. Re-import when user runs sync. Not a live watcher on Mendeley, but part of the semi-automatic sync cycle.
 
-### D13: Data directory — RESOLVED: `~/paperdb/` by default, user can override
+### D13: Data directory — RESOLVED: `~/paperdb/` by default, lean 3-file per paper
 
-Default data directory is `~/paperdb/` (simple, visible, user can navigate). User can override via env var `PAPERDB_DATA`. Markdown extracts, summaries, and other generated files go here in a human-browsable structure. The SQLite DB goes here too.
+Default data directory is `~/paperdb/` (simple, visible, user can navigate). User can override via env var `PAPERDB_DATA`. One `.md`, one `.json`, one `.bib` per paper, grouped by year. The SQLite DB goes here too.
 
-### D14: Old data in repo — RESOLVED: move to `~/paperdb/legacy/`, gradually migrate
+### D14: Old data in repo — RESOLVED: convert to new representation, two-phase migration
 
-- Process the old data and **move it to `~/paperdb/legacy/`** — do NOT reprocess everything with LLM (LLM processing is costly, and we already have results).
-- **Robust mechanism to reuse/reorder** existing legacy data into the new structure.
-- From `~/paperdb/legacy/`, **gradually move** data to the new location safely (not deleting the legacy copy until confirmed).
-- The migration script must be careful and non-destructive throughout.
+- Legacy data is **converted into the new Paperdb representation**, not preserved indefinitely in old format.
+- **Phase A**: copy to `~/paperdb/legacy/`, convert into new schema, reuse existing markdown/summaries (don't re-generate), generate `.md`/`.json`/`.bib` bundles, build search units. Non-destructive — original data untouched.
+- **Phase B**: validate conversion, manually inspect subset, keep old data as read-only backup, delete only after explicit user approval.
+- `processing_runs` records `migrate_markdown` / `migrate_summary` operations with `legacy_docling` / `legacy_pdfminer` backends — preserves provenance without preserving legacy filesystem structure.
+- LLM processing is costly — reuse existing results whenever possible.
+
+### D15: Processing state — RESOLVED: `processing_runs` table, not boolean flags
+
+Boolean flags (`summary_done=1`) are ambiguous — which model? which prompt? is it still valid? Use `processing_runs` table with backend, version, model, prompt_version, config_hash, status. "Is there a current successful run of this kind for this paper?" instead of checking a boolean. Enables: skip if equivalent run exists, regenerate if prompt changes, detect stale results.
+
+### D16: FTS granularity — RESOLVED: search_units table, not paper-level
+
+Paper-level FTS is wrong granularity — returns too much from one verbose paper. Use `search_units` table (section, paragraph, equation, method) with FTS5 on that. Two-stage retrieval: select papers first, then search within them.
+
+### D17: MCP design — RESOLVED: scientific tasks, read-only by default
+
+MCP tools should be organized around scientific questions (`find_methods`, `find_equations`, `compare_methods`, `build_topic_review`), not database mechanics. Read-only by default — accidental DB mutation by an autonomous agent is too easy. Mutating tools (`ingest_pdf`, `reprocess_document`, `merge_tags`) are separate and opt-in.
+
+### D18: Architecture — RESOLVED: CLI/MCP/GUI → PaperDB API → repository/services
+
+CLI, MCP, and GUI must not contain their own SQL queries or parsing logic. All go through a stable `PaperDB` API facade. This ensures consistency and makes the system maintainable.
+
+### D19: Source of truth — RESOLVED: SQLite authoritative for structured data, Markdown central representation
+
+SQLite is authoritative for structured metadata, tags, equations, methods, processing state, and paths. The Markdown file is the central complete representation. JSON and BibTeX are synchronized materialized views generated from the current database state and Markdown. All mutations go through the PaperDB API. This prevents drift from manual edits or interrupted processing.
+
+### D20: Markdown centrality — RESOLVED: Markdown is the primary form for both humans and LLMs
+
+Markdown is not merely a human-readable export. It is the central complete representation of a paper, used by both humans and LLM agents. A common workflow is to retrieve several relevant papers and provide their complete Markdown documents directly to an LLM. Consequently, Markdown extraction quality (equations in LaTeX, reading order, section hierarchy) is a primary scientific requirement, not merely a convenience. PDF is the original visual source; Markdown is the compiled representation; JSON is the structured companion; SQLite is the searchable catalogue.
+
+## 19. Future outlook (Phase 2+)
+
+Features deliberately deferred to later phases. These are **not** needed for the first useful version, but are natural extensions once the foundation is solid.
+
+### 19.1 Vector embeddings and hybrid search
+
+- `sqlite-vec` for in-database vector search (no separate Chroma/Qdrant service).
+- Reciprocal-rank fusion of FTS + vector scores.
+- Useful for conceptual queries where tags and exact language don't align (e.g. "atom-local rotational degrees of freedom" vs "oriented interaction sites attached to rigid particles").
+- Behind a `VectorIndex` interface — pin version, hide implementation.
+
+### 19.2 Equation visual QA
+
+- Crop equation image from PDF using `bbox_json`.
+- Render extracted LaTeX to image.
+- Compare visually (image similarity or VLM).
+- Flag low-confidence cases for manual or VLM review.
+- Won't prove mathematical equivalence, but excellent for detecting missing superscripts, indices, delimiters, symbols.
+
+### 19.3 GROBID backend
+
+- Bibliographic header extraction (authors, affiliations, abstract structure).
+- Reference parsing and citation graph construction.
+- Section hierarchy and citation callouts.
+- Strong for scholarly structure, not for equation extraction.
+
+### 19.4 Citation graph and knowledge graph
+
+- `citations` table populated from GROBID or reference parsing.
+- `get_related_papers` by citation, not just by tag overlap.
+- Genuine scientific graph relations: `paper USES solver`, `paper EXTENDS method`, `paper COMPARES_WITH paper`, `equation DEFINES variable`, `algorithm USES equation`, `method APPROXIMATES physical_model`, `paper CITES paper`.
+- Not needed now — typed tags are enough for the first version.
+
+### 19.5 NL query → structured tag query (LLM-assisted)
+
+- LLM translates natural language queries into structured search specifications (required tags, preferred tags, text terms).
+- SQLite executes deterministic retrieval.
+- MCP reports why each paper matched.
+- Separates LLM interpretation from DB retrieval — more transparent and debuggable than opaque vector similarity.
+
+### 19.6 Zotero API integration
+
+- Zotero desktop client exposes a local API.
+- API supports library metadata and full-text content.
+- Useful if user migrates from Mendeley to Zotero.
+- Not necessary for first implementation — existing Mendeley BibTeX import is a reasonable bridge.
+
+### 19.7 GUI improvements
+
+- Adapt `gui_browser.py` to use `PaperDB` API.
+- Add equation viewer (PDF crop ↔ extracted LaTeX side-by-side).
+- Add method card browser with evidence links.
+- Add tag management panel with alias editing.
+- Add context pack preview.
+
+### 19.8 Per-project databases
+
+- Project-specific overlays on top of the global database.
+- E.g. "papers relevant to this Fireball project" with project-specific notes.
+- Not needed now — global database is the priority.
+
+### 19.9 Obsidian vault generator
+
+- If user adopts Obsidian, generate vault from `paperdb` data.
+- Topic pages, tag pages, paper notes with backlinks.
+- Low priority — depends on user adopting Obsidian.
+
+### What to deliberately avoid (for now)
+
+- LangChain or LlamaIndex as central architecture — unnecessary complexity.
+- Neo4j or another graph database — typed tags in SQLite are sufficient.
+- PostgreSQL — SQLite is perfect for this scale.
+- A persistent web service — CLI + MCP are enough.
+- Multiple vector-database servers — `sqlite-vec` if needed.
+- Automatic filesystem watching — semi-automatic sync is sufficient.
+- Autonomous LLM mutation of metadata — read-only MCP by default.
+- An elaborate ontology before seeing the real tag distribution — let data inform classification.
+
+## 20. Lessons learned: parallel multi-agent development
+
+### 20.1 What happened
+
+PaperDB was built by 6 parallel agents (Tasks 1-6), each owning a set of files.
+Task 1 (Foundation) defined the `Repository` class and `PaperDB` API facade.
+Tasks 2-6 depended on Task 1 but started immediately, coding against the *spec*
+(the task `.md` files) rather than the actual implementation.
+
+Result: 13 interface mismatches documented in
+`docs/tasks/paperdb/task7_integration_gaps.md`. The system is architecturally
+complete but cannot run end-to-end without fixing all mismatches.
+
+### 20.2 Root causes
+
+1. **No interface contract artifact.** The task specs described method signatures
+   in prose and pseudocode, but there was no machine-checkable interface (protocol,
+   ABC, or type stubs) that downstream agents could import and verify against.
+   Each agent imagined a different `Repository` API.
+
+2. **Pydantic model objects vs keyword arguments.** Task 1's `Repository` methods
+   accept Pydantic model objects (`upsert_paper(paper: Paper)`, `add_paper_file(pf: PaperFile)`).
+   But Tasks 2-6 assumed Pythonic keyword-argument APIs
+   (`upsert_paper(paper_key=..., doi=..., title=...)`).
+   Both patterns are reasonable; the problem was the disagreement.
+
+3. **Method name drift.** Task 6 invented `repo.add_method()`, `repo.add_topic()`,
+   `repo.add_topic_overview()` — but Task 1 implemented `repo.upsert_method()`,
+   `repo.upsert_topic()`, `repo.save_topic_overview()`. The names diverged because
+   no shared vocabulary was enforced.
+
+4. **Missing Repository methods.** Task 6's `taxonomy/aliases.py` calls 14 Repository
+   methods that were never implemented (e.g. `get_tag_by_name`, `get_tag_by_id`,
+   `delete_tag`, `count_tag_aliases`). The task spec for Task 6 described the
+   *functionality* needed but didn't list exact Repository method names — so Task 6
+   invented reasonable names that Task 1 never implemented.
+
+5. **No integration test gate.** Each task wrote unit tests in isolation with mock
+   repositories. No task was responsible for an end-to-end integration test.
+   The mismatches only surfaced when we tried to wire the facade.
+
+6. **`PaperDB` facade left as stubs.** Task 1 left `NotImplementedError` stubs
+   for all cross-task methods. This was by design (other agents would wire them),
+   but no agent actually did the wiring — each task delivered its own modules
+   independently, and the facade integration fell through the cracks.
+
+### 20.3 What to do differently next time
+
+#### A. Generate a shared interface contract before parallel work starts
+
+Before any parallel agent starts, produce a **single Python file** with:
+
+- **Abstract base classes (ABCs) or `typing.Protocol`** for the Repository interface.
+  Every method name, parameter name, and return type is defined here.
+- **Pydantic model class definitions** (or imports) so all agents use the same
+  `Paper`, `PaperFile`, `Tag`, etc.
+- **Type stubs** (`.pyi`) or a `protocol.py` module that downstream agents import.
+
+```python
+# paperdb/interfaces.py — THE contract, created before any parallel work
+from typing import Protocol, Optional
+
+class RepositoryProtocol(Protocol):
+    def upsert_paper(self, paper_key: str, doi: str = None, title: str = None,
+                     authors_text: str = None, year: int = None, ...) -> int: ...
+    def add_paper_file(self, paper_id: int, path: str, sha256: str = None, ...) -> int: ...
+    def upsert_tag(self, canonical_name: str, category: str) -> int: ...
+    # ... every method, with exact signature
+```
+
+This file is **owned by nobody** (or by the architect only). All agents import from it.
+If an agent needs a method not in the protocol, they request it explicitly.
+
+#### B. Use keyword-argument Repository APIs, not model-object APIs
+
+The lesson: downstream callers universally prefer keyword arguments
+(`repo.upsert_paper(paper_key=..., doi=...)`) over constructing model objects
+(`repo.upsert_paper(Paper(paper_key=..., doi=...))`). This is the more ergonomic
+pattern for a repository. **Define the contract as kwargs from the start.**
+
+If you want type safety, use `@dataclass` or `TypedDict` for complex parameter
+groups, but keep the top-level API as kwargs.
+
+#### C. Run a "smoke test" gate before merging any task
+
+Before a task is considered done, it must pass:
+
+```bash
+# 1. Import check — does the module import without errors?
+python -c "from paperdb.ingest.scanner import scan_folder"
+
+# 2. Mock integration — does the module call the Repository protocol correctly?
+#    Use a MockRepository that implements the protocol and asserts calls.
+python -m pytest tests/paperdb/test_integration/mock_repo_test.py
+
+# 3. Facade wiring — does PaperDB.search() / .scan_folder() / .ingest_paper()
+#    actually delegate to the right submodule without NotImplementedError?
+python -c "from paperdb import PaperDB; db = PaperDB(); db.search('test')"
+```
+
+#### D. Assign explicit "integration owner" role
+
+One agent (or the architect) must be responsible for:
+- Wiring the `PaperDB` facade to all submodule implementations
+- Running end-to-end integration tests
+- Resolving any interface mismatches
+
+This is **not** a shared responsibility. Without an owner, it falls through the cracks.
+
+#### E. Stagger the critical path
+
+Don't let all 6 agents start simultaneously. Instead:
+
+```
+Phase 1: Task 1 (Foundation) — COMPLETE, including Repository + interfaces.py
+Phase 2: Tasks 2-6 start, importing interfaces.py as their contract
+Phase 3: Integration owner wires facade, runs end-to-end tests
+```
+
+The cost of waiting for Task 1 to finish is much lower than the cost of 13
+interface mismatches across 6 modules.
+
+#### F. Use a shared method-name vocabulary
+
+Maintain a table in the task README:
+
+| Repository method | Called by | Signature |
+|---|---|---|
+| `upsert_paper(paper_key, doi?, title?, ...)` | Task 2, 5 | `-> int` |
+| `add_paper_file(paper_id, path, sha256?, ...)` | Task 2, 5 | `-> int` |
+| `upsert_tag(canonical_name, category)` | Task 6 | `-> int` |
+| ... | ... | ... |
+
+Every agent references this table. If a method is missing, the agent raises it
+immediately rather than inventing a name.
+
+#### G. Avoid `hasattr` guards — they hide bugs
+
+Several callers used `if hasattr(repo, 'touch_file'): repo.touch_file(...)` —
+this silently skips functionality when the method doesn't exist. Instead:
+- If the method is in the contract, call it directly (let it crash if missing).
+- If the method is optional, define it in the protocol with a default no-op implementation.
+
+### 20.4 Summary checklist for future parallel development
+
+- [ ] **Interface contract file** (`interfaces.py` or `.pyi` stubs) created before any parallel work
+- [ ] **Repository API uses keyword arguments**, not model-object parameters
+- [ ] **Method-name vocabulary table** in task README, shared and agreed by all agents
+- [ ] **Critical-path task (Task 1) completed** before downstream tasks start coding
+- [ ] **Integration owner** explicitly assigned
+- [ ] **Smoke test gate**: import + mock-repo + facade-wiring test before task is "done"
+- [ ] **End-to-end integration test** as a separate deliverable (Task 7 equivalent)
+- [ ] **No `hasattr` guards** for contract methods — call directly, crash if missing
+- [ ] **Pydantic models shared** via the contract file, not redefined per task
 

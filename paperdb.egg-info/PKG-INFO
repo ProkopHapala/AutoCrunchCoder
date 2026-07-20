@@ -1,0 +1,28 @@
+Metadata-Version: 2.4
+Name: paperdb
+Version: 0.1.0
+Summary: Local scientific paper knowledge base — compile, index, retrieve
+Requires-Python: >=3.10
+License-File: LICENSE
+Requires-Dist: bibtexparser
+Requires-Dist: openai
+Requires-Dist: pydantic
+Requires-Dist: jinja2
+Requires-Dist: requests
+Requires-Dist: typer
+Requires-Dist: toml
+Provides-Extra: docling
+Requires-Dist: docling; extra == "docling"
+Provides-Extra: vlm
+Requires-Dist: pdf2image; extra == "vlm"
+Requires-Dist: Pillow; extra == "vlm"
+Provides-Extra: gui
+Requires-Dist: PyQt5; extra == "gui"
+Provides-Extra: gui-web
+Requires-Dist: streamlit; extra == "gui-web"
+Provides-Extra: mcp
+Requires-Dist: fastmcp; extra == "mcp"
+Provides-Extra: vector
+Requires-Dist: sqlite-vec; extra == "vector"
+Requires-Dist: sentence-transformers; extra == "vector"
+Dynamic: license-file

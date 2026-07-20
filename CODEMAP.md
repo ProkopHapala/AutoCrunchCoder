@@ -6,6 +6,7 @@ Quick-navigation map of the repository. Each entry links to the folder's own `RE
 
 ```
 AutoCrunchCoder/
+├── paperdb/             # Scientific paper knowledge base — SQLite+FTS5, PDF ingestion, extraction, search, CLI, MCP
 ├── pyCruncher/          # Core Python library — agents, analyzers, paper pipeline
 ├── pyCruncher2/         # Reorganized scientific-computing module (CAS, GPU, elements)
 ├── cpp/                 # Header-only C++ kernels (Vec3, Vec4, ForceFields)
@@ -25,6 +26,66 @@ AutoCrunchCoder/
 ├── FeatureChecklist.md  # Feature status tracker
 └── README.md            # Project elevator pitch
 ```
+
+## paperdb/ — Scientific Paper Knowledge Base
+
+**Central module of the repo.** Structured paper database with SQLite + FTS5 full-text search.Indexes PDFs (SHA-256 dedup, DOI/arXiv metadata lookup), extracts equations (LaTeX with source coordinates), method cards (source_algorithm + reconstructed_method via LLM), summaries, and taxonomy tags with aliases. Provides explainable search ranking, context-pack assembly for LLM agents, topical review generation, Typer CLI, and MCP server.
+
+See **[SKILL.md](paperdb/SKILL.md)** for CLI usage guide for coding agents.
+
+### Architecture
+
+`PaperDB` facade (`__init__.py`) delegates to submodules. `Repository` (`db/repository.py`) is the single SQL access layer. All methods accept Pydantic model objects or keyword arguments.
+
+```
+paperdb/
+├── __init__.py          # PaperDB facade — public API, delegates to submodules
+├── cli.py               # Typer CLI — thin wrapper over PaperDB API
+├── mcp.py               # MCP server (FastMCP) — read-only by default, mutations opt-in
+├── config.py            # LLM config loading via pyCruncher.Agent + config/LLMs.toml
+├── paths.py             # Data directory resolution (PAPERDB_DATA env, default ~/paperdb/)
+├── SKILL.md             # CLI usage guide for coding agents
+├── db/
+│   ├── schema.sql       # Canonical SQLite schema — papers, paper_files, processing_runs, search_units, tags, equations, methods, summaries, topics, context_packs
+│   ├── models.py        # Pydantic models for all entities (Paper, PaperFile, Tag, Equation, Method, Summary, etc.)
+│   ├── repository.py    # Repository — ALL SQL lives here. CRUD for every table. Accepts Pydantic objects or kwargs.
+│   └── connection.py    # Singleton SQLite connection (WAL, foreign_keys ON), init_schema(), db_transaction()
+├── identity/
+│   ├── hashing.py       # SHA-256 computation with lazy size+mtime cache
+│   ├── matching.py      # Paper identity: hash/DOI/metadata matching, paper key generation, find_or_create
+│   └── metadata.py      # DOI normalization, BibTeX parsing, CrossRef/arXiv metadata lookup
+├── ingest/
+│   ├── scanner.py       # Scan folders for PDFs, index by hash, Mendeley BibTeX import
+│   ├── fetch.py         # Add papers from DOI/arXiv/URL — fetch metadata, download PDF
+│   ├── pipeline.py      # Full ingest pipeline: convert→extract equations→extract methods→summarize→tag→build search units
+│   ├── jobs.py          # Incremental job execution with processing_runs (skip-if-equivalent logic)
+│   └── migration.py     # Legacy DB migration — import old SQLite data into new schema
+├── extract/
+│   ├── base.py          # Abstract BaseParser interface + ExtractionResult dataclass
+│   ├── docling_backend.py # Docling CLI backend — PDF→Markdown+JSON, equation extraction from structured output
+│   ├── equations.py     # Equation extraction from Docling output — LaTeX normalization, variable definitions
+│   └── methods.py       # Method card extraction — source_algorithm detection, LLM-based reconstructed_method
+├── taxonomy/
+│   ├── extraction.py    # LLM-based tag extraction from paper markdown — JSON parsing, alias resolution
+│   └── aliases.py       # Tag alias normalization, canonical resolution, merge tags, consolidation rules
+├── synthesis/
+│   ├── summaries.py     # LLM-generated scientific summaries — deactivate old, store new, format for embedding
+│   ├── method_cards.py  # Method card reconstruction from source_algorithm + reconstructed_method via LLM
+│   └── topic_reviews.py # Multi-step topical review: query→search→retrieve methods→compare→synthesize via LLM
+├── search/
+│   ├── fts.py           # FTS5 full-text search on search_units — query sanitization, markdown splitting
+│   ├── ranking.py       # Weighted scoring: FTS + tag matches + year filters + scoring breakdown
+│   └── context.py       # Context pack assembly: two-stage retrieval, token budget, comparison matrix, bibliography
+└── docs/tasks/paperdb/  # Task breakdown and integration gap tracking (parallel development history)
+```
+
+### Key Design Decisions
+
+- **Semantic identity, not hash-based**: Papers identified by `paper_key` (human-readable: `Macklin_2016_XPBD`), DOI, or arXiv ID. Multiple files can map to the same paper.
+- **Processing runs over boolean flags**: `processing_runs` table tracks which operation ran with which backend/config — enables skip-if-equivalent and provenance tracking.
+- **Search units, not whole-paper FTS**: Content indexed at section/paragraph/equation/method level for precise retrieval.
+- **Method cards**: Two types — `source_algorithm` (extracted from paper text) and `reconstructed_method` (LLM-reconstructed with assumptions, steps, I/O).
+- **Context packs**: Assembled markdown with selected papers, equations, methods, comparison matrix, bibliography — the primary artifact for feeding to coding agents.
 
 ## pyCruncher/ — Core Library
 

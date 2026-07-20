@@ -1,17 +1,21 @@
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/ProkopHapala/AutoCrunchCoder)
+
 # AutoCrunchCoder
 
-AutoCrunchCoder is a sophisticated, AI-driven framework for scientific software development, with a special focus on computational chemistry and physics. It leverages Large Language Models (LLMs) to automate and assist in the complex workflow of scientific research, from mathematical derivation to numerical simulation and visualization.
+AutoCrunchCoder is a sophisticated, AI-driven framework for scientific software development, with a special focus on computational chemistry and physics. It leverages Large Language Models (LLMs) to automate and assist in the complex workflow of scientific research, from literature analysis to mathematical derivation to numerical simulation and visualization.
 
 ## Core Philosophy
 
 The project aims to streamline the development of number-crunching scientific code by combining:
+- **PaperDB — Scientific Knowledge Base**: A structured paper database (`paperdb/`) that indexes PDFs, extracts equations/methods/tags via LLM, provides full-text search with explainable ranking, and assembles evidence-bearing context packs for coding agents. This is the central hub connecting literature to code generation.
 - **AI-Augmented Development**: Using LLMs for code generation, analysis, and refactoring.
 - **Symbolic Mathematics**: Integrating with Computer Algebra Systems (CAS) like Maxima to derive and simplify equations.
 - **High-Performance Computing**: Generating and analyzing C++ and Python code for performance-critical simulations, including GPU support with OpenCL/CUDA.
-- **End-to-End Workflow**: Supporting the entire research pipeline, from literature analysis (RAG) to final visualization.
+- **End-to-End Workflow**: Supporting the entire research pipeline — from PDF ingestion and equation extraction, through symbolic verification, to optimized GPU/CPU code generation.
 
 ## Navigation
 
+- **[paperdb/SKILL.md](paperdb/SKILL.md)** — CLI guide for coding agents using PaperDB
 - **[CODEMAP.md](CODEMAP.md)** — full repository structure with per-file role descriptions
 - **[FeatureChecklist.md](FeatureChecklist.md)** — feature status tracker (implemented / WIP / planned)
 - **[AGENTS.md](AGENTS.md)** — guidelines for AI agents working in this repo
@@ -27,7 +31,8 @@ The project aims to streamline the development of number-crunching scientific co
 - **Tool-Use Framework**: Auto-generate OpenAI/Gemini tool schemas from Python function signatures via `ToolScheme.schema()`; math tools use Maxima + SymPy + NumPy for symbolic/numerical verification.
 - **Codebase Analysis**: Static analysis for C++ and Python using tree-sitter + ctags (dual parser). Generates file skeletons, dependency/call graphs, folder stats, and LLM-assisted summaries — all written non-destructively to `.shadow/`.
 - **Automated Documentation**: Doxygen-style (`CodeDocumenter.py`) and Markdown (`CodeDocumenter_md.py`) documentation generation from source code analysis.
-- **PDF & Literature Pipeline**: Ingest scientific PDFs via docling / local VLM / pdfminer, extract equations and DOIs, fill metadata from CrossRef/BibTeX, chunk and summarize with LLMs, store in SQLite with full-text search, and build a typed knowledge graph.
+- **PaperDB — Structured Knowledge Base**: A complete paper management system (`paperdb/`) with SQLite + FTS5 backend. Indexes PDFs by SHA-256, deduplicates by DOI/metadata, extracts equations (LaTeX with source coordinates), method cards (source_algorithm + reconstructed_method), LLM-generated summaries, and taxonomy tags with aliases. Provides explainable search ranking, context-pack assembly for LLM agents, topical review generation, and a Typer CLI (`paperdb.cli`). MCP server for IDE agent integration included.
+- **PDF & Literature Pipeline** (legacy, `pyCruncher/paper_pipeline.py`): Earlier offline-first PDF→SQLite pipeline with docling/VLM/pdfminer backends. Superseded by PaperDB for new work.
 - **RAG & Knowledge Graph**: ChromaDB ingestion, RAG retrieval experiments, and knowledge-graph tagging of papers by scientific domain, math class, solver, and data structure.
 - **Symbolic Math Integration**: Maxima CAS wrapper for symbolic differentiation, integration, and simplification — used to derive and verify force-field expressions.
 - **Force-Field Code Generation**: Prompt templates (`prompts/ImplementPotential/`) for LLM-driven force-field implementation, with automatic formula verification via `check_formulas()` and FLOP counting.
@@ -40,7 +45,9 @@ The project aims to streamline the development of number-crunching scientific co
 
 ## Directory Structure
 
+*   **`paperdb/`**: **Central module** — scientific paper knowledge base with SQLite+FTS5, PDF ingestion, equation/method/tag extraction, search, context-pack assembly, CLI, and MCP server. See [paperdb/SKILL.md](paperdb/SKILL.md) for usage.
 *   **`pyCruncher/`**: The core Python library containing the agent system, code analyzers, and integrations with scientific tools.
+*   **`pyCruncher2/`**: Reorganized scientific-computing module (CAS, GPU, elements).
 *   **`cpp/`**: C++ source code for high-performance scientific calculations (e.g., `ForceFields.cpp`).
 *   **`tests/`**: A large collection of scripts for experimenting, testing, and demonstrating various features of the framework.
 *   **`examples/`**: A curated set of examples showcasing different capabilities like agent usage, code analysis, and scientific computing.
@@ -62,3 +69,4 @@ The project aims to streamline the development of number-crunching scientific co
     ```
 3.  **Set up API Keys**: Configure your LLM API keys as environment variables (e.g., `OPENAI_API_KEY`, `GOOGLE_API_KEY`) or add them to a `providers.key` file (see `config/LLMs.toml` for details).
 4.  **Explore**: Run scripts from the `tests/` or `examples/` directories to see the framework in action.
+5.  **PaperDB CLI**: Try `python -m paperdb.cli status` or `python -m paperdb.cli search "molecular dynamics"` — see [paperdb/SKILL.md](paperdb/SKILL.md) for full CLI reference.

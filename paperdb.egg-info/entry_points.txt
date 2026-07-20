@@ -1,0 +1,2 @@
+[console_scripts]
+paperdb = paperdb.cli:main

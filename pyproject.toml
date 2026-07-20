@@ -1,0 +1,24 @@
+[project]
+name = "paperdb"
+version = "0.1.0"
+description = "Local scientific paper knowledge base — compile, index, retrieve"
+requires-python = ">=3.10"
+dependencies = ["bibtexparser", "openai", "pydantic", "jinja2", "requests", "typer", "toml", "rich"]
+
+[project.scripts]
+paperdb = "paperdb.cli:main"
+
+[project.optional-dependencies]
+docling  = ["docling"]
+vlm      = ["pdf2image", "Pillow"]
+gui      = ["PyQt5"]
+gui-web  = ["streamlit"]
+mcp      = ["fastmcp"]
+vector   = ["sqlite-vec", "sentence-transformers"]
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["paperdb", "paperdb.db", "paperdb.identity", "paperdb.ingest", "paperdb.extract", "paperdb.search", "paperdb.synthesis", "paperdb.taxonomy"]
