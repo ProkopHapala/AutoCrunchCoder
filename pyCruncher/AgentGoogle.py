@@ -1,3 +1,19 @@
+"""
+Google Gemini agent — adapts the Agent interface to google.generativeai.
+
+Gemini's SDK uses `generate_content` with `parts` instead of OpenAI's
+`chat.completions.create` with `content`. Tool schemas also differ: Gemini
+expects `FunctionDeclaration` objects, not OpenAI-style JSON dicts.
+
+Non-obvious things:
+- `prepare_generation_config()` translates kwargs like `temperature` and
+  `max_output_tokens` into Gemini's `GenerationConfig`.
+- History items use `{"role": "model", "parts": [...]}` instead of
+  `{"role": "assistant", "content": "..."}`.
+- Tool calling requires converting our ToolScheme dicts to
+  `FunctionDeclaration` via `schema()`.
+"""
+
 import os
 from typing import Tuple, List, Dict, Any, Optional, Generator, Callable
 import google.generativeai as genai

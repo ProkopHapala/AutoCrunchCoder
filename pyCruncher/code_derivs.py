@@ -1,3 +1,21 @@
+"""
+Glue between symbolic math (Maxima) and LLM-generated force-field code.
+
+The core workflow: given an energy formula and a list of degrees of freedom,
+compute the analytical derivatives with Maxima, then ask an LLM to write
+C++ code for the energy and forces. This module verifies the LLM output by
+comparing its expressions against Maxima's, and estimates the arithmetic cost.
+
+Non-obvious things:
+- `check_formulas()` generates a Maxima script that expands and subtracts
+  the LLM expressions from the reference — if the difference is zero, the
+  code is correct. Non-zero differences are printed for debugging.
+- `count_operations()` is a crude FLOP estimate (div=3, mul=1, add=1, pow=20)
+  used to compare different algebraic forms of the same expression.
+- Prompt templates live in `prompts/ImplementPotential/` and are filled
+  with the Maxima-derived formulas.
+"""
+
 import os
 import Maxima as ma
 import re

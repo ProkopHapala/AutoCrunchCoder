@@ -1,3 +1,18 @@
+"""
+LLM-powered code documenter — Markdown output variant.
+
+Same idea as `CodeDocumenter.py` but produces Markdown documentation instead
+of Doxygen comments. Supports both DeepSeek and Google Gemini agents.
+
+Non-obvious things:
+- `bLogPrompts=True` saves the actual prompts sent to the LLM, which is
+  essential for debugging bad outputs.
+- `max_context_size` controls how much source code is sent per request —
+  too large and the model truncates, too small and it lacks context.
+- Files are processed one at a time; the agent sees the whole file (if it
+  fits) or just function signatures + bodies.
+"""
+
 from .AgentDeepSeek import AgentDeepSeek
 from .AgentGoogle import AgentGoogle
 from . import ctags

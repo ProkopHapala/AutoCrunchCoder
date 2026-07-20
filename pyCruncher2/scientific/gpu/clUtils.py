@@ -1,3 +1,18 @@
+"""
+OpenCL utility helpers — buffer rounding, timing, and convenience functions.
+
+Supporting module for OpenCLBase.py. Provides small helpers that make OpenCL
+code less verbose: rounding global work sizes to local-size multiples,
+computing memory requirements, and measuring kernel execution time.
+
+Non-obvious things:
+- `bytePerFloat=4` is used for memory calculations — assumes single precision.
+- `FFT` is initialized to None and set up lazily if needed (avoids importing
+  pyfft when it's not installed).
+- These helpers are intentionally flat functions, not a class — they're meant
+  to be called inline without holding state.
+"""
+
 import sys
 import os
 import numpy as np

@@ -1,3 +1,20 @@
+"""
+Thin Python wrapper around the Maxima Computer Algebra System (CAS).
+
+This is the pyCruncher2 reorganized version of pyCruncher/Maxima.py.
+Maxima is used for symbolic differentiation, integration, and expression
+simplification — the "ground truth" for verifying that LLM-generated
+force-field code matches the intended physics equations.
+
+Non-obvious things:
+- Commands are sent to a Maxima subprocess via stdin; `display2d:false` turns
+  off the pretty-printer so output is machine-parseable.
+- Lines ending with `$` (instead of `;`) are silent — no output printed.
+  Use `$` for intermediate assignments, `;` for results you want to read.
+- `get_derivs()` computes energy E and all partial derivatives dE/dof in one
+  batch call — much faster than calling Maxima separately for each derivative.
+"""
+
 import subprocess
 import  time
 

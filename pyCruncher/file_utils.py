@@ -1,3 +1,20 @@
+"""
+Generic file utilities — the workhorse scanner for all analyzers and pipelines.
+
+Provides file discovery with ignore patterns, reading/writing, path
+serialization, and serial processing with callbacks. Used by repo_mapper,
+paper_pipeline, CodeDocumenter, and others.
+
+Non-obvious things:
+- `should_ignore()` uses `fnmatch` against a list of glob patterns —
+  not `.gitignore` parsing, just a simple pattern list.
+- `process_files_serial()` applies a callback to each file with optional
+  timeout via `ThreadPoolExecutor` (even though it's serial, the timeout
+  prevents hangs on broken files).
+- `save_file_paths()` / `load_file_paths()` serialize a file list to a
+  numbered log — useful for resuming long batch runs.
+"""
+
 import os
 import fnmatch
 from concurrent.futures import ThreadPoolExecutor, as_completed, TimeoutError

@@ -1,13 +1,23 @@
 #!/usr/bin/env python3
 """paper_pipeline.py
 
-Reusable implementation for `tests/test_paper_pipeline.py`.
+Convert scientific PDFs into structured, LLM-ready content stored in SQLite.
 
-Design goals:
-- Minimal hard dependencies (stdlib-only at import time)
+The pipeline is deliberately offline-first and fail-soft:
+- Three PDF→markdown backends (docling → local VLM → pdfminer) are tried in
+  order; one broken PDF never kills the batch.
 - Optional integrations (docling, LM Studio, bibtexparser, pdfminer, pdf2image)
-  are imported lazily and fail-soft (return error string) so batch runs continue.
-- No plotting; pure data-oriented helpers.
+  are imported lazily so the module loads even without them.
+- Markdown is chunked by heading level, equations are extracted, and a
+  structured summary is produced per paper.
+- DOIs are mined from text and resolved via CrossRef; BibTeX exports fill
+  missing metadata.
+- A knowledge-graph stage tags each article with scientific domains, math
+  classes, solvers, and data structures.
+- Results are tracked by the PaperResult dataclass and persisted to SQLite
+  with full-text search on title/authors/journal/markdown.
+
+No plotting; pure data-oriented helpers. CLI driver is in tests/test_paper_pipeline.py.
 """
 
 import os

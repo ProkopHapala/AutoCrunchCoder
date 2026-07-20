@@ -1,3 +1,19 @@
+"""
+ctags wrapper — run universal-ctags and organize its JSON output by file/class.
+
+ctags is fast and handles many languages, but its output is a flat list of
+symbols. This module groups symbols by file and by class, making it easy to
+ask "what functions are in this file?" or "what methods does this class have?".
+
+Non-obvious things:
+- Uses `--output-format=json` which gives structured fields (kind, scope,
+  signature, line number) — much richer than the classic tags file format.
+- Log files (`tags_classes.log`, `tags_methods.log`, etc.) are written for
+  human inspection during debugging.
+- `process_ctags_json_claude()` reformats the output specifically for
+  feeding to an LLM (compact, deduplicated, with signatures).
+"""
+
 import re
 from collections import defaultdict
 import subprocess

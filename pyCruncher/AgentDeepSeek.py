@@ -1,3 +1,17 @@
+"""
+DeepSeek agent — adds FIM (fill-in-the-middle) and strict JSON mode on top of AgentOpenAI.
+
+DeepSeek's coder models support prefix/suffix completion (`fim_completion`),
+which is useful for code infilling tasks. The JSON helpers force
+`response_format={'type': 'json_object'}` so structured extraction is reliable.
+
+Non-obvious things:
+- Math tools (numerical derivative, integral, expression evaluation) are
+  imported here so they can be registered as callable tools in one place.
+- `stream_json` accumulates the full response before parsing — partial JSON
+  is not valid, so we yield chunks but only parse at the end.
+"""
+
 import json
 from typing import List, Dict, Any, Optional, Generator, Tuple
 from openai import OpenAI

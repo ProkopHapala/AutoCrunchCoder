@@ -1,3 +1,19 @@
+"""
+Tree-sitter plumbing — parser initialization and common syntax tree helpers.
+
+Handles the awkward setup of building tree-sitter language shared libraries
+and provides utility functions used by both the C++ and Python analyzers.
+
+Non-obvious things:
+- The C++ language library is built from a vendor checkout at
+  `/home/prokophapala/SW/vendor/tree-sitter-cpp` — this path is hardcoded
+  and must exist on the machine. The build produces `build/my-languages.so`.
+- `get_qualified_name()` walks up the syntax tree to build fully qualified
+  names like `Namespace::Class::method`.
+- `visit_tree()` is a recursive DFS walker that calls a callback for each
+  node — the analyzers use this to collect symbols.
+"""
+
 import tree_sitter
 import os
 

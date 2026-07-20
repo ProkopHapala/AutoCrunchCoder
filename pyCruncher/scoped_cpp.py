@@ -1,3 +1,20 @@
+"""
+Regex-based C++ scope analyzer — lightweight alternative to tree-sitter.
+
+Parses C++ source with pre-compiled regex patterns to find function
+declarations, class definitions, and their scopes. Less accurate than
+tree-sitter but much faster and has no external dependencies.
+
+Non-obvious things:
+- `FUNCTION_MODIFIERS` regex handles `const`, `override`, `final`,
+  `noexcept`, `volatile`, `throw()`, and `[[attributes]]` between the
+  closing `)` and the opening `{` or `;`.
+- Comments are stripped before matching (`COMMENT_PATTERN`).
+- This is a best-effort parser — it will miss template specializations,
+  operator overloads, and macro-generated functions. Use tree-sitter for
+  accuracy, use this for speed.
+"""
+
 import re
 import sys
 

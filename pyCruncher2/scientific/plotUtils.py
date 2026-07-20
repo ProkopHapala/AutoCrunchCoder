@@ -1,3 +1,19 @@
+"""
+Shared plotting helpers — energy/force curves, numerical derivatives, molecule plots.
+
+Centralizes common Matplotlib patterns used across scientific examples and
+tests. Keeps plotting separate from computation (per the project's SoC rule):
+core algorithms never call plt.show(); only CLI/main scripts do.
+
+Non-obvious things:
+- `plotEF()` plots energy and force side-by-side in a 2×1 subplot — the
+  standard layout for force-field validation plots.
+- `numDeriv()` computes a numerical derivative from arrays — used for
+  overlaying numerical vs analytical forces.
+- Element colors are pulled from `elements.py` so plots and the 3D renderer
+  use consistent atom coloring.
+"""
+
 import numpy as np
 import matplotlib.pyplot as plt
 from   matplotlib import collections  as mc

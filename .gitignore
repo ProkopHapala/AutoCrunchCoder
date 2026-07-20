@@ -4,3 +4,61 @@ __pycache__/
 *.so
 *.o
 build/
+
+# Secrets — NEVER commit
+*.key
+providers.key
+
+# AI tool logs
+.aider*
+
+# Build artifacts
+*.vsix
+
+# Compiled binaries
+nbody
+
+# Temp/output files
+tests/temp/
+tests/OUT
+tests/response.txt
+tests/response_formated.md
+tests/debug_LLM_answer.md
+tests/test_GoogleAI_response.md
+tests/test_coder_forcefield_responses.py
+tests/pdf_in.md
+tests/pdf_out.md
+
+# Pipeline output data (large, moving to ~/paperdb/)
+tests/paper_pipeline_out/
+
+# Data files (not source code)
+tests/library.bib
+tests/tags_all.json
+eFF_Su_2009.pdf
+
+# Generated summaries (LLM output, not source)
+tests/cpp_summaries_FireBall/
+tests/cpp_summaries_FireCore/
+tests/cpp_summaries_SimpleSimulationEngine/
+tests/cpp_summaries_*.tar.gz
+
+# C++ training examples (data, not part of this repo)
+tests/Cpp_Train/
+prompts/cpp_templates/FFderivs.cpp
+
+# Git commit summaries (generated benchmark data)
+tests/GitCommits/
+
+# Backups and copies
+*----bak.*
+*-bak.*
+*_bak.*
+*copy*.*
+
+# Empty stray files
+source
+tests/source
+
+# Old docs
+AGENTS-old.md

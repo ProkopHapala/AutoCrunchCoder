@@ -1,101 +1,83 @@
-# AutoCrunchCoder `/tests` 
+# tests/
 
-## Features Implemented and Tested
+Experimental test drivers — run them to verify functionality. Full output must be visible (no `| tail`, `| grep`, `&`). These are not pytest suites with assertions; they are scripts that exercise the framework end-to-end and print results for human inspection.
 
-This project contains a collection of scripts that demonstrate various functionalities, primarily focused on utilizing Large Language Models (LLMs) for different tasks and integrating them with other tools.  The following sections detail the individual scripts and their purposes.
+## LLM Agent Tests
 
-### Research
+| File | Tests |
+|------|-------|
+| `test_LLM_Agent.py` | Agent base class — template loading from `config/LLMs.toml`, API key resolution |
+| `test_DeepSeek.py` | DeepSeek connectivity and basic chat |
+| `test_DeepSeek_FIM.py` | Fill-in-the-middle completion (`fim_completion()`) |
+| `test_DeepSeek_JSON.py` | Strict JSON mode (`query_json()`, `stream_json()`) |
+| `test_DeepSeek_Tools.py` | Tool calling — math tools registered and invoked |
+| `test_deepseek_curl.py` | Raw curl-based DeepSeek API test |
+| `test_GoogleAI.py` | Gemini connectivity via `generate_content` |
+| `test_GoogleAI_Tools.py` | Gemini tool calling with `FunctionDeclaration` |
+| `test_Groq.py` | Groq connectivity (OpenAI-compatible endpoint) |
+| `test_Groq_Tools.py` | Groq tool calling |
+| `test_LMstutio.py` | LM Studio local inference — `check_lmstudio_with_url()` |
+| `LMstudio_agents.py` / `LMstudio_client.py` | LM Studio agent helpers |
 
-##### Research Article Classification 
+## Codebase Analysis Tests
 
-These scripts classify research articles based on their BibTeX entries and abstracts, extracting keywords and research areas.
+| File | Tests |
+|------|-------|
+| `test_repo_mapper.py` | Repo mapper pipeline — discovery → AST → ctags → skeleton → LLM summary |
+| `test_cpp_type_analyzer.py` | C++ tree-sitter analyzer — scope/class/call extraction |
+| `test_python_type_analyzer.py` | Python tree-sitter analyzer — imports, classes, calls |
+| `test_dependency_graph*.py` | Dependency graph builders (ctags + tree-sitter variants) |
+| `test_ctags.py` | ctags JSON processing — file/class grouping, `process_ctags_json_claude()` |
+| `test_tree_sitter.py` | Tree-sitter parser setup and node traversal |
+| `test_documenter.py` | Doxygen-style code documentation generation via LLM |
+| `test_GitToMarkdown.py` | Git history → Markdown conversion |
 
-- **files**: 
-    - `test_bibtex.py`
-    - `test_bibtex2.py`
+## Paper Pipeline Tests
 
-##### Summarization using LLMs
+| File | Tests |
+|------|-------|
+| `test_paper_pipeline.py` | PDF pipeline CLI — `--limit`, `--backend`, `--postprocess` flags |
+| `test_bibtex.py` / `test_bibtex2.py` | BibTeX loading, LaTeX decoding, n-gram extraction |
+| `test_sumarize_pdfs.py` / `test_sumarize_pdfs_new.py` | PDF summarization with LLM agents |
+| `test_sumarize_files.py` / `test_sumarize_files_f90.py` / `test_sumarize_files_SSE.py` | Source code summarization (Python, Fortran 90, SSE) |
+| `test_sumarize2.py` | Alternative summarization approach |
+| `test_pdf_text.py` | PDF text extraction test |
 
-These scripts demonstrate various approaches summarization of PDFs and text files and source-code, including parallel processing and different LLM agents.  Variations likely explore different summarization techniques or handle different file types (Fortran 90, SSE).
+## Scientific Math Tests
 
-- **files**: 
-    - PDF Summarization:
-        - `test_sumarize_pdfs.py` 
-        - `test_sumarize_pdfs_new.py`, 
-    - Source Code Summarization:
-        - `test_sumarize_files.py`, 
-        - `test_sumarize_files_f90.py`, 
-        - `test_sumarize_files_SSE.py`, 
-        - `test_sumarize2.py`
+| File | Tests |
+|------|-------|
+| `test_maxima_derivs.py` | Maxima derivative computation — `get_derivs(E, DOFs)` |
+| `test_pymaxima.py` | Maxima subprocess wrapper — `run_maxima()` |
+| `test_coder_forcefield.py` | Force-field code generation + `check_formulas()` verification |
+| `test_gen_math.py` | Math expression generation |
 
-### Coding AI
+## GPU Compute Tests
 
-##### Retrieval Augmented Generation (RAG) for code
+| File | Tests |
+|------|-------|
+| `test_pyOpenCL.py` | OpenCL smoke test — context, kernel, execution |
+| `test_pyCUDA.py` | CUDA smoke test — `SourceModule`, kernel execution |
+| `test_compile.py` | Compile C++ shared library for N-body (Coulomb) via `compile_utils.py` |
 
-These scripts demonstrate different RAG implementations using Langchain, OpenAI, and potentially other LLM providers (DeepSeek, Gemini). They showcase various methods for querying and retrieving information from a vector database built from a codebase.
+## RAG Tests
 
-- **files**:
-    - Generation (Vector Database Creation ): 
-        -`ingest_codebase.py` - 
-    - Retrieval & generation : 
-        - `RAG_retrival_langchain_openai.py`
-        - `RAG_retrival_DeepSeek.py`
-        - `RAG_retrival_GeminiFlash.py`
-        - `RAG_retrival_GeminiFlash_chroma.py`
+| File | Tests |
+|------|-------|
+| `ingest_codebase.py` | Ingest codebase into vector store for RAG |
+| `RAG_retrival_langchain_openai.py` | RAG retrieval with Langchain + OpenAI |
+| `RAG_retrival_DeepSeek.py` | RAG retrieval with DeepSeek |
+| `RAG_retrival_GeminiFlash.py` | RAG retrieval with Gemini Flash |
+| `RAG_retrival_GeminiFlash_chroma.py` | RAG retrieval with Gemini Flash + Chroma vector store |
 
-##### LLM Agent Testing 
-- **files**:
-  - *LMstudio* : 
-     - `LMstudio_agents.py`
-     - `LMstudio_client.py`
-     - `test_LMstutio.py`
-  - *DeepSeek* : 
-     - `test_DeepSeek.py`
-     - `test_DeepSeek_FIM.py`
-     - `test_DeepSeek_JSON.py`
-     - `test_DeepSeek_Tools.py`
-     -  `test_deepseek_curl.py`
+## Other
 
-
-
-- **Description**: These scripts test the interaction with and capabilities of different LLM agents through the LMstudio interface.
-- **Key Components**: LMstudio integration, testing of various LLM agents.
-
-##### Code Analysis
-
-These scripts likely perform static code analysis on C++ code using Clang.
- 
- - **files**:
-
-  - `test_ctags.py` - Use universal ctags to generate a tags file for a codebase (C,C++, fortran etc. ) and export it as python dictionary (class, methods, free functions, files etc. )
-  - `test_documenter.py` - Script to generate doc-strings for each function in a C/C++ codebase using LLMs and ctags.
-  - `test_gen_math.py` 
-
-  - `test_GitToMarkdown.py`, 
-  - `test_GoogleAI_Tools.py` 
-  - `test_GoogleAI.py` 
-  - `test_Groq_Tools.py` 
-  - `test_Groq.py` 
-  - `test_maxima_derivs.py` 
-  - `test_pdf_text.py`, 
-
-- **files**:
-  - `test_clang_lint copy.py`
-  - `test_cpp_lint.py`
-- **Description**: These scripts likely perform static code analysis on C++ code using Clang.
-- **Key Components**: Clang integration, static code analysis.
-
-
-### Other Coding
-
-This category encompasses various utility scripts for tasks such code documentation, mathematical expression generation, error code generation, Git commit message conversion to Markdown, interaction with Google AI tools, Groq tools, Maxima symbolic calculations, PDF text extraction, and CUDA/OpenCL code testing.  These scripts demonstrate the versatility of the project in integrating LLMs with various tools and workflows.
-
-- **files**:
- - `test_GenerateErrorCode.py` - Atempt to automatically generate errors in code as a way of generating examples for LLMs training to correct these errors.
- - `test_pyCUDA.py` - 
- - `test_pymaxima.py` - 
- - `test_pyOpenCL.py` -
- - `test_compile.py` - This script compiles and tests a C++ shared library for n-body simulations (Coulomb interactions), demonstrating the integration of compiled code with Python.
- - `test_coder_forcefield.py` -  This script tests the implementation of a force field equation (likely Lenard-Jones potential) and its derivatives, using LLMs to simplify mathematical expressions.
+| File | Tests |
+|------|-------|
+| `test_GenerateErrorCode.py` | Automatically generate code errors as training examples for LLM error correction |
+| `test_clang_lint copy.py` / `test_cpp_lint.py` | C++ static analysis with Clang |
+| `Cpp_Train/` | C++ training/reference snippets for code generation |
+| `GitCommits/` | Git commit summaries generated by multiple LLM models |
+| `Model_Benchmarks/` | LLM benchmark results and comparisons |
 
 

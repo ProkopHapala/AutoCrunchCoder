@@ -1,3 +1,20 @@
+"""
+OpenAI-compatible agent — the workhorse for most providers.
+
+Because the OpenAI Python SDK accepts a configurable `base_url`, this single
+class covers OpenAI, Groq, OpenRouter, LM Studio, Ollama, and any other
+OpenAI-style endpoint. The only difference is which template/profile is loaded
+from config/LLMs.toml.
+
+Non-obvious things:
+- `requests.Session()` is kept for lightweight HTTP probes (e.g. checking
+  if LM Studio is online before creating the OpenAI client).
+- Tool calls are extracted from `message.tool_calls` and dispatched by the
+  base class `try_tool()`.
+- Streaming yields text chunks via a generator; history is appended after
+  the full response is collected.
+"""
+
 import openai
 from openai import OpenAI
 import os

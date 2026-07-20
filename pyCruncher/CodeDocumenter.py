@@ -1,3 +1,21 @@
+"""
+LLM-powered code documenter — generate Doxygen-style docs for C++ functions.
+
+Reads a ctags database to know what functions exist, then for each function
+sends its signature + body (or surrounding context) to a DeepSeek agent and
+asks for a Doxygen comment block. The challenge is giving the LLM enough
+context without exceeding the token limit.
+
+Non-obvious things:
+- `find_function_end()` uses brace matching to locate function bodies —
+  this is a heuristic and can fail on macros or template-heavy code.
+- `get_function_context()` vs `get_function_context_wholefile()` vs
+  `get_function_context_body()` — three strategies for how much context to
+  send: just the declaration, the whole file, or just the body. The choice
+  depends on the function's complexity and the model's context window.
+- Uses `AgentDeepSeek` by default but can be swapped for other agents.
+"""
+
 #import os
 #from .AgentDeepSeek import AgentDeepSeek
 

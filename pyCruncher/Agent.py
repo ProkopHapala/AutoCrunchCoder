@@ -1,3 +1,20 @@
+"""
+Abstract base class for all LLM agents in the framework.
+
+The key idea: one interface (`query`, `stream`, `try_tool`) that works across
+OpenAI, Google, DeepSeek, Anthropic, LM Studio, Ollama, Groq, and OpenRouter.
+Each provider subclasses Agent and translates to its native SDK.
+
+Non-obvious things:
+- Model profiles (name, base_url, api_key env var, context length) are loaded
+  from config/LLMs.toml by template name, not hardcoded.
+- Tool calling is provider-agnostic: `try_tool()` dispatches to registered
+  Python callbacks; each subclass only needs to implement `extract_tool_call()`.
+- `bHistory` controls whether the conversation accumulates in `self.history`
+  or is treated as stateless.
+- `bTools` gates whether tool definitions are sent with the request at all.
+"""
+
 import os
 from abc import ABC, abstractmethod
 from typing import Tuple, List, Dict, Any, Optional, Generator, Callable, Optional

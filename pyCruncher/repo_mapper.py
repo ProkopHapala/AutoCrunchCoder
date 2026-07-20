@@ -1,11 +1,23 @@
 #!/usr/bin/env python3
-"""
-repo_mapper.py — Consolidated code analysis & documentation tool.
+"""repo_mapper.py — Non-destructive repository analysis and documentation.
 
-Combines ctags, Python AST, git history, and optional LLM summarization
-to produce a non-destructive "shadow" analysis of a repository.
+Walks a codebase and produces skeletons, dependency graphs, folder stats, and
+optional LLM summaries — all written to a shadow directory so the source repo
+is never touched.
 
-All outputs go to a shadow directory; source repo is never modified.
+The pipeline is: discover files → parse (Python AST + ctags) → generate
+skeletons → optionally summarize with a local LLM → write roll-ups (tech
+matrix, concept map, import edges).
+
+Non-obvious things:
+- Python files are parsed with the stdlib `ast` module (no tree-sitter needed);
+  ctags handles C++ and other languages.
+- `DEFAULT_IGNORES` filters out `.git`, `__pycache__`, `node_modules`, `build`,
+  `.shadow`, etc. so the scan stays focused on source.
+- LLM summarization is optional and only triggered when a model is available;
+  skeletons are always generated from static analysis alone.
+- The tech matrix is a CSV with folders as rows and languages as columns,
+  showing file counts — useful for spotting language sprawl.
 """
 
 import os

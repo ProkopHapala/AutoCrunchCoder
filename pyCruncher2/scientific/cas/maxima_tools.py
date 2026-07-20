@@ -1,3 +1,22 @@
+"""
+Math tools callable by LLM agents — symbolic and numerical verification.
+
+This is the pyCruncher2 reorganized version of pyCruncher/tools.py.
+These functions are registered as tools so that an LLM agent can compute
+derivatives, integrals, and numerical checks during a conversation. The
+key design principle is cross-validation: every symbolic result from Maxima
+is checked against a numerical finite-difference estimate using NumPy/SymPy.
+
+Non-obvious things:
+- `symbolic_derivative()` uses Maxima (not SymPy) because Maxima's
+  simplification is often better for physics expressions.
+- `check_numerical_vs_analytical_derivative()` compares the SymPy analytical
+  derivative with a NumPy finite-difference at a random point — if they
+  disagree, the expression is likely wrong.
+- `compute_expression_steps()` evaluates a sequence of named sub-expressions
+  in order, so the LLM can build up complex calculations step by step.
+"""
+
 import subprocess
 import re
 import numpy as np

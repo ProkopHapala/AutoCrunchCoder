@@ -1,3 +1,20 @@
+"""
+BibTeX/Mendeley export helpers — normalize metadata for the paper pipeline.
+
+Turns raw .bib files into clean Unicode strings and extracts common n-grams
+for keyword discovery. The main challenge is that BibTeX entries from
+Mendeley/Zotero often have LaTeX-encoded characters, inconsistent path
+decorators (`:pdf` suffixes), and mixed encoding.
+
+Non-obvious things:
+- `decode_latex()` uses the `latexcodec` library to convert LaTeX accents
+  (e.g. `\\'e` → `é`) and then strips extra braces.
+- `extract_ngrams()` uses sklearn's CountVectorizer with a custom stopword
+  list that includes both English common words AND BibTeX field names.
+- `convert_custom_path()` strips Mendeley's `:` and `:pdf` path decorators
+  that break file lookups on Linux.
+"""
+
 from sklearn.feature_extraction.text import CountVectorizer
 import re
 from collections import defaultdict, Counter

@@ -1,3 +1,22 @@
+"""
+C++ type and scope analyzer using tree-sitter.
+
+Builds a hierarchical registry of namespaces, classes, methods, functions,
+variables, and function calls from C++ source. The registry lets other tools
+answer questions like "what functions are defined in this class?" and "what
+does this function call?".
+
+Non-obvious things:
+- Uses a `TypeCollector` visitor that walks the tree-sitter syntax tree and
+  populates `TypeRegistry` with `Scope` objects (nested by namespace/class).
+- `DEBUG_LEVEL` controls logging verbosity (0=INFO, 1=DEBUG, 2=TRACE) —
+  TRACE prints every node visit, which is very noisy but essential for
+  debugging parse failures.
+- C++ is hard to parse: templates, operator overloading, and macros mean
+  the analyzer is inherently incomplete. It's a best-effort first pass,
+  complemented by ctags.
+"""
+
 import os
 import logging
 from dataclasses import dataclass, field

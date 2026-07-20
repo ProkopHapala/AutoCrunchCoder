@@ -1,71 +1,29 @@
-# prokop-bot README
+# prokop-bot
 
-This is the README for your extension "prokop-bot". After writing up a brief description, we recommend including the following sections.
+VS Code extension for AutoCrunchCoder — provides a chat UI inside VS Code that connects to the `pyCruncher/` agent system. Users can select a model profile from `config/LLMs.toml`, send prompts, and view streaming responses in a webview panel.
 
 ## Features
 
-Describe specific features of your extension including screenshots of your extension in action. Image paths are relative to this README file.
+- Chat with any configured LLM agent (DeepSeek, Gemini, OpenAI, LM Studio, etc.) directly from VS Code
+- Model selection via `config/LLMs.toml` profiles
+- Streaming response display in a webview panel
+- Tree view of agent sessions and conversation history
+- Python helper scripts bridge TypeScript → `pyCruncher/Agent*.py`
 
-For example if there is an image subfolder under your extension project workspace:
+## Build & Package
 
-\!\[feature X\]\(images/feature-x.png\)
+```bash
+npm install
+npm run compile
+# Package as .vsix:
+npx vsce package
+```
 
-> Tip: Many popular extensions utilize animations. This is an excellent way to show off your extension! We recommend short, focused animations that are easy to follow.
+## Project Structure
 
-## Requirements
+- `src/extension.ts` — Extension entry point
+- `src/webview.ts` — Webview chat panel
+- `src/treeDataProvider.ts` — Session tree view
+- `src/script.py` / `script_agent.py` — Python helpers invoked by the extension
 
-If you have any requirements or dependencies, add a section describing those and how to install and configure them.
-
-## Extension Settings
-
-Include if your extension adds any VS Code settings through the `contributes.configuration` extension point.
-
-For example:
-
-This extension contributes the following settings:
-
-* `myExtension.enable`: Enable/disable this extension.
-* `myExtension.thing`: Set to `blah` to do something.
-
-## Known Issues
-
-Calling out known issues can help limit users opening duplicate issues against your extension.
-
-## Release Notes
-
-Users appreciate release notes as you update your extension.
-
-### 1.0.0
-
-Initial release of ...
-
-### 1.0.1
-
-Fixed issue #.
-
-### 1.1.0
-
-Added features X, Y, and Z.
-
----
-
-## Following extension guidelines
-
-Ensure that you've read through the extensions guidelines and follow the best practices for creating your extension.
-
-* [Extension Guidelines](https://code.visualstudio.com/api/references/extension-guidelines)
-
-## Working with Markdown
-
-You can author your README using Visual Studio Code. Here are some useful editor keyboard shortcuts:
-
-* Split the editor (`Cmd+\` on macOS or `Ctrl+\` on Windows and Linux).
-* Toggle preview (`Shift+Cmd+V` on macOS or `Shift+Ctrl+V` on Windows and Linux).
-* Press `Ctrl+Space` (Windows, Linux, macOS) to see a list of Markdown snippets.
-
-## For more information
-
-* [Visual Studio Code's Markdown Support](http://code.visualstudio.com/docs/languages/markdown)
-* [Markdown Syntax Reference](https://help.github.com/articles/markdown-basics/)
-
-**Enjoy!**
+See `src/README.md` for source-level details.

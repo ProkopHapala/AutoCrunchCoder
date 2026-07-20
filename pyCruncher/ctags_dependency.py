@@ -1,3 +1,21 @@
+"""
+Dependency extraction from ctags output — build call graphs from source.
+
+Goes beyond symbol listing: reads function bodies, identifies which symbols
+are called inside each function, and builds a dependency tree. This is the
+core of the "who calls whom" analysis.
+
+Non-obvious things:
+- `DependencyProcessor` reads the ctags JSON, then for each function it
+  scans the source lines for identifiers that match known function names.
+  This is a textual scan, not a real AST — fast but may produce false
+  positives (e.g. comments, string literals).
+- `FunctionInfo` records carry `qualified_name` (e.g. `MyClass::myMethod`)
+  to distinguish methods from free functions with the same name.
+- The dependency tree can be serialized for visualization or for feeding
+  to an LLM as context.
+"""
+
 import re
 from collections import defaultdict
 import subprocess

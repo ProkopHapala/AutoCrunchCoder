@@ -1,5 +1,18 @@
 
+"""
+Compile C++ code into shared libraries and call it from Python via ctypes.
 
+Bridges the gap between LLM-generated C++ force-field code and Python
+orchestration: compile a `.cpp` file with `g++ -shared`, load it with ctypes,
+and expose the functions as Python callables with proper NumPy array types.
+
+Non-obvious things:
+- Pre-defined `array1d`, `array2d`, `array1i`, etc. are ctypes ndpointer
+  types that enforce dtype and contiguosity at the Python→C boundary.
+- The compilation uses `subprocess.run(['g++', ...])` — no build system
+  dependency, just a direct compiler call.
+- This is intentionally minimal: no CMake, no Makefile, just g++ and ctypes.
+"""
 
 from   ctypes import c_int, c_double, c_bool, c_float, c_char_p, c_bool, c_void_p, c_char_p
 import ctypes

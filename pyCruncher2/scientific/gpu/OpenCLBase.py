@@ -1,3 +1,21 @@
+"""
+OpenCL base class — device selection, context management, and kernel loading.
+
+Provides a reusable foundation for OpenCL experiments: pick a device, create
+a context and queue, compile `.cl` kernel files, and manage buffers. The goal
+is to eliminate boilerplate so that scientific kernels can be tested quickly.
+
+Non-obvious things:
+- `select_device()` prefers NVIDIA GPUs by default (preferred_vendor='nvidia')
+  — this is critical because PoCL/CPU timings should never be reported as GPU.
+- `load_program()` compiles a `.cl` file and optionally extracts kernel
+  signatures via regex — useful for quick inspection without reading the source.
+- Buffer management uses a dict (`self.buffers`) keyed by name, so kernels
+  can reference buffers by string instead of carrying cl.Buffer objects around.
+- The module imports `clUtils` (as `clu`) for helper functions like rounding
+  global sizes to local-size multiples.
+"""
+
 import os
 import re
 import numpy as np

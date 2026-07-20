@@ -1,3 +1,19 @@
+"""
+Auto-generate LLM tool-call schemas from plain Python functions.
+
+Instead of hand-writing JSON schemas for every tool, this module introspects
+a function's signature and docstring to produce the schema that OpenAI/Gemini
+expect. Parameter types are inferred from annotations; descriptions are parsed
+from the docstring (`param_name: description` lines).
+
+Non-obvious things:
+- `bOnlyRequired=True` omits optional parameters — useful when the LLM tends
+  to hallucinate values for parameters it doesn't understand.
+- The `strict: True` flag tells OpenAI to enforce the schema exactly.
+- Python type annotations are mapped to JSON schema types (`int`→`integer`,
+  `float`→`number`, `bool`→`boolean`, everything else→`string`).
+"""
+
 import inspect
 from typing import Callable, Dict, Any, Optional
 import re

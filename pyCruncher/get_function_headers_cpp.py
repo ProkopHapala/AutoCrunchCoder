@@ -1,3 +1,20 @@
+"""
+Extract C++ function declarations (headers) from source files using regex.
+
+Finds function signatures by matching return-type + name + parameter-list
+patterns, filtering out C++ keywords (`if`, `while`, `for`, etc.) that
+look like function names. Useful for quickly listing what functions exist
+in a file without parsing the full AST.
+
+Non-obvious things:
+- `is_not_function()` filters out control-flow keywords that match the
+  function pattern (e.g. `if (condition)` looks like a function call).
+- The regex uses `re.VERBOSE` mode with inline comments explaining each
+  capture group.
+- Like `scoped_cpp.py`, this is a regex-based best-effort approach — it
+  will miss templates and operator overloads.
+"""
+
 import sys
 import re
 

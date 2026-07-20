@@ -1,3 +1,19 @@
+"""
+Periodic table data — element symbols, atomic numbers, radii, masses, colors.
+
+A flat list of tuples indexed by the constants below (index_Z, index_symbol,
+etc.). No class hierarchy, no periodic table object — just data. This is the
+single source of truth for element properties used by the molecule renderer,
+force-field parameterization, and plotting helpers.
+
+Non-obvious things:
+- `index_color` stores an RGB tuple for visualization (used by plotUtils
+  and molecule_renderer).
+- `index_Rcov` and `index_Rvdw` are covalent and van der Waals radii in
+  Angstroms — used for bond detection and rendering.
+- `index_val_elec` is the number of valence electrons — used for charge
+  assignment in force-field calculations.
+"""
 
 index_Z = 0
 index_symbol = 1

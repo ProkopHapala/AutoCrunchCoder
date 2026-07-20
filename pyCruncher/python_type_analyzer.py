@@ -1,3 +1,18 @@
+"""
+Python type and scope analyzer using tree-sitter.
+
+Mirror of `cpp_type_analyzer.py` for Python source. Tracks classes, methods,
+functions, imports, and call relationships in a `TypeRegistry`.
+
+Non-obvious things:
+- Uses tree-sitter (not the stdlib `ast` module) for consistency with the
+  C++ analyzer and to share the same visitor pattern.
+- `TypeCollector` walks the syntax tree and populates scope objects with
+  `FunctionInfo`, `MethodInfo`, and `ClassInfo` records.
+- The registry can be queried to build dependency graphs or to provide
+  context to LLM-based code documenters.
+"""
+
 import os
 import logging
 from dataclasses import dataclass, field

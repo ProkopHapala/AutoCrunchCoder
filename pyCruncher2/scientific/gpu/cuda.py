@@ -1,3 +1,17 @@
+"""
+Minimal CUDA smoke test — compile and run a kernel from a .cu file.
+
+PyCUDA counterpart to opencl.py. Demonstrates the bare minimum: autoinit,
+compile a kernel from source, run it, print results. The kernel source is
+read from `./nbody.cu` in the current directory.
+
+Non-obvious things:
+- `pycuda.autoinit` creates a default context — no explicit device selection.
+- The kernel is compiled at runtime via `SourceModule` — no nvcc invocation
+  needed, PyCUDA calls the CUDA driver compiler internally.
+- Like opencl.py, this is a standalone script, not a library module.
+"""
+
 import sys
 sys.path.append("../")
 import pycuda.autoinit

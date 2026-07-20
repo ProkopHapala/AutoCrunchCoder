@@ -1,3 +1,16 @@
+"""
+Anthropic Claude agent — minimal implementation of the Messages API.
+
+This is the most basic agent: it sets up the `anthropic.Anthropic` client and
+implements `query`/`stream`. Tool calling is not fully wired yet — the base
+class interface is there but `extract_tool_call` needs provider-specific work.
+
+Non-obvious things:
+- Uses a hardcoded 8192 context length (should be read from the model profile).
+- The import `from Agent import Agent` (not `.Agent`) suggests this file was
+  written to be run standalone at some point.
+"""
+
 import os
 from typing import Dict, Any, List, Generator
 from Agent import Agent

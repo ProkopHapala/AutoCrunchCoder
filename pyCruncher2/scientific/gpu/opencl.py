@@ -1,3 +1,17 @@
+"""
+Minimal OpenCL smoke test — compile and run a kernel from a .cl file.
+
+This is a standalone script (not a library module) that demonstrates the
+bare minimum: create context, compile a kernel, run it, print results.
+Useful for quick experiments and as a template for new OpenCL code.
+
+Non-obvious things:
+- `sys.path.append('../')` is needed because the script is meant to be run
+  from within the gpu/ directory, not imported as a module.
+- `PYOPENCL_CTX` environment variable selects the device — set it to
+  the platform index (e.g. `export PYOPENCL_CTX='1'`).
+"""
+
 import sys
 sys.path.append("../")
 import pyopencl as cl

@@ -1,3 +1,17 @@
+"""
+Git history helpers — extract commit logs, diffs, and file changes as Markdown.
+
+Used by the repo mapper and audit tools to produce a human-readable changelog
+from git history. Each commit's metadata, changed files, and diff are written
+to a Markdown file for review.
+
+Non-obvious things:
+- Uses `subprocess.run(['git', ...])` directly — no GitPython dependency.
+- `get_commit_diff()` returns the full diff text; for large commits this
+  can be very long, so callers should truncate or summarize.
+- `process_commit()` combines log + diff + file list into one Markdown page.
+"""
+
 import subprocess
 import re
 

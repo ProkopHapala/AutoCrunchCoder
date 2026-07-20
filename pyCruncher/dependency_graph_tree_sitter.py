@@ -1,3 +1,18 @@
+"""
+Dependency graph builder using tree-sitter syntax trees.
+
+Parses C++ and Python files with tree-sitter, extracts functions/classes/
+calls, and builds a graph of who-calls-whom. Complements the ctags-based
+dependency processor with more precise AST-level information.
+
+Non-obvious things:
+- `FunctionInfo` carries `calls: Set[str]` — the set of function names
+  called within the body. This is extracted from the AST, not from text
+  scanning, so it's more accurate than ctags_dependency.
+- `FileInfo` aggregates all functions and classes in a single file.
+- `parse_directory()` walks a folder and returns a dict of file→FileInfo.
+"""
+
 import os
 from dataclasses import dataclass, field
 from typing import List, Dict, Set
